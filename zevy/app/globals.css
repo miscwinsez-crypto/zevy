@@ -1,0 +1,319 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-main: #050505;
+  --bg-panel: #101010;
+  --bg-sidebar: #0e0e0e;
+  --text-primary: #f5f5f5;
+  --text-muted: #8a8a8a;
+  --border-divider: #1f1f1f;
+  --border-input: #1f1f1f;
+  --accent-primary: #ffffff;
+  --accent-teal: #10a37f;
+}
+
+body {
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #101010 0%, #23272f 100%);
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  overflow: hidden;
+  min-height: 100vh;
+  box-shadow: 0 0 40px 0 rgba(0,0,0,0.45) inset;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-input);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-divider);
+}
+
+/* Smooth transitions */
+.transition-smooth {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-width {
+  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Message animations */
+@keyframes messageSlide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-entry {
+  animation: messageSlide 0.2s ease-out;
+  border-radius: 16px;
+  box-shadow: 0 2px 16px rgba(14,165,233,0.08);
+  background: linear-gradient(135deg, #141a2b 0%, #23272f 100%);
+  border: 1px solid var(--border-divider);
+}
+
+/* Typing animation */
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.dot-pulse {
+  animation: dotPulse 1.2s infinite;
+}
+
+.dot-pulse:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dot-pulse:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.2s cubic-bezier(.4,2,.3,1), box-shadow 0.2s;
+}
+.hover-lift:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+/* Rounded corners standard */
+.rounded-zevy {
+  border-radius: 8px;
+}
+
+/* Button styles */
+.btn-zevy {
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  background: linear-gradient(90deg, #0ea5e9 0%, #38bdf8 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(14,165,233,0.08);
+  border: none;
+  transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.btn-zevy:hover {
+  background: linear-gradient(90deg, #38bdf8 0%, #0ea5e9 100%);
+  box-shadow: 0 4px 16px rgba(14,165,233,0.18);
+  transform: translateY(-2px) scale(1.04);
+}
+
+.btn-primary {
+  background: #10a37f;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0d8c6c;
+}
+
+.btn-secondary {
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--border-divider);
+}
+
+/* Code blocks */
+pre {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-divider);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 14px;
+}
+
+code {
+  background: var(--bg-sidebar);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+}
+
+/* Markdown styles */
+.markdown h1, .markdown h2, .markdown h3 {
+  margin-top: 20px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.markdown p {
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.markdown ul, .markdown ol {
+  margin-left: 20px;
+  margin-bottom: 12px;
+}
+
+.markdown li {
+  margin-bottom: 6px;
+}
+
+.markdown a {
+  color: #0ea5e9;
+  text-decoration: none;
+}
+
+.markdown a:hover {
+  text-decoration: underline;
+}
+
+/* Selection highlight */
+::selection {
+  background: var(--accent-teal, #14b8a6);
+  color: #fff;
+}
+
+/* Fade-in animation for messages */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Code block with copy button */
+.code-block-wrapper {
+  position: relative;
+}
+
+.code-copy-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #e5e7eb;
+  transition: all 0.2s;
+}
+
+.code-copy-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Scroll to bottom button */
+.scroll-to-bottom {
+  position: fixed;
+  bottom: 120px;
+  right: 40px;
+  background: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+  z-index: 40;
+}
+
+.scroll-to-bottom:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+body[data-theme="blue"] {
+  --zevy-primary: #2563eb;
+  --zevy-bg: #0a1e3a;
+  --zevy-panel: #1e293b;
+  --zevy-accent: #233a5e;
+  --zevy-text: #e5e7eb;
+}
+body[data-theme="purple"] {
+  --zevy-primary: #a855f7;
+  --zevy-bg: #1a0a27;
+  --zevy-panel: #2d1937;
+  --zevy-accent: #3f2a5e;
+  --zevy-text: #e5e7eb;
+}
+body[data-theme="green"] {
+  --zevy-primary: #22c55e;
+  --zevy-bg: #0a2710;
+  --zevy-panel: #19372d;
+  --zevy-accent: #2a5e3f;
+  --zevy-text: #e5e7eb;
+}
+
+.btn, button {
+  transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.btn:hover, button:hover {
+  background: var(--zevy-primary, #10a37f);
+  box-shadow: 0 2px 8px rgba(16,163,127,0.15);
+  transform: translateY(-2px) scale(1.04);
+}
+
+button:focus, .btn-zevy:focus, .btn-primary:focus, .btn-secondary:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+button:hover, .btn-zevy:hover, .btn-primary:hover, .btn-secondary:hover {
+  background-color: #222 !important;
+  color: #fff !important;
+  transition: background 0.2s, color 0.2s;
+}
+.message, .message.user, .message.ai {
+  outline: none !important;
+  box-shadow: none !important;
+}
