@@ -723,6 +723,7 @@ if (!error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
   
   // Handle chat-specific errors
   if (error.message && error.message.includes('Chat error details')) {
+    let errorContent = '';
     try {
       const errorDetails = JSON.parse(error.message.replace('Chat error details: ', ''))
       errorContent = `Chat error: ${errorDetails.message || 'Please try again'}`

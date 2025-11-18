@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 // File: C:\Users\airee\OneDrive\Desktop\New folder (6)\zevy-main\app\layout.tsx
-=======
-// File: C:\Users\airee\OneDrive\Desktop\New folder (6)\zevy-clean\app\layout.tsx
->>>>>>> 79791656c00faeee9d3ebc8c6ee6482eeb6819b1
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
