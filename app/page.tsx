@@ -209,7 +209,7 @@ export default function ZevyAI() {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragOverRef = useRef<HTMLDivElement>(null)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zevy-ten.vercel.app/api'
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   const messages = allConversations[currentConvIdx]?.messages || []
   const currentConvName = allConversations[currentConvIdx]?.name || 'New Chat'
@@ -737,8 +737,16 @@ export default function ZevyAI() {
         setNetworkStatus('offline')
         console.error('Redirect loop detected - check API URL configuration:', API_URL)
       } else if (!error.response) {
-        errorContent = '🔌 Can\'t reach Zevy. Check your internet and try again.'
+        errorContent = '🔌 Connection failed. Please check:
+        1. Your internet connection
+        2. API server is running
+        3. Correct API URL configuration'
         setNetworkStatus('offline')
+        console.error('Network error details:', {
+          url: API_URL,
+          error: error.message || 'No error message',
+          code: error.code || 'NO_CODE'
+        })
       } else if (error.response?.status === 401) {
         errorContent = '🔑 Authentication error. Please check your API keys.'
       } else if (error.response?.status === 429) {
