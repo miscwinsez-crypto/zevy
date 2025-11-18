@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // File: C:\Users\airee\OneDrive\Desktop\New folder (6)\zevy-main\app\page.tsx
+=======
+// File: C:\Users\airee\OneDrive\Desktop\New folder (6)\zevy-clean\app\page.tsx
+>>>>>>> 79791656c00faeee9d3ebc8c6ee6482eeb6819b1
 import * as entry from '../../../app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

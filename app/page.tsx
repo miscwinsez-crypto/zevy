@@ -709,6 +709,7 @@ export default function ZevyAI() {
 
       updateMessages([...messages, userMessage, assistantMessage])
     } catch (error: any) {
+<<<<<<< HEAD
       console.error('Chat error details:', {
         message: error.message,
         code: error.code,
@@ -726,6 +727,13 @@ export default function ZevyAI() {
         errorContent = '🔌 Connection issue. Please check your API URL and try again.'
         setNetworkStatus('offline')
       } else if (error.code === 'ECONNABORTED') {
+=======
+      console.error('Chat error:', error)
+
+      let errorContent = ''
+
+      if (error.code === 'ECONNABORTED') {
+>>>>>>> 79791656c00faeee9d3ebc8c6ee6482eeb6819b1
         errorContent = '⏱️ Request timeout. Try a shorter question or check your connection.'
       } else if (!error.response) {
         errorContent = '🔌 Can\'t reach Zevy. Check your internet and try again.'

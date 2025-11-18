@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@next/swc-win32-x64-msvc": "^16.0.3",
     "autoprefixer": "^10.4.16",
     "axios": "^1.6.0",
@@ -20,13 +21,31 @@
     "react-markdown": "^9.0.0",
     "react-syntax-highlighter": "^15.5.0",
     "tailwindcss": "^3.3.0"
+=======
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "next": "14.2.14",
+    "lucide-react": "^0.294.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31",
+    "axios": "^1.6.0",
+    "react-markdown": "^9.0.0",
+    "react-syntax-highlighter": "^15.5.0"
+>>>>>>> 79791656c00faeee9d3ebc8c6ee6482eeb6819b1
   },
   "devDependencies": {
     "@types/node": "^20.9.0",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
+<<<<<<< HEAD
     "eslint": "^8.53.0",
     "eslint-config-next": "14.2.14",
     "typescript": "^5.2.2"
+=======
+    "typescript": "^5.2.2",
+    "eslint": "^8.53.0",
+    "eslint-config-next": "14.2.14"
+>>>>>>> 79791656c00faeee9d3ebc8c6ee6482eeb6819b1
   }
 }
