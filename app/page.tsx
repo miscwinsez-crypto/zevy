@@ -25,7 +25,8 @@ import {
   Globe,
   RotateCcw,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Image as ImageIcon
 } from 'lucide-react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
@@ -1831,6 +1832,7 @@ export default function ZevyAI() {
                       </li>
                       <li className="flex items-center gap-2">
                         <span style={{ color: palette.hover }}>✓</span> 📱 Persistent conversation history
+                     
                       </li>
                       <li className="flex items-center gap-2">
                         <span style={{ color: palette.hover }}>✓</span> 💬 Natural, human-like conversations
