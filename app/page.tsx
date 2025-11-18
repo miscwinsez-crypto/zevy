@@ -82,30 +82,30 @@ interface AttachedFile {
 }
 
 const darkPalette = {
-  background: '#1a1a1a', // Dark charcoal
-  sidebar: '#121212', // Near black
-  panel: '#252525', // Dark gray
-  border: '#3d3d3d', // Medium gray
-  accent: '#4a4a4a', // Subtle gray accent
-  subdued: '#7d7d7d', // Light gray text
-  secondary: '#5e5e5e', // Secondary gray
-  success: '#10a37f', // Kept success green
-  error: '#ff4d4d', // Brighter red
-  hover: '#333333', // Dark gray hover
-  warning: '#ffcc00' // Brighter yellow
+  background: '#0f0f0f', // Darker background for better contrast
+  sidebar: '#0a0a0a', // Very dark sidebar
+  panel: '#1e1e1e', // Slightly lighter panel
+  border: '#2d2d2d', // More visible border
+  accent: '#3a82f5', // Blue accent for better visibility
+  subdued: '#a0a0a0', // Lighter text for readability
+  secondary: '#444444', // More distinct secondary color
+  success: '#10a37f', // Success green
+  error: '#ff4d4d', // Error red
+  hover: '#2a2a2a', // More visible hover state
+  warning: '#ffcc00' // Warning yellow
 };
 
 const lightPalette = {
   background: '#ffffff',
-  sidebar: '#f5f5f5',
-  panel: '#f5f5f5',
-  border: '#e0e0e0',
-  accent: '#e0e0e0',
-  subdued: '#9e9e9e',
-  secondary: '#bdbdbd',
+  sidebar: '#f8f8f8',
+  panel: '#ffffff',
+  border: '#d0d0d0',
+  accent: '#3a82f5', // Matching blue accent
+  subdued: '#707070', // Darker text for better contrast
+  secondary: '#e0e0e0',
   success: '#10a37f',
   error: '#ff4d4d',
-  hover: '#f0f0f0', // Very light gray hover
+  hover: '#e8e8e8', // Slightly darker hover
   warning: '#ffcc00'
 }
 
@@ -720,6 +720,16 @@ if (!error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
       method: error.config?.method
     }
   })
+  
+  // Handle chat-specific errors
+  if (error.message && error.message.includes('Chat error details')) {
+    try {
+      const errorDetails = JSON.parse(error.message.replace('Chat error details: ', ''))
+      errorContent = `Chat error: ${errorDetails.message || 'Please try again'}`
+    } catch (e) {
+      errorContent = 'Chat processing error - please try again'
+    }
+  }
 }
 
       let errorContent = ''
