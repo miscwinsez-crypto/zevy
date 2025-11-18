@@ -16,7 +16,7 @@ import {
   ArrowDown,
   AlertCircle,
   CheckCircle,
-  ImageIcon,
+  PlusCircle,
   Trash2,
   FileText,
   Upload,
@@ -81,31 +81,31 @@ interface AttachedFile {
 }
 
 const darkPalette = {
-  background: '#050505',
-  sidebar: '#0E0E0E',
-  panel: '#101010',
-  border: '#1F1F1F',
-  accent: '#FFFFFF',
-  subdued: '#8A8A8A',
-  secondary: '#1A1A1A',
-  success: '#3b82f6',
-  error: '#ef4444',
-  hover: '#2563eb',
-  warning: '#f59e0b'
-}
+  background: '#1a1a1a', // Dark charcoal
+  sidebar: '#121212', // Near black
+  panel: '#252525', // Dark gray
+  border: '#3d3d3d', // Medium gray
+  accent: '#4a4a4a', // Subtle gray accent
+  subdued: '#7d7d7d', // Light gray text
+  secondary: '#5e5e5e', // Secondary gray
+  success: '#10a37f', // Kept success green
+  error: '#ff4d4d', // Brighter red
+  hover: '#333333', // Dark gray hover
+  warning: '#ffcc00' // Brighter yellow
+};
 
 const lightPalette = {
-  background: '#F5F5F5',
-  sidebar: '#FFFFFF',
-  panel: '#FAFAFA',
-  border: '#E5E5E5',
-  accent: '#000000',
-  subdued: '#666666',
-  secondary: '#F0F0F0',
-  success: '#0ea5e9',
-  error: '#DC2626',
-  hover: '#0284c7',
-  warning: '#d97706'
+  background: '#ffffff',
+  sidebar: '#f5f5f5',
+  panel: '#f5f5f5',
+  border: '#e0e0e0',
+  accent: '#e0e0e0',
+  subdued: '#9e9e9e',
+  secondary: '#bdbdbd',
+  success: '#10a37f',
+  error: '#ff4d4d',
+  hover: '#f0f0f0', // Very light gray hover
+  warning: '#ffcc00'
 }
 
 const BLOCKED_KEYWORDS = [ 
@@ -129,13 +129,13 @@ const SUPPORT_NUMBERS: { [key: string]: string } = {
 
 const SOCIAL_HANDLES = {
   zevy: [
-    { name: 'Instagram', url: 'https://www.instagram.com/zevycloud/', icon: '📸' },
-    { name: 'X', url: 'https://x.com/ZevyCloud', icon: '𝕏' }
+    { name: 'Instagram', url: 'https://www.instagram.com/zevycloud/', icon: '✧' },
+    { name: 'X', url: 'https://x.com/ZevyCloud', icon: '✧' }
   ],
   adam: [
-    { name: 'Instagram', url: 'https://www.instagram.com/abbdamdam/', icon: '📸' },
-    { name: 'X', url: 'https://x.com/abdamzrock', icon: '𝕏' },
-    { name: 'Reddit', url: 'https://www.reddit.com/user/AbdamDv/', icon: '🔗' }
+    { name: 'Instagram', url: 'https://www.instagram.com/abbdamdam/', icon: '✧' },
+    { name: 'X', url: 'https://x.com/abdamzrock', icon: '✧' },
+    { name: 'Reddit', url: 'https://www.reddit.com/user/AbdamDv/', icon: '✧' }
   ]
 }
 
