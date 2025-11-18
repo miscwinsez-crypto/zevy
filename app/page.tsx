@@ -710,28 +710,19 @@ export default function ZevyAI() {
       updateMessages([...messages, userMessage, assistantMessage])
     } catch (error: any) {
       // Only log error details if not a redirect loop
-if (!error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
-  console.error('Chat error details:', {
-    message: error.message,
-    code: error.code,
-    response: error.response?.data,
-    config: {
-      url: error.config?.url,
-      method: error.config?.method
-    }
-  })
-  
-  // Handle chat-specific errors
-  if (error.message && error.message.includes('Chat error details')) {
-    let errorContent = '';
-    try {
-      const errorDetails = JSON.parse(error.message.replace('Chat error details: ', ''))
-      errorContent = `Chat error: ${errorDetails.message || 'Please try again'}`
-    } catch (e) {
-      errorContent = 'Chat processing error - please try again'
-    }
-  }
-}
+      if (!error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
+        // Improved error logging with type checking
+        if (typeof error === 'object' && error !== null) {
+          console.error('Chat error:', {
+            message: error.message || 'Unknown error',
+            code: error.code || 'NO_CODE',
+            stack: error.stack || 'No stack trace',
+            isAxiosError: error.isAxiosError || false
+          })
+        } else {
+          console.error('Chat error:', error)
+        }
+      }
 
       let errorContent = ''
 
@@ -742,8 +733,9 @@ if (!error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
       } else if (error.code === 'ECONNABORTED') {
         errorContent = '⏱️ Request timeout. Try a shorter question or check your connection.'
       } else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
-        errorContent = '🔄 Redirect loop detected. Please clear browser cache and try again.'
+        errorContent = '🔄 API configuration issue detected. Please ensure your API endpoint is correctly configured.'
         setNetworkStatus('offline')
+        console.error('Redirect loop detected - check API URL configuration:', API_URL)
       } else if (!error.response) {
         errorContent = '🔌 Can\'t reach Zevy. Check your internet and try again.'
         setNetworkStatus('offline')
