@@ -709,15 +709,18 @@ export default function ZevyAI() {
 
       updateMessages([...messages, userMessage, assistantMessage])
     } catch (error: any) {
-      console.error('Chat error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method
-        }
-      })
+      // Only log error details if not a redirect loop
+if (!error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
+  console.error('Chat error details:', {
+    message: error.message,
+    code: error.code,
+    response: error.response?.data,
+    config: {
+      url: error.config?.url,
+      method: error.config?.method
+    }
+  })
+}
 
       let errorContent = ''
 
@@ -727,6 +730,9 @@ export default function ZevyAI() {
         setNetworkStatus('offline')
       } else if (error.code === 'ECONNABORTED') {
         errorContent = '⏱️ Request timeout. Try a shorter question or check your connection.'
+      } else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
+        errorContent = '🔄 Redirect loop detected. Please clear browser cache and try again.'
+        setNetworkStatus('offline')
       } else if (!error.response) {
         errorContent = '🔌 Can\'t reach Zevy. Check your internet and try again.'
         setNetworkStatus('offline')
