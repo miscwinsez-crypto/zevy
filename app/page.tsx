@@ -208,7 +208,7 @@ export default function ZevyAI() {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragOverRef = useRef<HTMLDivElement>(null)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zevy-ten.vercel.app/api'
 
   const messages = allConversations[currentConvIdx]?.messages || []
   const currentConvName = allConversations[currentConvIdx]?.name || 'New Chat'
@@ -394,6 +394,10 @@ export default function ZevyAI() {
     const axiosInstance = axios.create({
       baseURL: API_URL,
       timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.GROQ_API_KEY_1 || process.env.GEMINI_API_KEY_1 || ''
+      }
     })
 
     axiosInstance.interceptors.response.use(
@@ -595,24 +599,19 @@ export default function ZevyAI() {
   const retryLastMessage = async () => {
     if (!currentConvId || messages.length < 2) return
     
-    setRetryingConv(currentConvId)
+    // Clear any existing errors
     clearCurrentError()
+    setRetryingConv(currentConvId)
     
-    // Find last user message
-    const lastUserIdx = messages.findIndex((m, i) => m.role === 'user' && i === messages.length - 2)
-    if (lastUserIdx === -1) {
+    try {
+      const lastUserMessage = messages[messages.length - 2]
+      await sendMessage(lastUserMessage.content, true)
+    } catch (error) {
+      addNotification('error', 'Failed to retry message')
+      console.error('Retry error:', error)
+    } finally {
       setRetryingConv(null)
-      return
     }
-    
-    const userMessage = messages[lastUserIdx]
-    
-    // Remove last assistant message if exists
-    const newMessages = messages.slice(0, -1)
-    updateMessages(newMessages)
-    
-    // Resend
-    await sendMessage(userMessage.content, true)
   }
 
   const sendMessage = async (messageContent?: string, isRetry = false) => {
@@ -620,8 +619,11 @@ export default function ZevyAI() {
     
     if (!textToSend.trim() || loading) return
 
+    // Check for blocked content
     if (checkBlockedContent(textToSend)) {
-      setBlockedContentWarning({ show: true, number: SUPPORT_NUMBERS['default'] })
+      const country = navigator.language.split('-')[1] || 'default'
+      const supportNumber = SUPPORT_NUMBERS[country] || SUPPORT_NUMBERS['default']
+      setBlockedContentWarning({ show: true, number: supportNumber })
       addNotification('warning', 'If you\'re struggling, we care. Please reach out.')
       return
     }
@@ -715,12 +717,15 @@ export default function ZevyAI() {
       } else if (!error.response) {
         errorContent = '🔌 Can\'t reach Zevy. Check your internet and try again.'
         setNetworkStatus('offline')
+      } else if (error.response?.status === 401) {
+        errorContent = '🔑 Authentication error. Please check your API keys.'
       } else if (error.response?.status === 429) {
         errorContent = '⚠️ Rate limited. Wait a moment and try again.'
       } else if (error.response?.status === 500) {
         errorContent = '🤖 Server error. Our team is notified. Please try again.'
       } else {
-        errorContent = error.response?.data?.detail || 'Something went wrong. Please try again.'
+        errorContent = error.response?.data?.detail || 
+          `Error: ${error.message || 'Something went wrong. Please try again.'}`
       }
 
       // FIX: Store error per conversation, not globally
@@ -1336,8 +1341,12 @@ export default function ZevyAI() {
                   {/* Assistant Message */}
                   {message.role === 'assistant' && (
                     <div className="flex gap-3 w-full group">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs" style={{ background: palette.secondary }}>
-                        🤖
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: palette.secondary }}>
+                        <img 
+                          src="/zevy-logo.jpg" 
+                          alt="Zevy AI"
+                          className="w-full h-full rounded-full object-cover"
+                        />
                       </div>
                       <div className="flex-1 max-w-lg">
                         {message.error ? (
@@ -1404,7 +1413,7 @@ export default function ZevyAI() {
                         <p className="text-sm">{message.content}</p>
                       </div>
                       <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: palette.secondary }}>
-                        👤
+                        <User size={20} style={{ color: palette.accent }} />
                       </div>
                     </div>
                   )}
@@ -1488,12 +1497,13 @@ export default function ZevyAI() {
                 }}
                 onKeyPress={handleKeyPress}
                 placeholder="Message Zevy..."
-                className="flex-1 p-3 rounded-xl resize-none focus:outline-none text-sm"
+                className="flex-1 p-3 rounded-lg resize-none focus:outline-none text-sm transition-all"
                 style={{
-                  background: palette.sidebar,
+                  background: palette.panel,
                   border: `1px solid ${palette.border}`,
                   color: palette.accent,
-                  minHeight: '44px'
+                  minHeight: '44px',
+                  boxShadow: `0 2px 4px ${palette.border}20`
                 }}
               />
 
