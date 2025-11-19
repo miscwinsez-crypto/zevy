@@ -211,6 +211,67 @@ export default function ZevyAI() {
   const dragOverRef = useRef<HTMLDivElement>(null)
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zevy-phi.vercel.app'
 
+  // Add helper to normalize URLs and prevent double slashes
+  const normalizeUrl = (baseUrl: string, path: string): string => {
+    // Remove trailing slash from base and leading slash from path
+    const cleanBase = baseUrl.replace(/\/$/, '')
+    const cleanPath = path.replace(/^\//, '')
+    return `${cleanBase}/${cleanPath}`
+  }
+
+  // Add retry configuration
+  interface RetryConfig {
+    maxRetries: number
+    initialDelayMs: number
+    maxDelayMs: number
+    backoffMultiplier: number
+  }
+
+  const DEFAULT_RETRY_CONFIG: RetryConfig = {
+    maxRetries: 3,
+    initialDelayMs: 1000,
+    maxDelayMs: 10000,
+    backoffMultiplier: 2
+  }
+
+  // Add exponential backoff delay
+  const getRetryDelay = (attempt: number, config: RetryConfig): number => {
+    const delay = config.initialDelayMs * Math.pow(config.backoffMultiplier, attempt - 1)
+    return Math.min(delay, config.maxDelayMs)
+  }
+
+  // Add retry wrapper for axios requests
+  const axiosWithRetry = async <T,>(
+    requestFn: () => Promise<T>,
+    config: RetryConfig = DEFAULT_RETRY_CONFIG
+  ): Promise<T> => {
+    let lastError: any
+    
+    for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+      try {
+        return await requestFn()
+      } catch (error: any) {
+        lastError = error
+        
+        // Don't retry on certain errors
+        if (error.response?.status === 401 || error.response?.status === 429) {
+          throw error
+        }
+        
+        // Don't retry on last attempt
+        if (attempt === config.maxRetries) {
+          throw error
+        }
+        
+        // Wait before retrying
+        const delayMs = getRetryDelay(attempt, config)
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
+    }
+    
+    throw lastError
+  }
+
   const messages = allConversations[currentConvIdx]?.messages || []
   const currentConvName = allConversations[currentConvIdx]?.name || 'New Chat'
   const currentConvId = allConversations[currentConvIdx]?.id
@@ -393,12 +454,20 @@ export default function ZevyAI() {
   // Setup axios with better error handling
   useEffect(() => {
     const axiosInstance = axios.create({
-      baseURL: API_URL,
+      baseURL: API_URL.replace(/\/$/, ''), // Ensure no trailing slash
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': process.env.GROQ_API_KEY_1 || process.env.GEMINI_API_KEY_1 || ''
       }
+    })
+
+    axiosInstance.interceptors.request.use(config => {
+      // Normalize request URL to prevent double slashes
+      if (config.url) {
+        config.url = config.url.replace(/\/+/g, '/') // Replace multiple slashes with single
+      }
+      return config
     })
 
     axiosInstance.interceptors.response.use(
@@ -407,6 +476,12 @@ export default function ZevyAI() {
         if (!error.response) {
           setNetworkStatus('offline')
           setApiError('Network error - check your connection')
+          console.error('Network error details:', {
+            url: error.config?.url || API_URL,
+            message: error.message || 'No error message',
+            code: error.code || 'NO_CODE',
+            isAxiosError: error.isAxiosError || false
+          })
         }
         return Promise.reject(error)
       }
@@ -615,6 +690,64 @@ export default function ZevyAI() {
     }
   }
 
+  // Add connection validation before sending requests
+  const validateConnection = async (): Promise<boolean> => {
+    try {
+      // Simple fetch to check connectivity without API dependency
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      
+      const response = await fetch('https://www.google.com/favicon.ico', {
+        method: 'HEAD',
+        signal: controller.signal,
+        mode: 'no-cors'
+      })
+      
+      clearTimeout(timeoutId)
+      return true
+    } catch (error) {
+      console.error('Connection validation failed:', error)
+      return false
+    }
+  }
+
+  // Enhanced health check with detailed diagnostics
+  const checkApiHealth = async (): Promise<{ healthy: boolean; details: string }> => {
+    try {
+      const healthUrl = normalizeUrl(API_URL, '/api/health')
+      console.log('🏥 Health check URL:', healthUrl)
+
+      const response = await axios.get(healthUrl, { 
+        timeout: 5000,
+        validateStatus: () => true // Accept all status codes
+      })
+
+      const isHealthy = response.status === 200 && response.data?.status === 'ok'
+      
+      return {
+        healthy: isHealthy,
+        details: `Status: ${response.status}, Data: ${JSON.stringify(response.data)}`
+      }
+    } catch (error: any) {
+      return {
+        healthy: false,
+        details: `Health check failed: ${error.message || 'Unknown error'} (Code: ${error.code || 'NO_CODE'})`
+      }
+    }
+  }
+
+  // Diagnostic logging function
+  const logDiagnostics = (phase: string, data: any) => {
+    const timestamp = new Date().toISOString()
+    console.log(`[${timestamp}] ${phase}:`, {
+      apiUrl: API_URL,
+      normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
+      networkStatus,
+      ...data
+    })
+  }
+
+  // Enhanced sendMessage with better error handling
   const sendMessage = async (messageContent?: string, isRetry = false) => {
     const textToSend = messageContent || input
     
@@ -631,6 +764,7 @@ export default function ZevyAI() {
 
     clearCurrentError()
     setNetworkStatus('checking')
+    logDiagnostics('SEND_MESSAGE_START', { textToSend: textToSend.substring(0, 50) })
 
     const userMessage: Message = {
       role: 'user',
@@ -670,10 +804,20 @@ export default function ZevyAI() {
     )
 
     try {
-      const healthCheck = await axios.get(`${API_URL}/api/health`, { timeout: 5000 })
+      logDiagnostics('VALIDATION_START', { isImageGen, isWebSearch })
 
-      if (!healthCheck.data.status || healthCheck.data.status !== 'ok') {
-        throw new Error('API service temporarily unavailable')
+      // Step 1: Validate basic connectivity
+      const hasConnection = await validateConnection()
+      if (!hasConnection) {
+        throw new Error('ERR_NO_INTERNET')
+      }
+
+      // Step 2: Check API health
+      const healthCheck = await checkApiHealth()
+      logDiagnostics('HEALTH_CHECK', healthCheck)
+
+      if (!healthCheck.healthy) {
+        throw new Error(`API_UNHEALTHY: ${healthCheck.details}`)
       }
 
       setNetworkStatus('online')
@@ -681,23 +825,44 @@ export default function ZevyAI() {
       const actualMode = isImageGen ? 'nova' : mode
       updateUsageStats(actualMode as 'astra' | 'vyra' | 'nova')
 
-      const response = await axios.post(
-        `${API_URL}/api/chat`,
-        {
-          message: textToSend,
-          trait: trait,
-          mode: actualMode,
-          systemPrompt: SYSTEM_PROMPT,
-          webSearch: isWebSearch,
-          conversation_history: messages.map(m => ({
-            role: m.role,
-            content: m.content
-          })),
-          user_id: auth.userId,
-          email: auth.email
+      logDiagnostics('SENDING_REQUEST', { mode: actualMode, messageLength: textToSend.length })
+
+      // Step 3: Send chat request with retry
+      const response = await axiosWithRetry(
+        () => {
+          const requestData = {
+            message: textToSend,
+            trait: trait,
+            mode: actualMode,
+            systemPrompt: SYSTEM_PROMPT,
+            webSearch: isWebSearch,
+            conversation_history: messages.map(m => ({
+              role: m.role,
+              content: m.content
+            })),
+            user_id: auth.userId,
+            email: auth.email
+          }
+
+          logDiagnostics('REQUEST_PAYLOAD', { 
+            messageLength: textToSend.length,
+            historyLength: messages.length,
+            mode: actualMode
+          })
+
+          return axios.post(
+            normalizeUrl(API_URL, '/api/chat'),
+            requestData,
+            { timeout: 60000 }
+          )
         },
-        { timeout: 60000 }
+        DEFAULT_RETRY_CONFIG
       )
+
+      logDiagnostics('RESPONSE_RECEIVED', { 
+        hasResponse: !!response.data,
+        modeUsed: response.data?.mode_used
+      })
 
       const assistantMessage: Message = {
         role: 'assistant',
@@ -708,57 +873,150 @@ export default function ZevyAI() {
       }
 
       updateMessages([...messages, userMessage, assistantMessage])
+      setApiError(null)
+      addNotification('success', 'Response received!')
     } catch (error: any) {
-      // Only log error details if not a redirect loop
-      if (!error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
-        // Improved error logging with type checking
-        if (typeof error === 'object' && error !== null) {
-          console.error('Chat error:', {
-            message: error.message || 'Unknown error',
-            code: error.code || 'NO_CODE',
-            stack: error.stack || 'No stack trace',
-            isAxiosError: error.isAxiosError || false
-          })
-        } else {
-          console.error('Chat error:', error)
-        }
-      }
+      logDiagnostics('ERROR_CAUGHT', {
+        errorType: error.code || error.message,
+        errorMessage: error.message,
+        hasResponse: !!error.response,
+        statusCode: error.response?.status
+      })
 
       let errorContent = ''
+      let shouldRetry = false
 
-      // Handle specific 'Chat error: Q' case
-      if (error.message?.includes('Chat error: Q')) {
-        errorContent = '🔌 Connection issue. Please check your API URL and try again.'
+      // Categorize and handle specific errors
+      if (error.message === 'ERR_NO_INTERNET') {
+        errorContent = `📡 No Internet Connection
+        
+Please check:
+1. Your WiFi/Mobile connection
+2. Try disconnecting VPN temporarily
+3. Check router/modem status
+4. Restart your browser`
         setNetworkStatus('offline')
-      } else if (error.code === 'ECONNABORTED') {
-        errorContent = '⏱️ Request timeout. Try a shorter question or check your connection.'
-      } else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
-        errorContent = '🔄 API configuration issue detected. Please ensure your API endpoint is correctly configured.'
+        setApiError('No internet connection detected')
+      } 
+      else if (error.message?.includes('API_UNHEALTHY')) {
+        errorContent = `🔧 API Server Issue
+
+${error.message}
+
+Please:
+1. Wait a moment and try again
+2. Refresh the page
+3. Check zevy-phi.vercel.app status`
         setNetworkStatus('offline')
-        console.error('Redirect loop detected - check API URL configuration:', API_URL)
-      } else if (!error.response) {
-        errorContent = `🔌 Connection failed. Please check:
-        1. Your internet connection
-        2. API server is running
-        3. Correct API URL configuration`
+        setApiError('API service unhealthy')
+        shouldRetry = true
+      }
+      else if (error.code === 'ERR_NETWORK') {
+        errorContent = `🔌 Network Connection Error
+
+Attempted: ${normalizeUrl(API_URL, '/api/chat')}
+
+Please verify:
+1. Internet connection is stable
+2. API endpoint is accessible
+3. Firewall isn't blocking the connection
+4. No proxy interference`
         setNetworkStatus('offline')
-        console.error('Network error details:', {
-          url: API_URL,
-          error: error.message || 'No error message',
-          code: error.code || 'NO_CODE'
+        setApiError('Network connection failed')
+        shouldRetry = true
+      } 
+      else if (error.code === 'ECONNABORTED') {
+        errorContent = `⏱️ Request Timeout (${error.message})
+
+The server took too long to respond.
+
+Try:
+1. Asking a shorter question
+2. Checking your connection speed
+3. Trying again in a moment`
+        setNetworkStatus('offline')
+      }
+      else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
+        errorContent = `🔄 Redirect Loop Detected
+
+This is a server configuration issue.
+
+URL: ${API_URL}
+Path: /api/chat
+
+Status: Being investigated by developers`
+        setNetworkStatus('offline')
+        setApiError('Redirect loop (server issue)')
+        console.error('🔴 CRITICAL: Redirect loop detected', {
+          baseUrl: API_URL,
+          normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
+          timestamp: new Date().toISOString()
         })
-      } else if (error.response?.status === 401) {
-        errorContent = '🔑 Authentication error. Please check your API keys.'
-      } else if (error.response?.status === 429) {
-        errorContent = '⚠️ Rate limited. Wait a moment and try again.'
-      } else if (error.response?.status === 500) {
-        errorContent = '🤖 Server error. Our team is notified. Please try again.'
-      } else {
-        errorContent = error.response?.data?.detail || 
-          `Error: ${error.message || 'Something went wrong. Please try again.'}`
+      }
+      else if (!error.response) {
+        errorContent = `🌐 Connection Failed
+
+Request to: ${normalizeUrl(API_URL, '/api/chat')}
+Error: ${error.message || 'Unknown network error'}
+
+Troubleshooting:
+1. Check your internet connection
+2. Verify API URL is correct
+3. Try disabling browser extensions
+4. Check firewall settings
+5. Try in incognito mode`
+        setNetworkStatus('offline')
+        setApiError('Connection failed - check logs')
+        shouldRetry = true
+      }
+      else if (error.response?.status === 401) {
+        errorContent = `🔐 Authentication Error
+
+Your API credentials are invalid.
+
+Check:
+1. API keys in server configuration
+2. Token expiration
+3. Environment variables`
+        setApiError('Authentication failed')
+      }
+      else if (error.response?.status === 429) {
+        errorContent = `⚠️ Rate Limit Exceeded
+
+Too many requests in a short time.
+
+Please wait and try again in:
+- ${Math.ceil(Math.random() * 30 + 30)} seconds`
+        setApiError('Rate limited - please wait')
+        shouldRetry = true
+      }
+      else if (error.response?.status === 500) {
+        errorContent = `🤖 Internal Server Error
+
+The API encountered an error.
+
+Status: ${error.response.status}
+Details: ${error.response.data?.detail || 'No details available'}
+
+Please try again in a moment.`
+        setApiError('Server error')
+        shouldRetry = true
+      }
+      else if (error.response?.status === 503) {
+        errorContent = `🚧 Service Unavailable
+
+The API is temporarily down for maintenance or overloaded.
+
+Try again in a few moments.`
+        setApiError('Service temporarily unavailable')
+        shouldRetry = true
+      }
+      else {
+        errorContent = `❌ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'}`
+        setApiError(error.message)
       }
 
-      // FIX: Store error per conversation, not globally
+      // Store error per conversation
       if (currentConvId) {
         setConversationErrors(prev => ({
           ...prev,
@@ -773,9 +1031,31 @@ export default function ZevyAI() {
         error: true
       }
       updateMessages([...messages, userMessage, errorMessage])
+      addNotification('error', 'Failed to get response', 
+        shouldRetry ? { 
+          label: 'Retry', 
+          onClick: () => sendMessage(textToSend, true) 
+        } : undefined
+      )
+
+      // Log full error for debugging
+      console.error('❌ FULL ERROR DETAILS:', {
+        originalError: error,
+        code: error.code,
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config ? {
+          url: error.config.url,
+          method: error.config.method,
+          timeout: error.config.timeout
+        } : null,
+        timestamp: new Date().toISOString()
+      })
     } finally {
       setLoading(false)
       setRetryingConv(null)
+      logDiagnostics('SEND_MESSAGE_END', { success: !apiError })
     }
   }
 
