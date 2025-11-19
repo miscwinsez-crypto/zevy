@@ -82,31 +82,31 @@ interface AttachedFile {
 }
 
 const darkPalette = {
-  background: '#0f0f0f', // Darker background for better contrast
-  sidebar: '#0a0a0a', // Very dark sidebar
-  panel: '#1e1e1e', // Slightly lighter panel
-  border: '#2d2d2d', // More visible border
-  accent: '#3a82f5', // Blue accent for better visibility
-  subdued: '#a0a0a0', // Lighter text for readability
-  secondary: '#444444', // More distinct secondary color
-  success: '#10a37f', // Success green
-  error: '#ff4d4d', // Error red
-  hover: '#2a2a2a', // More visible hover state
-  warning: '#ffcc00' // Warning yellow
+  background: '#0d0d0d', // Pure dark background
+  sidebar: '#10a37f', // Kept as is but will use neutral
+  panel: '#1a1a1a', // Chat panel - darker
+  border: '#343434', // Visible borders
+  accent: '#ececec', // Light text - high contrast
+  subdued: '#b4b4b7', // Gray text for secondary info
+  secondary: '#2a2a2a', // Buttons/hover backgrounds
+  success: '#10a37f', // Green - keeping
+  error: '#ff5757', // Brighter red
+  hover: '#343434', // Hover state
+  warning: '#ffd700' // Gold warning
 };
 
 const lightPalette = {
   background: '#ffffff',
-  sidebar: '#f8f8f8',
+  sidebar: '#f7f7f8',
   panel: '#ffffff',
-  border: '#d0d0d0',
-  accent: '#3a82f5', // Matching blue accent
-  subdued: '#707070', // Darker text for better contrast
-  secondary: '#e0e0e0',
+  border: '#d1d5db',
+  accent: '#0d0d0d', // Dark text on light
+  subdued: '#6b7280',
+  secondary: '#f3f4f6',
   success: '#10a37f',
-  error: '#ff4d4d',
-  hover: '#e8e8e8', // Slightly darker hover
-  warning: '#ffcc00'
+  error: '#ff5757',
+  hover: '#f3f4f6',
+  warning: '#ffd700'
 }
 
 const BLOCKED_KEYWORDS = [ 
@@ -678,6 +678,45 @@ export default function ZevyAI() {
     }
   }
 
+  // Check if server is actually online before sending chat
+  const checkServerStatus = async (): Promise<boolean> => {
+    try {
+      // Try to fetch a simple endpoint that doesn't require processing
+      const response = await fetch(normalizeUrl(API_URL, '/'), {
+        method: 'HEAD',
+        mode: 'cors',
+        signal: AbortSignal.timeout(3000)
+      })
+      
+      console.log('🌐 Server status check - Status:', response.status)
+      return response.ok || response.status === 404 // 404 is fine, means server is responding
+    } catch (error) {
+      console.error('❌ Server status check failed:', error)
+      return false
+    }
+  }
+
+  // Diagnostic logging function
+  const logDiagnostics = (phase: string, data: any) => {
+    const timestamp = new Date().toISOString()
+    const log = `[${timestamp}] ${phase}`
+    if (phase.includes('ERROR') || phase.includes('CRITICAL')) {
+      console.error(log, {
+        apiUrl: API_URL,
+        normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
+        networkStatus,
+        ...data
+      })
+    } else {
+      console.log(log, {
+        apiUrl: API_URL,
+        normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
+        networkStatus,
+        ...data
+      })
+    }
+  }
+
   // Enhanced health check with redirect loop detection
   const checkApiHealth = async (): Promise<{ healthy: boolean; details: string }> => {
     try {
@@ -742,27 +781,6 @@ export default function ZevyAI() {
         healthy: true,
         details: `Health check failed but proceeding: ${error.message}`
       }
-    }
-  }
-
-  // Diagnostic logging function
-  const logDiagnostics = (phase: string, data: any) => {
-    const timestamp = new Date().toISOString()
-    const log = `[${timestamp}] ${phase}`
-    if (phase.includes('ERROR') || phase.includes('CRITICAL')) {
-      console.error(log, {
-        apiUrl: API_URL,
-        normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
-        networkStatus,
-        ...data
-      })
-    } else {
-      console.log(log, {
-        apiUrl: API_URL,
-        normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
-        networkStatus,
-        ...data
-      })
     }
   }
 
@@ -833,8 +851,15 @@ export default function ZevyAI() {
 
       logDiagnostics('CONNECTION_VALIDATED', { hasConnection: true })
 
-      // Step 2: Check API health only on first attempt
-      // If health check fails with non-critical errors, proceed anyway
+      // Step 2: Check server is online before health check
+      const isServerOnline = await checkServerStatus()
+      if (!isServerOnline) {
+        throw new Error('SERVER_UNREACHABLE')
+      }
+
+      logDiagnostics('SERVER_STATUS_OK', { isServerOnline: true })
+
+      // Step 3: Check API health only on first attempt
       if (!isRetry) {
         const healthCheck = await checkApiHealth()
         logDiagnostics('HEALTH_CHECK', healthCheck)
@@ -843,7 +868,6 @@ export default function ZevyAI() {
         if (!healthCheck.healthy && healthCheck.details.includes('Redirect loop')) {
           throw new Error(`API_UNHEALTHY: ${healthCheck.details}`)
         }
-        // For other failures, log but proceed
         if (!healthCheck.healthy) {
           console.warn('⚠️ Health check failed but proceeding:', healthCheck.details)
         }
@@ -856,7 +880,7 @@ export default function ZevyAI() {
 
       logDiagnostics('SENDING_REQUEST', { mode: actualMode, messageLength: textToSend.length, isRetry })
 
-      // Step 3: Send chat request with retry
+      // Step 4: Send chat request with retry - use fetch for better error handling
       const response = await axiosWithRetry(
         () => {
           const requestData = {
@@ -882,7 +906,12 @@ export default function ZevyAI() {
           return axios.post(
             normalizeUrl(API_URL, '/api/chat'),
             requestData,
-            { timeout: 60000 }
+            { 
+              timeout: 60000,
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            }
           )
         },
         DEFAULT_RETRY_CONFIG
@@ -923,28 +952,45 @@ Please check:
 1. Your WiFi/Mobile connection
 2. Try disconnecting VPN temporarily
 3. Check router/modem status
-4. Restart your browser
-
-Status: Check if you can access other websites`
+4. Restart your browser`
         setNetworkStatus('offline')
         setApiError('No internet connection detected')
         logDiagnostics('ERROR_NO_INTERNET', {})
-      } 
+      }
+      else if (error.message === 'SERVER_UNREACHABLE') {
+        errorContent = `🚨 API Server is Unreachable
+
+The server at ${API_URL} is not responding.
+
+Possible causes:
+1. Server is temporarily down for maintenance
+2. Server crashed or is overloaded
+3. DNS issues - can't resolve the domain
+4. Firewall/network blocking the connection
+5. Server IP changed
+
+Try:
+1. Wait 1-2 minutes and try again
+2. Check https://zevy-phi.vercel.app directly in your browser
+3. Check the Vercel status page
+4. Try from a different network (phone hotspot)
+5. Restart your router
+
+Status: We're investigating if this is a widespread issue`
+        setNetworkStatus('offline')
+        setApiError('Server unreachable')
+        shouldRetry = true
+        logDiagnostics('ERROR_SERVER_UNREACHABLE', { url: API_URL })
+      }
       else if (error.message?.includes('API_UNHEALTHY') && error.message.includes('Redirect loop')) {
         errorContent = `🔄 Redirect Loop Detected - Server Configuration Error
 
 The API is stuck in a redirect loop. This is a SERVER-SIDE issue.
 
 URL: ${API_URL}
-Endpoint: /api/chat & /api/health
+Endpoint: /api/chat
 
-⚠️ This requires server-side fixes:
-1. Check server redirect configuration
-2. Verify environment variables are correct
-3. Ensure API routes are properly configured
-4. Check for circular redirects in middleware
-
-Status: Reported to development team`
+⚠️ This requires server-side fixes`
         setNetworkStatus('offline')
         setApiError('Redirect loop - server configuration error')
         shouldRetry = false
@@ -973,10 +1019,10 @@ Try: Disable VPN temporarily and retry`
         shouldRetry = true
         logDiagnostics('ERROR_NETWORK', { code: error.code })
       } 
-      else if (error.code === 'ECONNABORTED') {
+      else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
         errorContent = `⏱️ Request Timeout
 
-The server took too long to respond (${error.message || '60s'}).
+The server took too long to respond.
 
 Try:
 1. Ask a shorter question
@@ -988,12 +1034,9 @@ Try:
         logDiagnostics('ERROR_TIMEOUT', { code: error.code })
       }
       else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS') || error.code === 'ERR_TOO_MANY_REDIRECTS') {
-        errorContent = `🔄 Redirect Loop Detected - Server Configuration Error
+        errorContent = `🔄 Redirect Loop - Server Configuration Error
 
-The API is stuck in a redirect loop. This is a SERVER-SIDE issue.
-
-URL: ${API_URL}
-Endpoint: /api/chat
+The API is stuck in a redirect loop.
 
 Status: Reported to development team`
         setNetworkStatus('offline')
@@ -1027,16 +1070,16 @@ Troubleshooting:
       }
       else if (error.response?.status === 0) {
         // Status 0 - Network error at browser level
-        errorContent = `📡 Browser Network Error (Status 0)
+        errorContent = `📡 Status 0: Browser Network Error
 
 The browser couldn't complete the request to the API server.
 
 This could be due to:
-1. Firewall or security software blocking the connection
-2. DNS resolution issues
-3. Browser extensions interfering
-4. VPN or proxy issues
-5. ISP blocking
+1. Server is down or unreachable
+2. Firewall or security software blocking
+3. DNS resolution issues
+4. Browser extensions interfering
+5. VPN or proxy issues
 
 Try:
 1. Disable browser extensions temporarily
@@ -1047,7 +1090,7 @@ Try:
         setNetworkStatus('offline')
         setApiError('Browser network error (Status 0)')
         shouldRetry = true
-        logDiagnostics('ERROR_STATUS_0', {})
+        logDiagnostics('ERROR_STATUS_0', { url: normalizeUrl(API_URL, '/api/chat') })
       }
       else if (error.response?.status === 401) {
         errorContent = `🔐 Authentication Error
@@ -1057,8 +1100,7 @@ Your API credentials are invalid or expired.
 Check:
 1. API keys in server configuration
 2. Token expiration date
-3. Environment variables (.env)
-4. API key permissions`
+3. Environment variables`
         setApiError('Authentication failed')
         logDiagnostics('ERROR_AUTH', { status: 401 })
       }
@@ -1085,15 +1127,30 @@ The error has been logged. Please try again in a moment.`
         shouldRetry = true
         logDiagnostics('ERROR_SERVER_500', { status: 500 })
       }
-      else if (error.response?.status === 503) {
+      else if (error.response?.status === 502 || error.response?.status === 503) {
         errorContent = `🚧 Service Unavailable
 
 The API is temporarily down for maintenance or overloaded.
 
+Status: ${error.response.status}
+
 Try again in a few moments.`
         setApiError('Service temporarily unavailable')
         shouldRetry = true
-        logDiagnostics('ERROR_SERVICE_UNAVAILABLE', { status: 503 })
+        logDiagnostics('ERROR_SERVICE_UNAVAILABLE', { status: error.response.status })
+      }
+      else if (error.response?.status === 504) {
+        errorContent = `⏱️ Gateway Timeout
+
+The server took too long to respond or didn't respond at all.
+
+Try:
+1. Ask a shorter question
+2. Wait and try again
+3. Refresh the page`
+        setNetworkStatus('offline')
+        shouldRetry = true
+        logDiagnostics('ERROR_GATEWAY_TIMEOUT', { status: 504 })
       }
       else {
         errorContent = `❌ Unexpected Error
@@ -1872,8 +1929,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     </div>
                     <button onClick={() => removeAttachedFile(idx)}>
                       <X size={16} style={{ color: palette.error }} />
-                    </button>
-                  </div>
+                    </button                  </div>
                 ))}
               </div>
             )}
