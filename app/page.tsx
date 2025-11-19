@@ -453,41 +453,8 @@ export default function ZevyAI() {
 
   // Setup axios with better error handling
   useEffect(() => {
-    const axiosInstance = axios.create({
-      baseURL: API_URL.replace(/\/$/, ''), // Ensure no trailing slash
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.GROQ_API_KEY_1 || process.env.GEMINI_API_KEY_1 || ''
-      }
-    })
-
-    axiosInstance.interceptors.request.use(config => {
-      // Normalize request URL to prevent double slashes
-      if (config.url) {
-        config.url = config.url.replace(/\/+/g, '/') // Replace multiple slashes with single
-      }
-      return config
-    })
-
-    axiosInstance.interceptors.response.use(
-      response => response,
-      error => {
-        if (!error.response) {
-          setNetworkStatus('offline')
-          setApiError('Network error - check your connection')
-          console.error('Network error details:', {
-            url: error.config?.url || API_URL,
-            message: error.message || 'No error message',
-            code: error.code || 'NO_CODE',
-            isAxiosError: error.isAxiosError || false
-          })
-        }
-        return Promise.reject(error)
-      }
-    )
-
-    // Initialize axios instance without window assignment
+    // Note: We don't need to create an axios instance here since we use axios directly in requests
+    // The global axios instance is configured by axios defaults
   }, [])
 
   // Effects - All at top level
@@ -693,9 +660,9 @@ export default function ZevyAI() {
   // Add connection validation before sending requests
   const validateConnection = async (): Promise<boolean> => {
     try {
-      // Simple fetch to check connectivity without API dependency
+      // Use a timeout to prevent hanging
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      const timeoutId = setTimeout(() => controller.abort(), 2000)
       
       const response = await fetch('https://www.google.com/favicon.ico', {
         method: 'HEAD',
@@ -706,29 +673,58 @@ export default function ZevyAI() {
       clearTimeout(timeoutId)
       return true
     } catch (error) {
-      console.error('Connection validation failed:', error)
+      console.error('❌ Connection validation failed:', error)
       return false
     }
   }
 
-  // Enhanced health check with detailed diagnostics
+  // Enhanced health check with redirect loop detection
   const checkApiHealth = async (): Promise<{ healthy: boolean; details: string }> => {
     try {
       const healthUrl = normalizeUrl(API_URL, '/api/health')
       console.log('🏥 Health check URL:', healthUrl)
 
-      const response = await axios.get(healthUrl, { 
-        timeout: 5000,
-        validateStatus: () => true // Accept all status codes
-      })
+      // Create timeout controller
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-      const isHealthy = response.status === 200 && response.data?.status === 'ok'
-      
-      return {
-        healthy: isHealthy,
-        details: `Status: ${response.status}, Data: ${JSON.stringify(response.data)}`
+      try {
+        const response = await axios.get(healthUrl, { 
+          timeout: 5000,
+          validateStatus: () => true
+        })
+
+        clearTimeout(timeoutId)
+
+        // Check for redirect loop indicators
+        if (response.status === 0 || response.status === 308) {
+          console.error('🔄 Redirect loop detected - Status:', response.status)
+          return {
+            healthy: false,
+            details: 'Redirect loop detected at API endpoint'
+          }
+        }
+
+        const isHealthy = response.status === 200 && response.data?.status === 'ok'
+        
+        return {
+          healthy: isHealthy,
+          details: `Status: ${response.status}, Data: ${JSON.stringify(response.data)}`
+        }
+      } catch (axiosError: any) {
+        clearTimeout(timeoutId)
+        throw axiosError
       }
     } catch (error: any) {
+      // Detect redirect loop error
+      if (error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
+        console.error('🔴 CRITICAL: Redirect loop detected in health check')
+        return {
+          healthy: false,
+          details: 'Redirect loop - API configuration error'
+        }
+      }
+      
       return {
         healthy: false,
         details: `Health check failed: ${error.message || 'Unknown error'} (Code: ${error.code || 'NO_CODE'})`
@@ -739,12 +735,22 @@ export default function ZevyAI() {
   // Diagnostic logging function
   const logDiagnostics = (phase: string, data: any) => {
     const timestamp = new Date().toISOString()
-    console.log(`[${timestamp}] ${phase}:`, {
-      apiUrl: API_URL,
-      normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
-      networkStatus,
-      ...data
-    })
+    const log = `[${timestamp}] ${phase}`
+    if (phase.includes('ERROR') || phase.includes('CRITICAL')) {
+      console.error(log, {
+        apiUrl: API_URL,
+        normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
+        networkStatus,
+        ...data
+      })
+    } else {
+      console.log(log, {
+        apiUrl: API_URL,
+        normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
+        networkStatus,
+        ...data
+      })
+    }
   }
 
   // Enhanced sendMessage with better error handling
@@ -764,7 +770,7 @@ export default function ZevyAI() {
 
     clearCurrentError()
     setNetworkStatus('checking')
-    logDiagnostics('SEND_MESSAGE_START', { textToSend: textToSend.substring(0, 50) })
+    logDiagnostics('SEND_MESSAGE_START', { textToSend: textToSend.substring(0, 50), isRetry })
 
     const userMessage: Message = {
       role: 'user',
@@ -812,12 +818,16 @@ export default function ZevyAI() {
         throw new Error('ERR_NO_INTERNET')
       }
 
-      // Step 2: Check API health
-      const healthCheck = await checkApiHealth()
-      logDiagnostics('HEALTH_CHECK', healthCheck)
+      logDiagnostics('CONNECTION_VALIDATED', { hasConnection: true })
 
-      if (!healthCheck.healthy) {
-        throw new Error(`API_UNHEALTHY: ${healthCheck.details}`)
+      // Step 2: Check API health only on first attempt (not on retry to avoid redirect loop)
+      if (!isRetry) {
+        const healthCheck = await checkApiHealth()
+        logDiagnostics('HEALTH_CHECK', healthCheck)
+
+        if (!healthCheck.healthy) {
+          throw new Error(`API_UNHEALTHY: ${healthCheck.details}`)
+        }
       }
 
       setNetworkStatus('online')
@@ -825,7 +835,7 @@ export default function ZevyAI() {
       const actualMode = isImageGen ? 'nova' : mode
       updateUsageStats(actualMode as 'astra' | 'vyra' | 'nova')
 
-      logDiagnostics('SENDING_REQUEST', { mode: actualMode, messageLength: textToSend.length })
+      logDiagnostics('SENDING_REQUEST', { mode: actualMode, messageLength: textToSend.length, isRetry })
 
       // Step 3: Send chat request with retry
       const response = await axiosWithRetry(
@@ -874,7 +884,7 @@ export default function ZevyAI() {
 
       updateMessages([...messages, userMessage, assistantMessage])
       setApiError(null)
-      addNotification('success', 'Response received!')
+      addNotification('success', '✅ Response received!')
     } catch (error: any) {
       logDiagnostics('ERROR_CAUGHT', {
         errorType: error.code || error.message,
@@ -889,68 +899,96 @@ export default function ZevyAI() {
       // Categorize and handle specific errors
       if (error.message === 'ERR_NO_INTERNET') {
         errorContent = `📡 No Internet Connection
-        
+
 Please check:
 1. Your WiFi/Mobile connection
 2. Try disconnecting VPN temporarily
 3. Check router/modem status
-4. Restart your browser`
+4. Restart your browser
+
+Status: Check if you can access other websites`
         setNetworkStatus('offline')
         setApiError('No internet connection detected')
+        logDiagnostics('ERROR_NO_INTERNET', {})
       } 
       else if (error.message?.includes('API_UNHEALTHY')) {
         errorContent = `🔧 API Server Issue
 
-${error.message}
+The API health check failed.
 
-Please:
+Possible causes:
+1. Server is temporarily down
+2. Server is under maintenance
+3. Configuration error on server
+
+Try:
 1. Wait a moment and try again
 2. Refresh the page
-3. Check zevy-phi.vercel.app status`
+3. Check https://zevy-phi.vercel.app status`
         setNetworkStatus('offline')
         setApiError('API service unhealthy')
         shouldRetry = true
+        logDiagnostics('ERROR_API_UNHEALTHY', { details: error.message })
       }
       else if (error.code === 'ERR_NETWORK') {
         errorContent = `🔌 Network Connection Error
 
-Attempted: ${normalizeUrl(API_URL, '/api/chat')}
+The request to the API failed due to a network issue.
+
+Endpoint: ${normalizeUrl(API_URL, '/api/chat')}
 
 Please verify:
 1. Internet connection is stable
-2. API endpoint is accessible
-3. Firewall isn't blocking the connection
-4. No proxy interference`
+2. No firewall blocking the connection
+3. No proxy interference
+4. VPN not causing issues
+
+Try: Disable VPN temporarily and retry`
         setNetworkStatus('offline')
         setApiError('Network connection failed')
         shouldRetry = true
+        logDiagnostics('ERROR_NETWORK', { code: error.code })
       } 
       else if (error.code === 'ECONNABORTED') {
-        errorContent = `⏱️ Request Timeout (${error.message})
+        errorContent = `⏱️ Request Timeout
 
-The server took too long to respond.
+The server took too long to respond (${error.message || '60s'}).
 
 Try:
-1. Asking a shorter question
-2. Checking your connection speed
-3. Trying again in a moment`
+1. Ask a shorter question
+2. Check your connection speed
+3. Wait a moment and try again
+4. Refresh the page`
         setNetworkStatus('offline')
+        logDiagnostics('ERROR_TIMEOUT', { code: error.code })
       }
-      else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
-        errorContent = `🔄 Redirect Loop Detected
+      else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS') || error.code === 'ERR_TOO_MANY_REDIRECTS') {
+        errorContent = `🔄 Redirect Loop Detected - Server Configuration Error
 
-This is a server configuration issue.
+The API is stuck in a redirect loop. This is a SERVER-SIDE issue.
 
 URL: ${API_URL}
-Path: /api/chat
+Endpoint: /api/chat & /api/health
 
-Status: Being investigated by developers`
+⚠️ This requires server-side fixes:
+1. Check server redirect configuration
+2. Verify environment variables are correct
+3. Ensure API routes are properly configured
+4. Check for circular redirects in middleware
+
+Status: Reported to development team`
         setNetworkStatus('offline')
-        setApiError('Redirect loop (server issue)')
-        console.error('🔴 CRITICAL: Redirect loop detected', {
+        setApiError('Redirect loop - server configuration error')
+        shouldRetry = false
+        logDiagnostics('CRITICAL_REDIRECT_LOOP', {
           baseUrl: API_URL,
           normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
-          timestamp: new Date().toISOString()
+          code: error.code || error.message
+        })
+        console.error('🔴 CRITICAL: Redirect loop detected', {
+          baseUrl: API_URL,
+          code: error.code,
+          message: error.message
         })
       }
       else if (!error.response) {
@@ -958,62 +996,87 @@ Status: Being investigated by developers`
 
 Request to: ${normalizeUrl(API_URL, '/api/chat')}
 Error: ${error.message || 'Unknown network error'}
+Code: ${error.code || 'UNKNOWN'}
 
 Troubleshooting:
-1. Check your internet connection
-2. Verify API URL is correct
-3. Try disabling browser extensions
-4. Check firewall settings
-5. Try in incognito mode`
+1. ✓ Check your internet connection
+2. ✓ Verify API URL is correct
+3. ✓ Try disabling browser extensions
+4. ✓ Check firewall/antivirus settings
+5. ✓ Try in incognito mode
+6. ✓ Clear browser cache and cookies`
         setNetworkStatus('offline')
-        setApiError('Connection failed - check logs')
+        setApiError('Connection failed')
         shouldRetry = true
+        logDiagnostics('ERROR_NO_RESPONSE', { 
+          code: error.code,
+          message: error.message
+        })
       }
       else if (error.response?.status === 401) {
         errorContent = `🔐 Authentication Error
 
-Your API credentials are invalid.
+Your API credentials are invalid or expired.
 
 Check:
 1. API keys in server configuration
-2. Token expiration
-3. Environment variables`
+2. Token expiration date
+3. Environment variables (.env)
+4. API key permissions`
         setApiError('Authentication failed')
+        logDiagnostics('ERROR_AUTH', { status: 401 })
       }
       else if (error.response?.status === 429) {
+        const waitTime = Math.ceil(Math.random() * 30 + 30)
         errorContent = `⚠️ Rate Limit Exceeded
 
 Too many requests in a short time.
 
-Please wait and try again in:
-- ${Math.ceil(Math.random() * 30 + 30)} seconds`
+Please wait ${waitTime} seconds before trying again.
+
+Rate limits reset every minute.`
         setApiError('Rate limited - please wait')
         shouldRetry = true
+        logDiagnostics('ERROR_RATE_LIMIT', { status: 429, waitTime })
       }
       else if (error.response?.status === 500) {
         errorContent = `🤖 Internal Server Error
 
-The API encountered an error.
+The API encountered an unexpected error.
 
-Status: ${error.response.status}
+Status: 500
 Details: ${error.response.data?.detail || 'No details available'}
 
-Please try again in a moment.`
+The error has been logged. Please try again in a moment.`
         setApiError('Server error')
         shouldRetry = true
+        logDiagnostics('ERROR_SERVER_500', { 
+          status: 500,
+          detail: error.response.data?.detail
+        })
       }
       else if (error.response?.status === 503) {
         errorContent = `🚧 Service Unavailable
 
 The API is temporarily down for maintenance or overloaded.
 
+Status: 503
+
 Try again in a few moments.`
         setApiError('Service temporarily unavailable')
         shouldRetry = true
+        logDiagnostics('ERROR_SERVICE_UNAVAILABLE', { status: 503 })
       }
       else {
-        errorContent = `❌ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'}`
+        errorContent = `❌ Unexpected Error
+
+Status: ${error.response?.status || 'Unknown'}
+Error: ${error.response?.data?.detail || error.message || 'Something went wrong'}`
         setApiError(error.message)
+        logDiagnostics('ERROR_UNEXPECTED', { 
+          status: error.response?.status,
+          message: error.message
+        })
       }
 
       // Store error per conversation
@@ -2042,6 +2105,7 @@ Try again in a few moments.`
                         </p>
                         <div className="space-y-2.5">
                           {[
+
                             { name: 'Astra', icon: '⚡', stat: usageStats?.astra },
                             { name: 'Vyra', icon: '✨', stat: usageStats?.vyra },
                             { name: 'Nova', icon: '🎨', stat: usageStats?.nova }
