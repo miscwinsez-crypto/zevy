@@ -684,38 +684,50 @@ export default function ZevyAI() {
       const healthUrl = normalizeUrl(API_URL, '/api/health')
       console.log('🏥 Health check URL:', healthUrl)
 
-      // Create timeout controller
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-
       try {
         const response = await axios.get(healthUrl, { 
-          timeout: 5000,
+          timeout: 3000, // Reduced timeout for health check
           validateStatus: () => true
         })
 
-        clearTimeout(timeoutId)
-
         // Check for redirect loop indicators
         if (response.status === 0 || response.status === 308) {
-          console.error('🔄 Redirect loop detected - Status:', response.status)
+          console.error('🔄 Redirect loop or network error - Status:', response.status)
           return {
             healthy: false,
-            details: 'Redirect loop detected at API endpoint'
+            details: 'Status 0 - Network error, assuming API may still work'
           }
         }
 
+        // Accept 200 OK with status=ok or just assume healthy if we got any response
         const isHealthy = response.status === 200 && response.data?.status === 'ok'
+        
+        // If we got ANY successful response status (2xx), consider it healthy
+        if (response.status >= 200 && response.status < 300) {
+          return {
+            healthy: true,
+            details: `Status: ${response.status} - API is responding`
+          }
+        }
         
         return {
           healthy: isHealthy,
           details: `Status: ${response.status}, Data: ${JSON.stringify(response.data)}`
         }
       } catch (axiosError: any) {
-        clearTimeout(timeoutId)
+        // On timeout or network error, assume API might still work
+        if (axiosError.code === 'ECONNABORTED' || axiosError.code === 'ERR_NETWORK') {
+          console.warn('⚠️ Health check timeout/network error - proceeding anyway')
+          return {
+            healthy: true, // Assume healthy - let the actual request fail if there's a real issue
+            details: 'Health check timed out - assuming API is available'
+          }
+        }
         throw axiosError
       }
     } catch (error: any) {
+      console.error('❌ Health check exception:', error.message)
+      
       // Detect redirect loop error
       if (error.message?.includes('ERR_TOO_MANY_REDIRECTS')) {
         console.error('🔴 CRITICAL: Redirect loop detected in health check')
@@ -725,9 +737,10 @@ export default function ZevyAI() {
         }
       }
       
+      // For any other error, assume API might be OK and let it try
       return {
-        healthy: false,
-        details: `Health check failed: ${error.message || 'Unknown error'} (Code: ${error.code || 'NO_CODE'})`
+        healthy: true,
+        details: `Health check failed but proceeding: ${error.message}`
       }
     }
   }
@@ -820,13 +833,19 @@ export default function ZevyAI() {
 
       logDiagnostics('CONNECTION_VALIDATED', { hasConnection: true })
 
-      // Step 2: Check API health only on first attempt (not on retry to avoid redirect loop)
+      // Step 2: Check API health only on first attempt
+      // If health check fails with non-critical errors, proceed anyway
       if (!isRetry) {
         const healthCheck = await checkApiHealth()
         logDiagnostics('HEALTH_CHECK', healthCheck)
 
-        if (!healthCheck.healthy) {
+        // Only throw if it's a critical redirect loop
+        if (!healthCheck.healthy && healthCheck.details.includes('Redirect loop')) {
           throw new Error(`API_UNHEALTHY: ${healthCheck.details}`)
+        }
+        // For other failures, log but proceed
+        if (!healthCheck.healthy) {
+          console.warn('⚠️ Health check failed but proceeding:', healthCheck.details)
         }
       }
 
@@ -911,24 +930,29 @@ Status: Check if you can access other websites`
         setApiError('No internet connection detected')
         logDiagnostics('ERROR_NO_INTERNET', {})
       } 
-      else if (error.message?.includes('API_UNHEALTHY')) {
-        errorContent = `🔧 API Server Issue
+      else if (error.message?.includes('API_UNHEALTHY') && error.message.includes('Redirect loop')) {
+        errorContent = `🔄 Redirect Loop Detected - Server Configuration Error
 
-The API health check failed.
+The API is stuck in a redirect loop. This is a SERVER-SIDE issue.
 
-Possible causes:
-1. Server is temporarily down
-2. Server is under maintenance
-3. Configuration error on server
+URL: ${API_URL}
+Endpoint: /api/chat & /api/health
 
-Try:
-1. Wait a moment and try again
-2. Refresh the page
-3. Check https://zevy-phi.vercel.app status`
+⚠️ This requires server-side fixes:
+1. Check server redirect configuration
+2. Verify environment variables are correct
+3. Ensure API routes are properly configured
+4. Check for circular redirects in middleware
+
+Status: Reported to development team`
         setNetworkStatus('offline')
-        setApiError('API service unhealthy')
-        shouldRetry = true
-        logDiagnostics('ERROR_API_UNHEALTHY', { details: error.message })
+        setApiError('Redirect loop - server configuration error')
+        shouldRetry = false
+        logDiagnostics('CRITICAL_REDIRECT_LOOP', {
+          baseUrl: API_URL,
+          normalizedUrl: normalizeUrl(API_URL, '/api/chat')
+        })
+        console.error('🔴 CRITICAL: Redirect loop detected')
       }
       else if (error.code === 'ERR_NETWORK') {
         errorContent = `🔌 Network Connection Error
@@ -960,6 +984,7 @@ Try:
 3. Wait a moment and try again
 4. Refresh the page`
         setNetworkStatus('offline')
+        shouldRetry = true
         logDiagnostics('ERROR_TIMEOUT', { code: error.code })
       }
       else if (error.message?.includes('ERR_TOO_MANY_REDIRECTS') || error.code === 'ERR_TOO_MANY_REDIRECTS') {
@@ -968,13 +993,7 @@ Try:
 The API is stuck in a redirect loop. This is a SERVER-SIDE issue.
 
 URL: ${API_URL}
-Endpoint: /api/chat & /api/health
-
-⚠️ This requires server-side fixes:
-1. Check server redirect configuration
-2. Verify environment variables are correct
-3. Ensure API routes are properly configured
-4. Check for circular redirects in middleware
+Endpoint: /api/chat
 
 Status: Reported to development team`
         setNetworkStatus('offline')
@@ -982,13 +1001,7 @@ Status: Reported to development team`
         shouldRetry = false
         logDiagnostics('CRITICAL_REDIRECT_LOOP', {
           baseUrl: API_URL,
-          normalizedUrl: normalizeUrl(API_URL, '/api/chat'),
           code: error.code || error.message
-        })
-        console.error('🔴 CRITICAL: Redirect loop detected', {
-          baseUrl: API_URL,
-          code: error.code,
-          message: error.message
         })
       }
       else if (!error.response) {
@@ -996,7 +1009,6 @@ Status: Reported to development team`
 
 Request to: ${normalizeUrl(API_URL, '/api/chat')}
 Error: ${error.message || 'Unknown network error'}
-Code: ${error.code || 'UNKNOWN'}
 
 Troubleshooting:
 1. ✓ Check your internet connection
@@ -1012,6 +1024,30 @@ Troubleshooting:
           code: error.code,
           message: error.message
         })
+      }
+      else if (error.response?.status === 0) {
+        // Status 0 - Network error at browser level
+        errorContent = `📡 Browser Network Error (Status 0)
+
+The browser couldn't complete the request to the API server.
+
+This could be due to:
+1. Firewall or security software blocking the connection
+2. DNS resolution issues
+3. Browser extensions interfering
+4. VPN or proxy issues
+5. ISP blocking
+
+Try:
+1. Disable browser extensions temporarily
+2. Try in incognito mode
+3. Check your firewall settings
+4. Try a different network if possible
+5. Restart your browser`
+        setNetworkStatus('offline')
+        setApiError('Browser network error (Status 0)')
+        shouldRetry = true
+        logDiagnostics('ERROR_STATUS_0', {})
       }
       else if (error.response?.status === 401) {
         errorContent = `🔐 Authentication Error
@@ -1032,9 +1068,7 @@ Check:
 
 Too many requests in a short time.
 
-Please wait ${waitTime} seconds before trying again.
-
-Rate limits reset every minute.`
+Please wait ${waitTime} seconds before trying again.`
         setApiError('Rate limited - please wait')
         shouldRetry = true
         logDiagnostics('ERROR_RATE_LIMIT', { status: 429, waitTime })
@@ -1045,22 +1079,16 @@ Rate limits reset every minute.`
 The API encountered an unexpected error.
 
 Status: 500
-Details: ${error.response.data?.detail || 'No details available'}
 
 The error has been logged. Please try again in a moment.`
         setApiError('Server error')
         shouldRetry = true
-        logDiagnostics('ERROR_SERVER_500', { 
-          status: 500,
-          detail: error.response.data?.detail
-        })
+        logDiagnostics('ERROR_SERVER_500', { status: 500 })
       }
       else if (error.response?.status === 503) {
         errorContent = `🚧 Service Unavailable
 
 The API is temporarily down for maintenance or overloaded.
-
-Status: 503
 
 Try again in a few moments.`
         setApiError('Service temporarily unavailable')
@@ -1073,6 +1101,7 @@ Try again in a few moments.`
 Status: ${error.response?.status || 'Unknown'}
 Error: ${error.response?.data?.detail || error.message || 'Something went wrong'}`
         setApiError(error.message)
+        shouldRetry = true
         logDiagnostics('ERROR_UNEXPECTED', { 
           status: error.response?.status,
           message: error.message
@@ -1101,18 +1130,10 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         } : undefined
       )
 
-      // Log full error for debugging
       console.error('❌ FULL ERROR DETAILS:', {
-        originalError: error,
         code: error.code,
         message: error.message,
         status: error.response?.status,
-        data: error.response?.data,
-        config: error.config ? {
-          url: error.config.url,
-          method: error.config.method,
-          timeout: error.config.timeout
-        } : null,
         timestamp: new Date().toISOString()
       })
     } finally {
@@ -1905,7 +1926,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                 onClick={() => sendMessage()}
                 disabled={loading || !input.trim()}
                 className="p-3 rounded-xl transition-all button-hover"
-                style={{ background: palette.hover, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}
+                style={{ background: palette.hover, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 :  1 }}
               >
                 <Send size={16} color="#fff" />
               </button>
