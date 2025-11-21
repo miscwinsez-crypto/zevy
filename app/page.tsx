@@ -1929,7 +1929,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     </div>
                     <button onClick={() => removeAttachedFile(idx)}>
                       <X size={16} style={{ color: palette.error }} />
-                    </button                  </div>
+                    </button                    </button>
+                  </div>
                 ))}
               </div>
             )}
