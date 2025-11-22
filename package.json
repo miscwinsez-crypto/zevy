@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-
+    "@supabase/supabase-js": "^2.84.0",
     "autoprefixer": "^10.4.16",
     "axios": "^1.6.0",
     "lucide-react": "^0.294.0",
@@ -25,7 +25,7 @@
     "@types/node": "^20.9.0",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
-"eslint": "^8.53.0",
+    "eslint": "^8.53.0",
     "eslint-config-next": "14.2.14",
     "typescript": "^5.2.2"
   }

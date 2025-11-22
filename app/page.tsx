@@ -82,31 +82,31 @@ interface AttachedFile {
 }
 
 const darkPalette = {
-  background: '#0d0d0d', // Pure dark background
-  sidebar: '#10a37f', // Kept as is but will use neutral
-  panel: '#1a1a1a', // Chat panel - darker
-  border: '#343434', // Visible borders
-  accent: '#ececec', // Light text - high contrast
-  subdued: '#b4b4b7', // Gray text for secondary info
-  secondary: '#2a2a2a', // Buttons/hover backgrounds
-  success: '#10a37f', // Green - keeping
-  error: '#ff5757', // Brighter red
-  hover: '#343434', // Hover state
-  warning: '#ffd700' // Gold warning
+  background: '#121212', // Dark charcoal
+  sidebar: '#1e1e1e', // Slightly lighter than background
+  panel: '#1e1e1e', // Consistent with sidebar
+  border: '#2d2d2d', // Subtle borders
+  accent: '#ffffff', // Pure white text
+  subdued: '#a0a0a0', // Medium gray for secondary text
+  secondary: '#2a2a2a', // Dark gray for buttons
+  success: '#4caf50', // Material green
+  error: '#f44336', // Material red
+  hover: '#2d2d2d', // Slightly lighter on hover
+  warning: '#ff9800' // Material amber
 };
 
 const lightPalette = {
-  background: '#ffffff',
-  sidebar: '#f7f7f8',
-  panel: '#ffffff',
-  border: '#d1d5db',
-  accent: '#0d0d0d', // Dark text on light
-  subdued: '#6b7280',
-  secondary: '#f3f4f6',
-  success: '#10a37f',
-  error: '#ff5757',
-  hover: '#f3f4f6',
-  warning: '#ffd700'
+  background: '#f5f5f5', // Light gray background
+  sidebar: '#ffffff', // Pure white sidebar
+  panel: '#ffffff', // White panel
+  border: '#e0e0e0', // Very light gray borders
+  accent: '#212121', // Dark gray text
+  subdued: '#757575', // Medium gray for secondary text
+  secondary: '#f5f5f5', // Light gray for buttons
+  success: '#4caf50', // Material green
+  error: '#f44336', // Material red
+  hover: '#eeeeee', // Slightly darker on hover
+  warning: '#ff9800' // Material amber
 }
 
 const BLOCKED_KEYWORDS = [ 
@@ -116,7 +116,7 @@ const BLOCKED_KEYWORDS = [
   'racist', 'sexist', 'homophobic', 'transphobic', 'hate speech', 'slur', 'bigot', 'nazi', 'white power', 'heil hitler', 'kkk', 'antisemitic', 'islamophobic', 'ableist', 'misogynist', 'misandrist', 
   'porn', 'sex', 'sexual', 'nude', 'nudes', 'erotic', 'masturbate', 'orgasm', 'cum', 'ejaculate', 'penetrate', 'anal', 'oral', 'blowjob', 'handjob', 'incest', 'bestiality', 'pedophile', 'child porn', 'loli', 'shota', 'grooming', 'rape fantasy', 'roleplay rape', 'roleplay abuse', 
   'how to make poison', 'how to make drugs', 'how to commit crime', 'how to get away with murder', 'how to cheat', 'how to lie', 'how to cover up', 'how to stalk', 'how to harass', 'how to bully', 'how to threaten', 'how to intimidate', 'how to manipulate', 'how to gaslight', 'how to dox', 'how to swat', 'how to scam', 'how to steal', 'how to rob', 'how to shoplift', 'how to commit fraud', 'how to counterfeit', 'how to pirate', 'how to smuggle', 'how to traffic', 'how to launder money', 'how to blackmail', 'how to extort', 'how to bribe', 'how to corrupt', 
-  'unalive', 'kms', 'kys', 'end it all', 'rope', 'jump off', 'take pills', 'slice', 'hurt', 'pain', 'suffer', 'no reason to live', 'worthless', 'hopeless', 'give up', 'can i die', 'should i die', 'want to die', 'wish i was dead', 'wish i could disappear', 'erase myself', 'erase my existence', 
+  'unalive', 'kms', 'kys', 'end it all', 'rope', 'jump off', 'take pills', 'slice', 'hurt', 'pain', 'suffer', 'no reason to live', 'worthless', 'hopeless', 'give up', 'can i die', 'should i die', 'want to die', 'wish i was dead', 'wish i could disappear', 'erase myself', 'erase my existence'
 ] 
 
 
@@ -140,22 +140,67 @@ const SOCIAL_HANDLES = {
   ]
 }
 
-const SYSTEM_PROMPT = `You are Zevy AI, an advanced AI assistant created by Adam Zein Ziqry.
+const SYSTEM_PROMPT = `You are Zevy AI, an advanced AI assistant created by Adam Zein Ziqry. Current time: ${new Date().toLocaleString()} (detected from user's network).
 
-Your strengths:
-- Real-time web search & current information
-- Deep analysis & critical thinking
-- Creative problem-solving
-- Clear, conversational explanations
-- Honest about limitations
+Your personality:
+- Conversational yet professional (like ChatGPT)
+- Witty and engaging (like Grok)
+- Creative and insightful (like Gemini)
+- Advanced timezone awareness
 
-Keep responses concise, friendly, and practical.
-Use examples when helpful.
-Be transparent about uncertainty.`
+Key capabilities:
+1. Time Awareness:
+- Detect user's current timezone from network
+- Calculate time differences between locations
+- Track travel time and estimate arrival times
+- Reference local time appropriately
+
+2. Travel Time Calculations:
+- When user mentions travel between timezones:
+  * Calculate time difference mathematically
+  * Show both origin and destination times
+  * Example: "Since you're traveling from Malaysia (UTC+8) to Australia (UTC+10), I'll add 2 hours to your last active time"
+
+3. Response Style:
+- Natural, human-like conversation
+- Include timezone context when relevant
+- Example: "Good afternoon! I see you're currently in Malaysia (2:12 PM MYT)"
+- Use markdown formatting for clarity
+
+Guidelines:
+- Always verify timezone calculations
+- Be transparent about time estimation methods
+- Maintain positive, helpful tone`
 
 export default function ZevyAI() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const palette = theme === 'dark' ? darkPalette : lightPalette
+  
+  // Timezone detection state
+  const [userTimezone, setUserTimezone] = useState<string>(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone
+    } catch {
+      return 'UTC'
+    }
+  })
+  const [lastActiveTime, setLastActiveTime] = useState<{time: Date, location: string} | null>(null)
+  
+  // Calculate time difference between locations
+  const calculateTimeDifference = (fromLocation: string, toLocation: string) => {
+    // This would be replaced with actual timezone database lookup in production
+    const timezoneMap: Record<string, number> = {
+      'malaysia': 8, // UTC+8
+      'australia': 10, // UTC+10
+      'japan': 9,
+      'uk': 0,
+      'us': -5
+    }
+    
+    const fromOffset = timezoneMap[fromLocation.toLowerCase()] || 0
+    const toOffset = timezoneMap[toLocation.toLowerCase()] || 0
+    return toOffset - fromOffset
+  }
   
   // File & Notification state
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
@@ -730,7 +775,7 @@ export default function ZevyAI() {
         })
 
         // Check for redirect loop indicators
-        if (response.status === 0 || response.status === 308) {
+        if (!response.status || response.status === 0 || response.status === 308) {
           console.error('🔄 Redirect loop or network error - Status:', response.status)
           return {
             healthy: false,
@@ -742,7 +787,7 @@ export default function ZevyAI() {
         const isHealthy = response.status === 200 && response.data?.status === 'ok'
         
         // If we got ANY successful response status (2xx), consider it healthy
-        if (response.status >= 200 && response.status < 300) {
+        if (response.status && response.status >= 200 && response.status < 300) {
           return {
             healthy: true,
             details: `Status: ${response.status} - API is responding`
@@ -1821,7 +1866,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                               className="p-3 rounded-lg prose prose-sm max-w-none"
                               style={{ background: palette.panel, border: `1px solid ${palette.border}`, color: palette.accent }}
                             >
-                              <ReactMarkdown>{message.content}</ReactMarkdown>
+                              <ReactMarkdown components={{sup: ({node, ...props}) => <sup style={{fontSize: '0.8em', verticalAlign: 'super'}} {...props} />}}>{message.content}</ReactMarkdown>
                             </div>
                           </>
                         )}
@@ -1928,8 +1973,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                       </p>
                     </div>
 
-                    {/* FIX: corrected button closing (removed duplicated/malformed closing tag) */}
+                    {/* fixed: single proper closing button (removed conflict markers and duplicate closing) */}
                     <button onClick={() => removeAttachedFile(idx)}>
+                     
                       <X size={16} style={{ color: palette.error }} />
                     </button>
                   </div>

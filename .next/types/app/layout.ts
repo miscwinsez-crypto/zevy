@@ -1,4 +1,4 @@
-// File: C:\Users\airee\OneDrive\Desktop\New folder (6)\zevy-main\app\layout.tsx
+// File: C:\Users\airee\OneDrive\Desktop\New folder (7)\zevy-main\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
