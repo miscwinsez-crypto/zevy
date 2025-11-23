@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 import { getApiKey } from '@/lib/apiKeys';
 
-if (!supabase) {
-  throw new Error('Supabase client not initialized');
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase environment variables not configured');
 }
 
 export async function POST(request: Request) {
@@ -70,10 +73,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json(response);
 
-  } catch (error) {
-    console.error('Chat error:', error);
+  } catch (err) {
+    const error = err as Error;
+    console.error({
+      message: error.message,
+      stack: error.stack,
+      supabaseUrl: supabaseUrl ? 'configured' : 'missing',
+      supabaseKey: supabaseKey ? 'configured' : 'missing'
+    });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }
