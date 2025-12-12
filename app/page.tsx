@@ -779,19 +779,32 @@ useEffect(() => {
   }
 
   const updateMessages = (newMessages: Message[]) => {
-  setMessages(newMessages);
-  setAllConversations(prev => {
-    const updated = [...prev];
-    if (updated[currentConvIdx]) {
-      updated[currentConvIdx] = {
-        ...updated[currentConvIdx],
-        messages: newMessages,
-        lastUpdated: new Date().toISOString()
-      };
-    }
-    return updated;
-  });
-}
+    // Ensure messages are properly formatted with role/content
+    const formattedMessages = newMessages.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp || new Date().toISOString()
+    }));
+    
+    setMessages(formattedMessages);
+    setAllConversations(prev => {
+      const updated = [...prev];
+      if (updated[currentConvIdx]) {
+        updated[currentConvIdx] = {
+          ...updated[currentConvIdx],
+          messages: formattedMessages,
+          lastUpdated: new Date().toISOString()
+        };
+      }
+      return updated;
+    });
+    
+    // Immediately save to localStorage to prevent context loss
+    const storageKey = auth.isLoggedIn 
+      ? `zevy_conversations_${auth.email}` 
+      : 'zevy_conversations_guest';
+    localStorage.setItem(storageKey, JSON.stringify(allConversations));
+  }
 
   const autoRenameChat = (firstMessage: string) => {
     const words = firstMessage.split(' ').slice(0, 3).join(' ')

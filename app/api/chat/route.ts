@@ -1294,23 +1294,45 @@ export async function POST(req: NextRequest) {
   } else {
     // Astra - enhanced with intelligent knowledge detection
     // Enhanced conversation type detection
+  // Enhanced context tracking with topic continuity
+  const lastUserMessage = chat_history
+    .filter((m: {role: string}) => m.role === 'user')
+    .slice(-1)[0]?.content || '';
+    
   const intent = detectInformationIntent(userMessage, chat_history);
-      if (intent.customResponse) {
-        return NextResponse.json({ response: intent.customResponse });
-      }
-    
-    // Gather knowledge based on detected intent
-    const knowledgeContext = await gatherKnowledge(userMessage, intent)
-    
-    if (intent.shouldSearch && knowledgeContext) {
-      // Enhanced response with knowledge when information seeking is detected
-      const contextualizedMessage = getContextualizedMessage(`${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`, chat_history)
-      aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel, stream, current_time, timezone)
-    } else {
-      // Simple response without knowledge for casual chat
-      const contextualizedMessage = getContextualizedMessage(userMessage, chat_history)
-      aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel, stream, current_time, timezone)
+  if (intent.customResponse) {
+    return NextResponse.json({ response: intent.customResponse });
+  }
+
+  // Gather knowledge with conversation context
+  const knowledgeContext = await gatherKnowledge(userMessage, intent);
+  
+  // Format history with topic tracking
+  const formattedHistory = chat_history.map((msg: {role: string, content: string}) => ({
+    role: msg.role,
+    content: msg.content,
+    ...(msg.role === 'assistant' ? { isResponse: true } : {})
+  }));
+  
+  // Build context with topic continuity
+  const contextBuilder = [];
+  if (lastUserMessage && !userMessage.includes(lastUserMessage)) {
+    contextBuilder.push(`Previous topic: ${lastUserMessage}`);
+  }
+  if (knowledgeContext) contextBuilder.push(`Knowledge: ${knowledgeContext}`);
+  
+  const fullContext = contextBuilder.length > 0 
+    ? `${userMessage}\n\n${contextBuilder.join('\n')}`
+    : userMessage;
+  
+  aiResponse = await callGroq([
+    { role: 'system', content: SYSTEM_PROMPT(current_time, timezone) },
+    ...formattedHistory,
+    { 
+      role: 'user', 
+      content: getContextualizedMessage(fullContext, formattedHistory)
     }
+  ], selectedModel, stream, current_time, timezone);
   }
 
   // Increment usage if not streaming (streaming will handle it separately) - only for authenticated users
