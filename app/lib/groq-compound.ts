@@ -1,0 +1,376 @@
+import axios from 'axios';
+import { getGroqApiKey } from './groq-keys';
+import {
+  googleApiKey1,
+  googleSearchEngineId,
+  newsApiKey1,
+  newsApiKey2,
+} from './env';
+
+interface WebSearchResult {
+  title: string;
+  snippet: string;
+  link: string;
+}
+
+interface WebPageContent {
+  url: string;
+  title: string;
+  content: string;
+}
+
+export class GroqCompound {
+  private apiKey: string;
+
+  constructor() {
+    this.apiKey = getGroqApiKey();
+  }
+
+  async webSearch(query: string): Promise<WebSearchResult[]> {
+    try {
+      if (!googleApiKey1 || !googleSearchEngineId) {
+        return this.fallbackWebSearch(query);
+      }
+
+      const response = await axios.get(
+        'https://www.googleapis.com/customsearch/v1',
+        {
+          params: {
+            key: googleApiKey1,
+            cx: googleSearchEngineId,
+            q: query,
+            num: 5,
+          },
+        }
+      );
+
+      return (
+        response.data.items?.map((item: any) => ({
+          title: item.title,
+          snippet: item.snippet,
+          link: item.link,
+        })) || []
+      );
+    } catch (error) {
+      console.error('Web search error:', error);
+      return this.fallbackWebSearch(query);
+    }
+  }
+
+  private async fallbackWebSearch(query: string): Promise<WebSearchResult[]> {
+    const wikipediaResults = await this.searchWikipedia(query);
+    return wikipediaResults.map((item) => ({
+      title: item.title,
+      snippet: item.snippet.replace(/<[^>]+>/g, ''), // Remove HTML tags from snippet
+      link: `https://en.wikipedia.org/?curid=${item.pageid}`,
+    }));
+  }
+
+  async visitWebsite(url: string): Promise<WebPageContent> {
+    try {
+      const response = await axios.get(url, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Zevy-AI-Bot/1.0)',
+        },
+      });
+
+      const html = response.data;
+      const title = this.extractTitle(html) || url;
+      const content = this.extractTextContent(html);
+
+      return {
+        url,
+        title,
+        content: content.substring(0, 5000),
+      };
+    } catch (error) {
+      console.error('Website visit error:', error);
+      return {
+        url,
+        title: 'Error accessing website',
+        content: 'Unable to access the specified website.',
+      };
+    }
+  }
+
+  private extractTitle(html: string): string {
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    return titleMatch ? titleMatch[1].trim() : '';
+  }
+
+  private extractTextContent(html: string): string {
+    let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    text = text.replace(/<[^>]+>/g, ' ');
+    text = text.replace(/\s+/g, ' ').trim();
+    return text;
+  }
+
+  async searchWikipedia(query: string, lang: string = 'en'): Promise<any[]> {
+    try {
+      const response = await axios.get(
+        `https://${lang}.wikipedia.org/w/api.php`,
+        {
+          params: {
+            action: 'query',
+            format: 'json',
+            list: 'search',
+            srsearch: query,
+            srlimit: 5,
+            srprop: 'snippet|title|pageid',
+          },
+        }
+      );
+      return response.data?.query?.search ?? [];
+    } catch (error) {
+      console.error('Wikipedia search error:', error);
+      return [];
+    }
+  }
+
+  async getWikipediaPage(
+    pageId: number,
+    lang: string = 'en'
+  ): Promise<string> {
+    try {
+      const response = await axios.get(
+        `https://${lang}.wikipedia.org/w/api.php`,
+        {
+          params: {
+            action: 'query',
+            format: 'json',
+            prop: 'extracts',
+            pageids: pageId,
+            exintro: true,
+            explaintext: true,
+            exlimit: 1,
+          },
+        }
+      );
+      const page = response.data?.query?.pages?.[pageId];
+      return page?.extract || '';
+    } catch (error) {
+      console.error('Wikipedia page fetch error:', error);
+      return '';
+    }
+  }
+
+  async searchWikidata(query: string): Promise<any[]> {
+    try {
+      const response = await axios.get(
+        'https://www.wikidata.org/w/api.php',
+        {
+          params: {
+            action: 'wbsearchentities',
+            format: 'json',
+            search: query,
+            language: 'en',
+            limit: 5,
+          },
+        }
+      );
+      return response.data?.search ?? [];
+    } catch (error) {
+      console.error('Wikidata search error:', error);
+      return [];
+    }
+  }
+
+  async searchDbpedia(query: string): Promise<any[]> {
+    try {
+      const response = await axios.get(
+        'https://api.dbpedia-spotlight.org/en/annotate',
+        {
+          params: {
+            text: query,
+            confidence: 0.5,
+          },
+          headers: {
+            Accept: 'application/json',
+          },
+        }
+      );
+      return response.data.Resources ?? [];
+    } catch (error) {
+      console.error('DBpedia search error:', error);
+      return [];
+    }
+  }
+
+  async searchNews(query: string): Promise<any[]> {
+    try {
+      const apiKeys = [newsApiKey1, newsApiKey2].filter(Boolean) as string[];
+
+      if (apiKeys.length === 0) {
+        console.error('No News API keys found');
+        return [];
+      }
+
+      for (const apiKey of apiKeys) {
+        try {
+          const encodedQuery = encodeURIComponent(query);
+          const url = `https://newsapi.org/v2/everything?q=${encodedQuery}&apiKey=${apiKey}&pageSize=5`;
+          const response = await axios.get(url);
+          const articles = response.data.articles;
+
+          if (articles && articles.length > 0) {
+            return articles;
+          }
+        } catch (error) {
+          console.warn(
+            `News API key ${apiKey.slice(0, 5)}... failed. Trying next key.`
+          );
+        }
+      }
+
+      return [];
+    } catch (error) {
+      console.error('News search error:', error);
+      return [];
+    }
+  }
+
+  async browseAndAnalyze(
+    userPrompt: string,
+    targetModel: string
+  ): Promise<string> {
+    try {
+      const shouldSearch =
+        /(search|find|lookup|current|latest|news|recent|today|this week|detailed|comprehensive|explain|analyze|compare|contrast|pros and cons|advantages|disadvantages|research|study|report)/i.test(
+          userPrompt
+        ) &&
+        userPrompt.length > 10 &&
+        !/(who made|who created|who built|made by|created by|built by|zevy|you|yourself|hi|hello|hey|thanks|thank you|bye|goodbye)/i.test(
+          userPrompt
+        );
+
+      if (!shouldSearch) {
+        return '';
+      }
+
+      const searchQuery = await this.generateSearchQuery(userPrompt);
+
+      const [webResults, wikipediaResults, newsResults, wikidataResults, dbpediaResults] = await Promise.all([
+        this.webSearch(searchQuery),
+        this.searchWikipedia(searchQuery),
+        this.searchNews(searchQuery),
+        this.searchWikidata(searchQuery),
+        this.searchDbpedia(searchQuery),
+      ]);
+
+      const allInformation: any[] = [];
+
+      if (wikipediaResults.length > 0) {
+        for (const wikiResult of wikipediaResults.slice(0, 2)) {
+          const pageContent = await this.getWikipediaPage(wikiResult.pageid);
+          allInformation.push({
+            type: 'wikipedia',
+            title: wikiResult.title,
+            content: pageContent,
+            url: `https://en.wikipedia.org/wiki/${encodeURIComponent(
+              wikiResult.title
+            )}`,
+          });
+        }
+      }
+
+      if (webResults.length > 0) {
+        for (const result of webResults.slice(0, 3)) {
+          if (result.link !== '#') {
+            const pageContent = await this.visitWebsite(result.link);
+            allInformation.push({
+              type: 'web',
+              title: result.title,
+              content: pageContent.content,
+              url: result.link,
+            });
+          }
+        }
+      }
+
+      if (newsResults.length > 0) {
+        for (const article of newsResults.slice(0, 3)) {
+          allInformation.push({
+            type: 'news',
+            title: article.title,
+            content: `${article.description || ''} Source: ${
+              article.source?.name || 'Unknown'
+            }`,
+            url: article.url,
+            publishedAt: article.publishedAt,
+          });
+        }
+      }
+
+      if (wikidataResults.length > 0) {
+        for (const result of wikidataResults.slice(0, 2)) {
+          allInformation.push({
+            type: 'wikidata',
+            title: result.label,
+            content: result.description,
+            url: result.concepturi,
+          });
+        }
+      }
+
+      if (dbpediaResults.length > 0) {
+        for (const result of dbpediaResults.slice(0, 3)) {
+          allInformation.push({
+            type: 'dbpedia',
+            title: result['@surfaceForm'],
+            content: `DBpedia resource: ${result['@URI']}`,
+            url: result['@URI'],
+          });
+        }
+      }
+
+      if (allInformation.length === 0) {
+        return '';
+      }
+
+      const analysis = await this.analyzeContent(
+        userPrompt,
+        allInformation,
+        targetModel
+      );
+
+      return analysis;
+    } catch (error) {
+      console.error('Groq Compound browsing error:', error);
+      return '';
+    }
+  }
+
+  private async generateSearchQuery(userPrompt: string): Promise<string> {
+    return userPrompt.length > 100 ? userPrompt.substring(0, 100) : userPrompt;
+  }
+
+  private async analyzeContent(
+    userPrompt: string,
+    allInformation: any[],
+    targetModel: string
+  ): Promise<string> {
+    const context = `
+User Question: ${userPrompt}
+
+Information Sources:
+${allInformation
+  .map((info) => {
+    let sourceInfo = `\n[${info.type.toUpperCase()}] ${info.title}`;
+    if (info.publishedAt) {
+      sourceInfo += ` (${new Date(info.publishedAt).toLocaleDateString()})`;
+    }
+    sourceInfo += `\n${info.content.substring(0, 1500)}`;
+    if (info.url) {
+      sourceInfo += `\nSource: ${info.url}`;
+    }
+    return sourceInfo;
+  })
+  .join('\n\n')}
+
+Based on the comprehensive information from Wikipedia, Wikidata, DBpedia, web search, and news sources above, provide a detailed and accurate answer to the user's question. Synthesize the information from all sources and present it in a clear, conversational manner. Prioritize factual accuracy and cite the sources when relevant.`;
+
+    return context;
+  }
+}

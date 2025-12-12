@@ -1,0 +1,104 @@
+# 🚀 Zevy AI: The Simple Story
+
+## How Your Words Become Smart Answers
+
+### The Journey: User → Llama Guard → AI Models → You
+
+**Step 1: You Ask a Question**
+You type something like "What's quantum computing?" or upload a document and ask "What does this research paper say?"
+
+**Step 2: Llama Guard Checks Safety**  
+Before anything else happens, Llama Guard (our safety AI) quickly reviews your message to make sure it's appropriate and safe for everyone.
+
+**Step 3: The AI Models Get to Work**
+Depending on what you need, different AI systems spring into action:
+
+---
+
+## 🧠 Meet Your AI Team
+
+### Vyra AI: The Debate Expert
+**When to use**: Complex questions that need deep analysis
+**How it works**: 
+- Searches Wikipedia, web, and news for latest info
+- Two AI experts discuss your question from different angles
+- Combines their insights into one comprehensive answer
+**Daily limit**: 25 questions
+
+**Example**: Ask "Should we invest in renewable energy?" and get both economic and environmental perspectives with current data.
+
+### Astra AI: The Research Genius  
+**When to use**: Learning something new or researching topics
+**How it works**:
+- Automatically searches multiple knowledge sources
+- Provides detailed, research-backed responses
+- Perfect for homework, learning, or curiosity
+**Daily limit**: 125 questions
+
+**Example**: Ask "How does photosynthesis work?" and get a clear explanation with the latest scientific understanding.
+
+### Groq Compound: The Knowledge Collector
+**What it does**: Powers both Vyra and Astra by gathering information
+**Sources**: Wikipedia + Web Search + News APIs
+**Result**: You get answers that combine established knowledge with current events
+
+---
+
+## 📄 Document Magic
+
+**Upload and Ask About**: PDFs, Word documents, text files
+
+**How it works**:
+1. Upload your file
+2. Zevy AI reads and understands it
+3. Ask questions about the content
+4. Get answers based on your specific document
+
+**Example**: Upload a 50-page research paper and ask "What are the main findings?" or "Summarize the methodology."
+
+---
+
+## 🛡️ Your Safety is Built-In
+
+**Llama Guard** automatically checks every conversation to keep interactions safe, respectful, and appropriate for all users.
+
+---
+
+## 📊 Fair Usage for Everyone
+
+**Daily Limits** ensure all users get quality access:
+- Vyra AI: 25 questions per day
+- Astra AI: 125 questions per day
+- Limits reset every 24 hours
+
+---
+
+## 🎯 Quick Start Guide
+
+1. **Choose Your AI**: Pick Vyra for deep analysis, Astra for research
+2. **Ask Anything**: Type your question or upload a document  
+3. **Get Smart Answers**: Receive comprehensive, current information
+4. **Upload Files**: Add documents for analysis alongside your questions
+
+---
+
+## 💡 Pro Tips
+
+- **For complex topics**: Use Vyra AI for multi-perspective analysis
+- **For learning**: Use Astra AI for clear, research-based explanations  
+- **For documents**: Upload files and ask specific questions about them
+- **For current events**: Ask about news - the AI searches latest information
+- **For history/facts**: Ask anything - Wikipedia knowledge is automatically included
+
+---
+
+## 🌟 What Makes Zevy AI Special
+
+**Three AI minds working together** to give you the best possible answers by combining:
+- ✅ Established knowledge (Wikipedia)
+- ✅ Current information (Web + News)  
+- ✅ Multiple perspectives (AI debate system)
+- ✅ Document analysis (File processing)
+- ✅ Safety first (Llama Guard protection)
+
+**Result**: You get comprehensive, current, well-rounded answers to any question you ask.

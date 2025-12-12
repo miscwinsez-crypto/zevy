@@ -1,0 +1,113 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+// Simple signup rate limiting
+const signupAttempts = new Map<string, { count: number; resetTime: number }>()
+
+const checkSignupRateLimit = (ip: string): boolean => {
+  const now = Date.now()
+  const attempt = signupAttempts.get(ip)
+  
+  if (!attempt || now > attempt.resetTime) {
+    signupAttempts.set(ip, { count: 1, resetTime: now + 60 * 60 * 1000 }) // 1 hour window
+    return true
+  }
+  
+  if (attempt.count >= 3) {
+    return false // Too many signups from same IP
+  }
+  
+  attempt.count++
+  return true
+}
+
+const validatePassword = (password: string): { valid: boolean; error?: string } => {
+  if (password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters' }
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one uppercase letter' }
+  }
+  
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one lowercase letter' }
+  }
+  
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one number' }
+  }
+  
+  return { valid: true }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    
+    if (!checkSignupRateLimit(ip)) {
+      return NextResponse.json(
+        { detail: 'Too many signup attempts. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
+    const { email, password, confirmPassword } = await request.json()
+
+    // Validation
+    if (!email || !password || !confirmPassword) {
+      return NextResponse.json(
+        { detail: 'Email, password, and password confirmation are required' },
+        { status: 400 }
+      )
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { detail: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Password match
+    if (password !== confirmPassword) {
+      return NextResponse.json(
+        { detail: 'Passwords do not match' },
+        { status: 400 }
+      )
+    }
+
+    // Password strength validation
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { detail: passwordValidation.error },
+        { status: 400 }
+      )
+    }
+
+    // Register email (in production, hash password and store in database)
+    const userId = `user_${Buffer.from(email).toString('base64').slice(0, 16)}`
+    const token = Buffer.from(`${email}:${Date.now()}`).toString('base64')
+
+    return NextResponse.json({
+      user_id: userId,
+      email: email,
+      token: token,
+      name: email.split('@')[0],
+      message: 'Account created successfully (Demo mode)'
+    }, {
+      status: 201,
+      headers: {
+        'Set-Cookie': `auth_token=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`
+      }
+    })
+  } catch (error: any) {
+    console.error('Signup error:', error)
+    return NextResponse.json(
+      { detail: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
