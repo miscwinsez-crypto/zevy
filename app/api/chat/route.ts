@@ -880,7 +880,7 @@ export async function GET(request: NextRequest) {
 }
 
 // Call Groq API — Vercel-only keys
-async function callGroq(messages: any[], model: string, stream = false, currentTime?: string, timezone?: string): Promise<string | ReadableStream> {
+async function callGroq(messages: any[], model: string, stream = false, currentTime?: string, timezone?: string, contextualUserMessage?: string): Promise<string | ReadableStream> {
   const apiKey = getGroqApiKey()
   if (!apiKey) {
     throw new Error('No valid GROQ API keys found')
@@ -893,6 +893,13 @@ async function callGroq(messages: any[], model: string, stream = false, currentT
       temperature: 0.7,
       max_tokens: 1024,
       stream: stream
+    }
+
+    if (contextualUserMessage) {
+      const lastMessage = payload.messages[payload.messages.length - 1];
+      if (lastMessage && lastMessage.role === 'user') {
+        lastMessage.content = contextualUserMessage;
+      }
     }
 
     const response = await axios.post(GROQ_API_URL, payload, {
@@ -947,10 +954,7 @@ async function detectAndTranslate(text: string, targetLanguage: string = 'en'): 
   }
 }
 
-function getContextualizedMessage(message: string, chat_history: any[]): string {
-  const history = chat_history.map(c => `${c.role}: ${c.content}`).join('\n');
-  return `${history}\nUser: ${message}`;
-}
+
 
 
 
@@ -1367,94 +1371,52 @@ export async function POST(req: NextRequest) {
     // Return a message explaining search needs to be enabled
     aiResponse = 'Please enable the search feature to use Groq Compound for web research. Click the search button to activate real-time web knowledge gathering.'
   } else {
-    // Astra - enhanced with intelligent knowledge detection
-    // Enhanced conversation type detection
-  // Enhanced context tracking with topic continuity
-  const lastUserMessage = chat_history
-    .filter((m: {role: string}) => m.role === 'user')
-    .slice(-1)[0]?.content || '';
-    
-  const intent = detectInformationIntent(userMessage, chat_history);
-  if (intent.customResponse) {
-    return NextResponse.json({ response: intent.customResponse });
-  }
+    const intent = detectInformationIntent(userMessage, chat_history);
 
-  // Gather knowledge with conversation context
-  const knowledgeContext = await gatherKnowledge(userMessage, intent);
-  
-  // Enhanced conversation context tracking
-  const formattedHistory = chat_history.map((msg: {role: string, content: string}) => ({
-    role: msg.role,
-    content: msg.content,
-    ...(msg.role === 'assistant' ? { isResponse: true } : {})
-  }));
-  
-  // Enhanced conversation context handling
-  let contextualUserMessage = userMessage;
-  if (chat_history.length > 0) {
-    // Keep last 5 messages as context (increased from 3)
-    const lastMessages = chat_history.slice(-5); 
-    
-    // Add timestamp and speaker info to maintain better context
-    contextualUserMessage = lastMessages.map((m: {role: string; content: string}) => 
-      `${m.role === 'user' ? 'You' : 'AI'} (${new Date().toLocaleTimeString()}): ${m.content}`
-    ).join('\n') + `\n\nCurrent message: ${userMessage}`;
-    
-    // If context is getting too long, summarize older parts
-    if (contextualUserMessage.length > 2000) {
-      const summaryPrompt = `Briefly summarize this conversation context:\n${lastMessages.slice(0, -3).map((m: {content: string}) => m.content).join('\n')}`;
-      const summarizedContext = await generateSummary(summaryPrompt);
-      contextualUserMessage = `Summary of earlier conversation:\n${summarizedContext}\n\n` + 
-                   lastMessages.slice(-3).map((m: {content: string}) => m.content).join('\n') + 
-                   `\n\nCurrent message: ${userMessage}`;
+    if (intent.customResponse) {
+        return NextResponse.json({ response: intent.customResponse });
     }
-  }
-  
-  // Enhanced context for mathematical operations
-  if (chat_history.length > 0) {
-    const lastUserMsg = chat_history
-      .filter((m: {role: string}) => m.role === 'user')
-      .slice(-1)[0]?.content || '';
-    
-    const mathPattern = /(\d+\.?\d*)\s*([+\-*/])\s*(\d+\.?\d*)/;
-    if (mathPattern.test(lastUserMsg) && contextualUserMessage.toLowerCase().includes('divide') || 
-        contextualUserMessage.toLowerCase().includes('multiply') || 
-        contextualUserMessage.toLowerCase().includes('add') || 
-        contextualUserMessage.toLowerCase().includes('subtract')) {
-      contextualUserMessage = `${lastUserMsg} - ${contextualUserMessage}`;
+
+    if (!searchEnabled && intent.type === 'information') {
+        aiResponse = "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
+    } else {
+        const lastUserMessage = chat_history
+            .filter((m: {role: string}) => m.role === 'user')
+            .slice(-1)[0]?.content || '';
+
+        const knowledgeContext = searchEnabled ? await gatherKnowledge(userMessage, intent) : '';
+        
+        const formattedHistory = chat_history.map((msg: {role: string, content: string}) => ({
+            role: msg.role,
+            content: msg.content,
+            ...(msg.role === 'assistant' ? { isResponse: true } : {})
+        }));
+        
+        let contextualUserMessage = userMessage;
+        if (chat_history.length > 0) {
+            const lastMessages = chat_history.slice(-5);
+            contextualUserMessage = lastMessages.map((m: { content: string }) => m.content).join('\n') + `\n\n${userMessage}`;
+        }
+        
+        const contextBuilder = [];
+        if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
+            contextBuilder.push(`Previous topic: ${lastUserMessage}`);
+        }
+        if (knowledgeContext) contextBuilder.push(`Knowledge: ${knowledgeContext}`);
+        
+        const fullContext = contextBuilder.length > 0 
+            ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
+            : contextualUserMessage;
+        
+        aiResponse = await callGroq([
+            { role: 'system', content: SYSTEM_PROMPT(current_time, timezone) },
+            ...formattedHistory,
+            { 
+                role: 'user', 
+                content: getContextualizedMessage(fullContext, formattedHistory)
+            }
+        ], selectedModel, stream, current_time, timezone, contextualUserMessage);
     }
-  }
-  
-  // Enhanced context tracking for follow-ups
-  if (chat_history.length > 0) {
-    const lastAssistantMsg = chat_history
-      .filter((m: {role: string}) => m.role === 'assistant')
-      .slice(-1)[0]?.content || '';
-    
-    if (lastAssistantMsg && contextualUserMessage.toLowerCase().includes('you')) {
-      contextualUserMessage = `${lastAssistantMsg} - ${contextualUserMessage}`;
-    }
-  }
-  
-  // Build context with topic continuity
-  const contextBuilder = [];
-  if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
-    contextBuilder.push(`Previous topic: ${lastUserMessage}`);
-  }
-  if (knowledgeContext) contextBuilder.push(`Knowledge: ${knowledgeContext}`);
-  
-  const fullContext = contextBuilder.length > 0 
-    ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
-    : contextualUserMessage;
-  
-  aiResponse = await callGroq([
-    { role: 'system', content: SYSTEM_PROMPT(current_time, timezone) },
-    ...formattedHistory,
-    { 
-      role: 'user', 
-      content: getContextualizedMessage(fullContext, formattedHistory)
-    }
-  ], selectedModel, stream, current_time, timezone);
   }
 
   // Increment usage if not streaming (streaming will handle it separately) - only for authenticated users
