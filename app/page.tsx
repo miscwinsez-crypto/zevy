@@ -1200,13 +1200,23 @@ useEffect(() => {
             chat_id: currentConvId,
             message: textToSend,
             trait: trait,
+
+            // Backend expects `model`, `chat_history`, `searchEnabled`.
+            // Keep legacy fields too (`mode`, `conversation_history`, `webSearch`) for compatibility.
+            model: actualMode,
+            chat_history: messages.map(m => ({
+              role: m.role,
+              content: m.content
+            })),
+            searchEnabled: isWebSearch,
+
             mode: actualMode,
-            systemPrompt: SYSTEM_PROMPT,
-            webSearch: isWebSearch,
             conversation_history: messages.map(m => ({
               role: m.role,
               content: m.content
             })),
+            webSearch: isWebSearch,
+
             user_id: auth.userId,
             email: auth.email,
             documents: processedDocuments,
@@ -1240,25 +1250,20 @@ useEffect(() => {
         isSearch: isSearchMode,
       });
 
+      // In search mode, we still show the AI answer, but we also keep any returned search results
+      // so the UI can display them (e.g. in a modal).
       if (isSearchMode && response.data.searchResults) {
         setSearchResults(response.data.searchResults);
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: `Found ${response.data.searchResults.length} results.`,
-          mode: 'search',
-          timestamp: new Date().toISOString(),
-        };
-        updateMessages([...messages, userMessage, assistantMessage]);
-      } else {
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
-          mode: response.data.mode_used || actualMode,
-          timestamp: new Date().toISOString(),
-          reasoning: response.data.reasoning
-        };
-        updateMessages([...messages, userMessage, assistantMessage]);
       }
+
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
+        mode: response.data.mode_used || actualMode,
+        timestamp: new Date().toISOString(),
+        reasoning: response.data.reasoning
+      };
+      updateMessages([...messages, userMessage, assistantMessage]);
       setApiError(null)
       addNotification('success', '✅ Response received!')
     } catch (error: any) {

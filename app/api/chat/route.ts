@@ -722,8 +722,8 @@ async function getFreeKnowledge(query: string): Promise<string> {
 /**
  * Enhanced knowledge gathering that prioritizes free sources and current events
  */
-async function gatherKnowledge(userMessage: string, intent: { shouldSearch: boolean; confidence: string; reason: string }): Promise<string> {
-  if (!intent.shouldSearch) {
+async function gatherKnowledge(userMessage: string, intent: { shouldSearch: boolean; confidence: string; reason: string }, searchEnabled: boolean): Promise<string> {
+  if (!intent.shouldSearch || !searchEnabled) {
     return ''
   }
   
@@ -840,9 +840,14 @@ async function callGroq(messages: any[], model: string, stream = false, currentT
   }
 
   try {
+    const hasSystemMessage = messages.length > 0 && messages[0]?.role === 'system'
+    const finalMessages = hasSystemMessage
+      ? messages
+      : [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, false) }, ...messages]
+
     const payload = {
       model: model,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, false) }, ...messages],
+      messages: finalMessages,
       temperature: 0.7,
       max_tokens: 1024,
       stream: stream
@@ -1010,7 +1015,7 @@ function checkResponseDisagreement(response1: string, response2: string): boolea
   return overlapRatio < 0.4
 }
 
-async function generateVyraSmartDebate(userMessage: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<string | ReadableStream> {
+async function generateVyraSmartDebate(userMessage: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string, searchEnabled = false): Promise<string | ReadableStream> {
   try {
     // Enhanced knowledge detection for Vyra debate
     const intent = detectInformationIntent(userMessage)
@@ -1020,8 +1025,7 @@ async function generateVyraSmartDebate(userMessage: string, chat_history: any[],
       return "I'm sorry, but I don't discuss political topics. I'm happy to help with other questions though!"
     }
     
-    // Gather knowledge based on detected intent
-    const knowledgeContext = await gatherKnowledge(userMessage, intent)
+    const knowledgeContext = await gatherKnowledge(userMessage, intent, searchEnabled)
     
     // Create debate context
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
@@ -1238,7 +1242,8 @@ export async function POST(req: NextRequest) {
   
   if (session) {
     userId = session.user.id;
-    modelType = model.toLowerCase() as 'vyra' | 'astra';
+    const normalizedModel = (model || '').toString().toLowerCase();
+    modelType = normalizedModel === 'vyra' ? 'vyra' : 'astra';
   }
 
   // Handle owner-specific commands first
@@ -1266,11 +1271,11 @@ export async function POST(req: NextRequest) {
   const userMessage = translatedText
 
   // Determine which model the user is using
-  const selectedModel = model.toLowerCase() === 'vyra' 
+  const normalizedModel = (model || '').toString().toLowerCase()
+  const isVyra = normalizedModel === 'vyra'
+  const selectedModel = isVyra
     ? 'vyra-debate'
-    : model.toLowerCase() === 'compound'
-      ? 'compound'
-      : selectAstraModel(userMessage, chat_history).model
+    : selectAstraModel(userMessage, chat_history).model
 
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
@@ -1306,8 +1311,7 @@ export async function POST(req: NextRequest) {
   let aiResponse: string | ReadableStream
 
   if (selectedModel === 'vyra-debate') {
-    // Vyra debate system using both Moonshot and Qwen models
-    const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone)
+    const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone, searchEnabled)
     aiResponse = debateResponse
   } else if (searchEnabled) {
     // Groq/Compound web browsing system - activated for both Astra and Vyra when search is enabled
@@ -1323,7 +1327,7 @@ export async function POST(req: NextRequest) {
   } else {
     if (searchEnabled) {
       const intent = detectInformationIntent(userMessage, chat_history);
-      const knowledgeContext = await gatherKnowledge(userMessage, intent);
+      const knowledgeContext = await gatherKnowledge(userMessage, intent, searchEnabled);
       const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
       aiResponse = await callGroq(
         [{ role: 'user', content: contextualizedMessage }],

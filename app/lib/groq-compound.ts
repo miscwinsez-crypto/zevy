@@ -107,6 +107,60 @@ export class GroqCompound {
     return text;
   }
 
+  private resolveTimeZoneFromPrompt(prompt: string): { location: string; timeZone: string } | null {
+    const p = prompt.toLowerCase();
+
+    // Keep this small + high-signal. Add more mappings only when needed.
+    const cityMap: Array<{ match: RegExp; location: string; timeZone: string }> = [
+      { match: /\b(beijing|peking)\b/, location: 'Beijing', timeZone: 'Asia/Shanghai' },
+      { match: /\b(shanghai)\b/, location: 'Shanghai', timeZone: 'Asia/Shanghai' },
+      { match: /\b(tokyo)\b/, location: 'Tokyo', timeZone: 'Asia/Tokyo' },
+      { match: /\b(singapore)\b/, location: 'Singapore', timeZone: 'Asia/Singapore' },
+      { match: /\b(london)\b/, location: 'London', timeZone: 'Europe/London' },
+      { match: /\b(new\s+york|nyc)\b/, location: 'New York', timeZone: 'America/New_York' },
+      { match: /\b(los\s+angeles|la)\b/, location: 'Los Angeles', timeZone: 'America/Los_Angeles' },
+      { match: /\b(sydney)\b/, location: 'Sydney', timeZone: 'Australia/Sydney' },
+    ];
+
+    for (const entry of cityMap) {
+      if (entry.match.test(p)) return { location: entry.location, timeZone: entry.timeZone };
+    }
+
+    // Generic "in China" -> use China Standard Time (Asia/Shanghai)
+    if (/\b(in\s+china|china\b)/.test(p)) {
+      return { location: 'China', timeZone: 'Asia/Shanghai' };
+    }
+
+    return null;
+  }
+
+  private async tryGetWorldTime(userPrompt: string): Promise<any | null> {
+    // Only attempt for time/date/timezone prompts.
+    if (!/\b(time|timezone|current\s+time|what\s+time)\b/i.test(userPrompt)) {
+      return null;
+    }
+
+    const resolved = this.resolveTimeZoneFromPrompt(userPrompt);
+    if (!resolved) {
+      return null;
+    }
+
+    try {
+      const url = `https://worldtimeapi.org/api/timezone/${resolved.timeZone}`;
+      const response = await axios.get(url, { timeout: 8000 });
+      const data = response.data;
+
+      return {
+        type: 'time',
+        title: `Current time in ${resolved.location}`,
+        content: `datetime=${data.datetime}; utc_offset=${data.utc_offset}; timezone=${data.timezone}`,
+        url,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async searchWikipedia(query: string, lang: string = 'en'): Promise<any[]> {
     try {
       const response = await axios.get(
@@ -237,7 +291,7 @@ export class GroqCompound {
   ): Promise<string> {
     try {
       const shouldSearch =
-        /(search|find|lookup|current|latest|news|recent|today|this week|detailed|comprehensive|explain|analyze|compare|contrast|pros and cons|advantages|disadvantages|research|study|report)/i.test(
+        /(search|find|lookup|look up|current|latest|news|recent|today|this week|what happened|happened|update|time|timezone|date|day|month|year|weather|forecast|temperature|humidity|stock|price|quote|score|standings|detailed|comprehensive|explain|analyze|compare|contrast|pros and cons|advantages|disadvantages|research|study|report)/i.test(
           userPrompt
         ) &&
         userPrompt.length > 10 &&
@@ -260,6 +314,13 @@ export class GroqCompound {
       ]);
 
       const allInformation: any[] = [];
+
+      // Fast path: for common "what time is it in X" queries, use a dedicated time API
+      // so we don't rely on brittle HTML parsing.
+      const timeSource = await this.tryGetWorldTime(userPrompt);
+      if (timeSource) {
+        allInformation.push(timeSource);
+      }
 
       if (wikipediaResults.length > 0) {
         for (const wikiResult of wikipediaResults.slice(0, 2)) {

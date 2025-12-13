@@ -36,7 +36,9 @@ export const nextPublicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export const nextPublicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const nextPublicOwnerEmail = process.env.NEXT_PUBLIC_OWNER_EMAIL;
+// Vercel env is `OWNER_EMAIL` (not NEXT_PUBLIC_*).
+// Keep backward compatibility with older deployments.
+export const nextPublicOwnerEmail = process.env.OWNER_EMAIL || process.env.NEXT_PUBLIC_OWNER_EMAIL;
 
 export const edgeConfig = process.env.EDGE_CONFIG;
 
