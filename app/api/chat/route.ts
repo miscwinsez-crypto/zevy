@@ -1367,23 +1367,82 @@ export async function POST(req: NextRequest) {
     
     // Log successful compound search
     console.log(`Groq Compound search completed for query: ${userMessage}`)
-  } else if (selectedModel === 'compound' && !searchEnabled) {
-    // Return a message explaining search needs to be enabled
-    aiResponse = 'Please enable the search feature to use Groq Compound for web research. Click the search button to activate real-time web knowledge gathering.'
   } else {
     const intent = detectInformationIntent(userMessage, chat_history);
 
     if (intent.customResponse) {
-        return NextResponse.json({ response: intent.customResponse });
+      return NextResponse.json({ response: intent.customResponse });
     }
 
     if (searchEnabled && intent.shouldSearch) {
-        const knowledgeContext = await gatherKnowledge(userMessage, intent);
-        const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
-        aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel, stream, current_time, timezone);
+      const knowledgeContext = await gatherKnowledge(userMessage, intent);
+      const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
+      aiResponse = await callGroq(
+        [{ role: 'user', content: contextualizedMessage }],
+        selectedModel,
+        stream,
+        current_time,
+        timezone
+      );
     } else if (!searchEnabled && intent.shouldSearch) {
-        aiResponse = "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
+      aiResponse =
+        "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
     } else {
+      const lastUserMessage =
+        chat_history
+          .filter((m: { role: string }) => m.role === 'user')
+          .slice(-1)[0]?.content || '';
+
+      const knowledgeContext = searchEnabled
+        ? await gatherKnowledge(userMessage, intent)
+        : '';
+
+      const formattedHistory = chat_history.map(
+        (msg: { role: string; content: string }) => ({
+          role: msg.role,
+          content: msg.content,
+          ...(msg.role === 'assistant' ? { isResponse: true } : {})
+        })
+      );
+
+      let contextualUserMessage = userMessage;
+      if (chat_history.length > 0) {
+        const lastMessages = chat_history.slice(-5);
+        contextualUserMessage =
+          lastMessages
+            .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+            .join('\n') + `\n\nuser: ${userMessage}`;
+      }
+
+      const contextBuilder = [];
+      if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
+        contextBuilder.push(`Previous topic: ${lastUserMessage}`);
+      }
+      if (knowledgeContext)
+        contextBuilder.push(`Knowledge: ${knowledgeContext}`);
+
+      const fullContext =
+        contextBuilder.length > 0
+          ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
+          : contextualUserMessage;
+
+      aiResponse = await callGroq(
+        [
+          { role: 'system', content: SYSTEM_PROMPT(current_time, timezone) },
+          ...formattedHistory,
+          {
+            role: 'user',
+            content: fullContext
+          }
+        ],
+        selectedModel,
+        stream,
+        current_time,
+        timezone,
+        contextualUserMessage
+      );
+    }
+  }
         const lastUserMessage = chat_history
             .filter((m: {role: string}) => m.role === 'user')
             .slice(-1)[0]?.content || '';
