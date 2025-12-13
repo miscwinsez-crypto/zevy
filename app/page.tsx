@@ -1,5 +1,6 @@
 'use client'
 import Image from 'next/image';
+import SearchResults from './components/SearchResults';
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
@@ -199,7 +200,9 @@ Guidelines:
 
 export default function ZevyCloudAI() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
-  const palette = theme === 'dark' ? darkPalette : lightPalette
+  const palette = theme === 'dark' ? darkPalette : lightPalette;
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   
   // Enhanced time detection state
   const [userTimezone, setUserTimezone] = useState<string>(() => {
@@ -1060,9 +1063,7 @@ useEffect(() => {
       word => textToSend.toLowerCase().includes(word)
     )
 
-    const isWebSearch = ['search', 'find', 'current', 'latest', 'news', 'today', 'reddit', 'twitter', 'trending'].some(
-      word => textToSend.toLowerCase().includes(word)
-    )
+    const isWebSearch = isSearchMode
 
     try {
       logDiagnostics('VALIDATION_START', { isImageGen, isWebSearch })
@@ -1233,20 +1234,31 @@ useEffect(() => {
         DEFAULT_RETRY_CONFIG
       )
 
-      logDiagnostics('RESPONSE_RECEIVED', { 
+      logDiagnostics('RESPONSE_RECEIVED', {
         hasResponse: !!response.data,
-        modeUsed: response.data?.mode_used
-      })
+        modeUsed: response.data?.mode_used,
+        isSearch: isSearchMode,
+      });
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
-        mode: response.data.mode_used || actualMode,
-        timestamp: new Date().toISOString(),
-        reasoning: response.data.reasoning
+      if (isSearchMode && response.data.searchResults) {
+        setSearchResults(response.data.searchResults);
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `Found ${response.data.searchResults.length} results.`,
+          mode: 'search',
+          timestamp: new Date().toISOString(),
+        };
+        updateMessages([...messages, userMessage, assistantMessage]);
+      } else {
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
+          mode: response.data.mode_used || actualMode,
+          timestamp: new Date().toISOString(),
+          reasoning: response.data.reasoning
+        };
+        updateMessages([...messages, userMessage, assistantMessage]);
       }
-
-      updateMessages([...messages, userMessage, assistantMessage])
       setApiError(null)
       addNotification('success', '✅ Response received!')
     } catch (error: any) {
@@ -1838,7 +1850,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     await sendMessage(lastUserMessage.content, true)
   }
 
-  const searchResults = allConversations
+  const filteredConversations = allConversations
     .map((conv, idx) => ({
       ...conv,
       idx,
@@ -2399,7 +2411,23 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
             <div className="relative flex flex-col gap-2">
               <div className="relative flex items-center gap-2">
                 <div className="relative flex-1">
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2">
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 z-10 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setIsSearchMode(!isSearchMode);
+                        if (!isSearchMode) {
+                          addNotification('info', 'Web search enabled - Groq Compound will now gather knowledge from the web');
+                        }
+                      }}
+                      className={`flex items-center gap-2 p-2 rounded-lg text-xs transition-all ${isSearchMode ? 'bg-blue-500 text-white' : ''}`}
+                      style={{ 
+                        background: isSearchMode ? palette.hover : palette.secondary, 
+                        color: isSearchMode ? '#fff' : palette.accent 
+                      }}
+                    >
+                      <Globe size={14} />
+                      <span>{isSearchMode ? 'Search On' : 'Search'}</span>
+                    </button>
                     <div className="relative">
                       <button
                         onClick={() => setShowModelDropdown(!showModelDropdown)}
@@ -2438,8 +2466,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   </div>
                   {input === '' && (
                     <div 
-                    className="absolute inset-0 flex text-sm pointer-events-none"
-                    style={{ color: palette.subdued, paddingLeft: '128px', paddingTop: '12px' }}
+                    className="absolute inset-0 text-sm pointer-events-none"
+                    style={{ color: palette.subdued, paddingLeft: '240px', paddingTop: '13px' }}
                   >
                       Message Zevy or attach documents for analysis...
                     </div>
@@ -2452,14 +2480,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     }}
                     onKeyPress={handleKeyPress}
                     placeholder=""
-                    className="w-full p-3 pl-32 rounded-lg resize-none focus:outline-none text-sm transition-all"
+                    className="w-full p-3 pl-[240px] rounded-lg resize-none focus:outline-none text-sm transition-all"
                     style={{
                       background: palette.panel,
                       border: `1px solid ${palette.border}`,
                       color: palette.accent,
                       minHeight: '44px',
                       boxShadow: `0 2px 4px ${palette.border}20`,
-                      paddingTop: '12px',
+                      paddingTop: '13px',
                       paddingBottom: '12px'
                     }}
                   />
@@ -2849,6 +2877,10 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   </div>
 
                   <div className="p-3 rounded-lg" style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}>
+      {searchResults.length > 0 && (
+        <SearchResults results={searchResults} onClose={() => setSearchResults([])} />
+      )}
+
                     <p className="text-xs" style={{ color: palette.subdued }}>v1.0.0 • Made with 💙 by Adam Zein Ziqry</p>
                   </div>
                 </div>

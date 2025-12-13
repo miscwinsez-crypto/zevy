@@ -320,7 +320,9 @@ When you ask Vyra AI a question, it creates a comprehensive debate between two e
 ### 2. **Astra AI System** (Research-Focused Intelligence)
 
 **Model Used:**
-- **Llama-3.3-70b-versatile**: High-performance research and analysis
+- **Llama-4-scout-17b-16e-instruct**: Speed model for quick responses
+- **Llama-4-maverick-17b-128e-instruct**: Intelligence model for deep analysis
+
 
 **Daily Limit:** 125 uses per user
 
@@ -517,7 +519,7 @@ Zevy AI includes usage limits to ensure fair access for all users and maintain s
 
 **Daily Limits:**
 - **Vyra AI (Kimi K2 + Qwen)**: 25 uses per day per user
-- **Astra AI (Llama-3.3-70b)**: 125 uses per day per user
+- **Astra AI (Scout + Maverick)**: 125 uses per day per user
 
 **Auto-Reset Mechanism:**
 ```typescript

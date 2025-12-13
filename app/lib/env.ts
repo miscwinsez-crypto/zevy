@@ -9,10 +9,6 @@ export const groqApiKey8 = process.env.GROQ_API_KEY_8;
 export const groqApiKey9 = process.env.GROQ_API_KEY_9;
 export const groqApiKey10 = process.env.GROQ_API_KEY_10;
 
-export const geminiApiKey1 = process.env.GEMINI_API_KEY_1;
-export const geminiApiKey2 = process.env.GEMINI_API_KEY_2;
-export const geminiApiKey3 = process.env.GEMINI_API_KEY_3;
-export const geminiApiKey4 = process.env.GEMINI_API_KEY_4;
 
 export const googleApiKey1 = process.env.GOOGLE_API_KEY_1;
 export const googleApiKey2 = process.env.GOOGLE_API_KEY_2;

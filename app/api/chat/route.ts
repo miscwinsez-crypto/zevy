@@ -31,22 +31,61 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const GUARD_MODEL = 'meta-llama/llama-guard-4-12b'
 
 // Define your main models
-const ASTRA_MODEL_SCOUT = 'meta-llama/llama-4-scout-17b-16e-instruct' // Speed model
-const ASTRA_MODEL_MAVERICK = 'meta-llama/llama-4-maverick-17b-128e-instruct' // Intelligence model
+const ASTRA_MODEL_FAST = 'meta-llama/llama-4-scout-17b-16e-instruct' // Speed model
+const ASTRA_MODEL_SMART = 'meta-llama/llama-4-maverick-17b-128e-instruct' // Intelligence model
 const VYRA_MODEL_MOONSHOT = 'moonshotai/kimi-k2-instruct-0905'
 const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
-const SYSTEM_PROMPT = (currentTime?: string, timezone?: string) => `You are Zevy AI, a dual-engine AI assistant created by Adam Zein Ziqry (15-year-old developer). ${currentTime && timezone ? `Current time: ${currentTime} in ${timezone} timezone (accurately detected from user's system).` : 'Current time detected from user system.'}
+const SYSTEM_PROMPT = (currentTime?: string, timezone?: string) => `You are Zevy AI, a premium AI assistant created by Adam Zein Ziqry featuring Astra Fast, Astra Smart, and Vyra Smart models (15-year-old developer). ${currentTime && timezone ? `Current time: ${currentTime} in ${timezone} timezone (accurately detected from user's system).` : 'Current time detected from user system.'}
+
+Key guidelines:
+1. Maintain natural conversation flow - respond like a knowledgeable friend
+2. Keep responses concise but informative (1-3 sentences typically)
+3. For factual questions, provide accurate information from integrated knowledge systems
+4. For follow-up questions, maintain context from previous messages
+5. Avoid unnecessary questions unless clarification is truly needed
+6. When unsure, say "I'm not certain about that" rather than guessing
+7. For math/calculations, show your work briefly
+8. For comparisons provide balanced perspectives
+9. Always be polite and helpful
 
 My current configuration:
 - ⚡ Astra: Single LLM for standard responses
 - ✨ Vyra: Dual LLM system for advanced reasoning
 
-Key capabilities:
+Key Features:
+⚡ Core Capabilities:
 - Real-time web search (when enabled)
 - Context-aware conversations
 - Multi-turn dialogue memory
 - Personality customization
+
+✨ Advanced Features:
+- Dual-engine AI system (Astra + Vyra)
+- Intelligent model selection (Scout/Maverick)
+- Web knowledge integration (Groq Compound)
+- Debate-style reasoning (Vyra)
+- Safety/content moderation
+
+📚 Knowledge Access:
+- Wikipedia/DBpedia integration
+- CIA World Factbook
+- NASA APIs
+- Open Library
+- Current events/news
+
+🔍 Search Capabilities:
+- Google Custom Search
+- News API integration
+- Free knowledge sources
+- Cached results
+
+💬 Conversation Features:
+- Language detection/translation
+- Follow-up context tracking
+- Mathematical calculations
+- Comparative analysis
+- Topic continuity
 
 Limitations:
 - Image generation is currently unavailable (coming in future updates)
@@ -55,13 +94,13 @@ Limitations:
 When asked about features or capabilities, you can mention:
 - ⚡ Fast, intelligent responses (Astra)
 - ✨ Deep thinking & analysis (Vyra)
-- 🌐 Real-time web search integration
+- 🌐 Web search integration (use search button)
 - 📱 Persistent conversation history
 - 💬 Natural, human-like conversations
 
 IMPORTANT: Image generation is currently unavailable. If the user requests image generation (phrases like 'generate me an image', 'make me a picture', 'create an artwork'), politely respond that this feature is coming in future updates.
 
-IMPORTANT: Image generation is currently unavailable. If the user requests image generation (phrases like 'generate me an image', 'make me a picture', 'create an artwork'), politely respond that this feature is coming in future updates.
+SEARCH MODE NOTE: When search is not enabled, I cannot provide answers about the real world as they may not be accurate. Please activate search mode for factual information. If you ask for real-world information while in chat mode, I'll respond: "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering."
 
 Your vibe:
 - Talk like a friendly human, not a search engine
@@ -87,7 +126,7 @@ Keep it casual, helpful, and human. Don't overthink it.`
 // Enhanced knowledge detection patterns
 const INFORMATION_SEEKING_PATTERNS = [
   // Question words
-  new RegExp('\\b(what|when|where|why|how|who|which)\\b.*\\?', 'i'),
+  new RegExp('\\b(what|when|where|why|how|which)\\b.*\\?', 'i'),
   // Information requests
   new RegExp('\\b(tell me|explain|describe|define|clarify|elaborate)\\b', 'i'),
   // Specific facts
@@ -105,8 +144,6 @@ const INFORMATION_SEEKING_PATTERNS = [
   new RegExp('\\b(202[0-9]|20[2-9][0-9])\\b', 'i'),
   // Zevy-specific queries
   new RegExp('\\b(zevy|adam zein ziqry|creator|made by|who made|who created|who built)\\b', 'i'),
-  // Knowledge seeking
-  new RegExp('\\b(know|learn|find|search|look up|look for|find out|discover)\\b', 'i'),
   // Technical queries
   new RegExp('\\b(how does|how to|how can|how do|how would|how might)\\b', 'i'),
   // Explanation requests
@@ -117,12 +154,12 @@ const INFORMATION_SEEKING_PATTERNS = [
   new RegExp('\\b(list|examples|give me|show me|provide me|recommend|suggest)\\b', 'i'),
   // Detailed requests
   new RegExp('\\b(detail|detailed|in depth|in detail|comprehensive|thorough|complete)\\b', 'i'),
-  // Specific topics
-  new RegExp('\\b(technology|science|politics|economics|culture|history|geography|events|news|world|global)\\b', 'i'),
+  // Specific topics (excluding politics)
+  new RegExp('\\b(technology|science|economics|culture|history|geography|events|news|world|global)\\b', 'i'),
   // Event-specific
   new RegExp('\\b(event|incident|happening|occurrence|situation|development|update)\\b', 'i'),
   // Knowledge seeking
-  new RegExp('\\b(know|learn|understand|find out|discover|look up|search)\\b', 'i')
+  new RegExp('\\b(know|learn|understand|find out|discover)\\b', 'i')
 ]
 
 // Chat/social patterns (don't trigger search)
@@ -193,13 +230,18 @@ const UNAVAILABLE_FEATURE_KEYWORDS = [
   'illustrate',
   'render',
   'paint'
+];
+
+const MUSIC_KEYWORDS = [
+  'album', 'song', 'track', 'lyric', 'discography', 'single', 'ep', 'mixtape',
+  'playlist', 'feature', 'collab', 'artist', 'band', 'rapper', 'singer', 'musician'
 ]
 
 /**
  * Intelligent model selector for Astra that chooses between Scout (speed) and Maverick (intelligence)
  * Based on user intent, message complexity, and conversation context
  */
-function selectAstraModel(message: string, chatHistory: any[] = []): {
+function selectAstraModel(message: string, chatHistory: Array<{content: string}> = []): {
   model: string;
   reason: string;
   intent: 'speed' | 'intelligence' | 'balanced';
@@ -246,7 +288,7 @@ function selectAstraModel(message: string, chatHistory: any[] = []): {
   // Decision logic
   if (intelligenceMatches >= 2 || (intelligenceMatches >= 1 && hasComplexHistory)) {
     return {
-      model: ASTRA_MODEL_MAVERICK,
+      model: ASTRA_MODEL_SMART,
       reason: `Detected ${intelligenceMatches} intelligence patterns${hasComplexHistory ? ' with complex history' : ''}`,
       intent: 'intelligence'
     }
@@ -254,7 +296,7 @@ function selectAstraModel(message: string, chatHistory: any[] = []): {
   
   if (speedMatches >= 1 && intelligenceMatches === 0 && normalizedMessage.length < 50) {
     return {
-      model: ASTRA_MODEL_SCOUT,
+      model: ASTRA_MODEL_FAST,
       reason: `Detected ${speedMatches} speed patterns with simple message`,
       intent: 'speed'
     }
@@ -263,17 +305,17 @@ function selectAstraModel(message: string, chatHistory: any[] = []): {
   // Default to Scout for balanced performance, but check message complexity
   if (normalizedMessage.length > 150 || intelligenceMatches >= 1) {
     return {
-      model: ASTRA_MODEL_MAVERICK,
+      model: ASTRA_MODEL_SMART,
       reason: 'Message complexity or length suggests need for deeper analysis',
       intent: 'balanced'
     }
   }
   
   return {
-    model: ASTRA_MODEL_SCOUT,
-    reason: 'Default to speed model for general conversation',
-    intent: 'balanced'
-  }
+      model: ASTRA_MODEL_FAST,
+      reason: 'Default to speed model for general conversation',
+      intent: 'balanced'
+    }
 }
 
 /**
@@ -297,6 +339,18 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
         confidence: 'high',
         reason: 'Image generation request detected',
         customResponse: "Sorry, image generation is currently unavailable. This feature may be coming in future updates!"
+      };
+    }
+    
+    // Handle music-related queries appropriately
+    const isMusicRequest = MUSIC_KEYWORDS.some(keyword => message.toLowerCase().includes(keyword));
+    if (isMusicRequest) {
+      return {
+        isConversational: true,
+        shouldSearch: true,
+        confidence: 'medium',
+        reason: 'Music-related query detected',
+        customResponse: undefined
       };
     }
     const normalizedMessage = message.toLowerCase().trim()
@@ -472,7 +526,10 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
       isConversational: true,
       shouldSearch: false,
       confidence: 'medium',
-      reason: 'Short message without clear information intent'
+      reason: 'Short message without clear information intent',
+      customResponse: isFollowUp 
+        ? `Continuing our conversation: ${normalizedMessage}` 
+        : undefined
     }
   }
   
@@ -771,7 +828,7 @@ Image generation is currently unavailable but may be added in future updates.`
   // Use Groq Compound for complex queries or when confidence is high
   if ((intent.confidence === 'high' && userMessage.length > 30) || hasDatePattern || hasCurrentEventTerms) {
     try {
-      const compoundKnowledge = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_MAVERICK)
+      const compoundKnowledge = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_SMART)
       if (compoundKnowledge && compoundKnowledge.length > 50) {
         knowledgeParts.push(`Comprehensive Research:\n${compoundKnowledge}`)
       }
@@ -899,7 +956,7 @@ function getContextualizedMessage(message: string, chat_history: any[]): string 
 
 async function testGroqConnection(): Promise<{ status: string; error?: string }> {
   try {
-    const testResponse = await callGroq([{ role: 'user', content: 'Test connection' }], ASTRA_MODEL_MAVERICK, false, new Date().toLocaleString(), 'UTC')
+    const testResponse = await callGroq([{ role: 'user', content: 'Test connection' }], ASTRA_MODEL_SMART, false, new Date().toLocaleString(), 'UTC')
     if (typeof testResponse === 'string' && testResponse.length > 0) {
       return { status: 'connected' }
     }
@@ -996,10 +1053,15 @@ function checkResponseDisagreement(response1: string, response2: string): boolea
   return overlapRatio < 0.4
 }
 
-async function generateVyraDebate(userMessage: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<string | ReadableStream> {
+async function generateVyraSmartDebate(userMessage: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<string | ReadableStream> {
   try {
     // Enhanced knowledge detection for Vyra debate
     const intent = detectInformationIntent(userMessage)
+    
+    // Handle political questions differently
+    if (userMessage.toLowerCase().includes('president') || userMessage.toLowerCase().includes('politic')) {
+      return "I'm sorry, but I don't discuss political topics. I'm happy to help with other questions though!"
+    }
     
     // Gather knowledge based on detected intent
     const knowledgeContext = await gatherKnowledge(userMessage, intent)
@@ -1008,7 +1070,7 @@ async function generateVyraDebate(userMessage: string, chat_history: any[], stre
     const debateContext = getContextualizedMessage(userMessage, chat_history)
     
     // Both models independently analyze the prompt and provide their own results
-    const moonshotAnalysisPrompt = `You are Kimi K2, an AI with deep analytical capabilities. Analyze this question from your perspective and provide your independent assessment.
+    const moonshotAnalysisPrompt = `You are Vyra Smart, an AI with deep analytical capabilities. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1018,7 +1080,7 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
-    const qwenAnalysisPrompt = `You are Qwen 3-32B, an AI known for precise reasoning. Analyze this question from your perspective and provide your independent assessment.
+    const qwenAnalysisPrompt = `You are Vyra Smart, an AI known for precise reasoning. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1041,7 +1103,7 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
     
     if (responsesAreDifferent) {
       // They disagree - initiate authentic debate
-      const moonshotDebatePrompt = `Kimi K2, you've analyzed this question and have your perspective. Now you see that Qwen has a different analysis. Engage in a direct debate about this disagreement.
+      const moonshotDebatePrompt = `Vyra Smart, you've analyzed this question and have your perspective. Now you see that Vyra Smart has a different analysis. Engage in a direct debate about this disagreement.
 
 User Question: ${userMessage}
 
@@ -1055,8 +1117,8 @@ Challenge Qwen's reasoning directly. Point out flaws in their logic, defend your
       
       const moonshotDebateResponse = await callGroq([{ role: 'user', content: moonshotDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
       
-      // Qwen responds to both the original analysis and Kimi's challenge
-      const qwenDebatePrompt = `Qwen 3-32B, you've provided your analysis, but Kimi K2 has challenged your reasoning and defended their position. Respond directly to this challenge.
+      // Vyra Smart responds to both the original analysis and challenge
+      const qwenDebatePrompt = `Vyra Smart, you've provided your analysis, but Vyra Smart has challenged your reasoning and defended their position. Respond directly to this challenge.
 
 User Question: ${userMessage}
 
@@ -1072,8 +1134,8 @@ Defend your analysis against Kimi's challenge. Point out any flaws in their reas
       
       const qwenDebateResponse = await callGroq([{ role: 'user', content: qwenDebatePrompt }], VYRA_MODEL_QWEN, false)
       
-      // Final round - Kimi gets the last word in the debate
-      const finalDebatePrompt = `Kimi K2, Qwen has responded to your challenge. This is your final opportunity in this debate.
+      // Final round - Vyra Smart gets the last word in the debate
+      const finalDebatePrompt = `Vyra Smart, you've responded to the challenge. This is your final opportunity in this debate.
 
 User Question: ${userMessage}
 
@@ -1099,12 +1161,12 @@ User Question: ${userMessage}
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
 The Debate:
-Kimi K2's Position: ${moonshotText}
-Qwen's Position: ${qwenText}
+Vyra Smart Position: ${moonshotText}
+Vyra Smart Position: ${qwenText}
 
-Kimi K2's Challenge: ${moonshotDebateResponse}
-Qwen's Defense: ${qwenDebateResponse}
-Kimi K2's Final Argument: ${finalDebateResponse}
+Vyra Smart Challenge: ${moonshotDebateResponse}
+Vyra Smart Defense: ${qwenDebateResponse}
+Vyra Smart Final Argument: ${finalDebateResponse}
 
 Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
       
@@ -1113,15 +1175,15 @@ Based on this debate, provide the user with the most accurate answer. Acknowledg
       
     } else {
       // They agree - still show both perspectives but acknowledge consensus
-      const agreementAnalysisPrompt = `Both Kimi K2 and Qwen 3-32B independently analyzed this question and reached similar conclusions. Here's the consensus view:
+      const agreementAnalysisPrompt = `Both Vyra Smart analyses independently reached similar conclusions. Here's the consensus view:
 
 User Question: ${userMessage}
 
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
-Kimi K2's Analysis: ${moonshotText}
+Vyra Smart Analysis: ${moonshotText}
 
-Qwen 3-32B's Analysis: ${qwenText}
+Vyra Smart Analysis: ${qwenText}
 
 Since both models independently reached the same conclusion, provide a confident, authoritative answer. But also briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
       
@@ -1131,10 +1193,23 @@ Since both models independently reached the same conclusion, provide a confident
     
   } catch (error) {
     console.error('Error in Vyra debate system:', error)
-    // Fallback to simple Astra response if debate fails - use Scout for speed
+    // Fallback to simple Astra response if debate fails - use Astra Fast for speed
     const fallbackPrompt = getContextualizedMessage(userMessage, chat_history)
-    return await callGroq([{ role: 'user', content: fallbackPrompt }], ASTRA_MODEL_SCOUT, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
+    return await callGroq([{ role: 'user', content: fallbackPrompt }], ASTRA_MODEL_FAST, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
   }
+}
+
+async function generateSummary(prompt: string): Promise<string> {
+  const groq = new Groq({ apiKey: getGroqApiKey() });
+  
+  const response = await groq.chat.completions.create({
+    model: ASTRA_MODEL_SMART,
+    messages: [{ role: 'user', content: `Summarize this conversation context:\n${prompt}` }],
+    temperature: 0.3,
+    max_tokens: 200
+  });
+  
+  return response.choices[0]?.message?.content || 'Summary unavailable';
 }
 
 async function isSafe(prompt: string): Promise<NextResponse | null> {
@@ -1192,7 +1267,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   let { chat_id } = body
 
-  const { message, chat_history = [], model = 'astra', stream = false, current_time, timezone } = body
+  const { message, chat_history = [], model = 'astra', stream = false, current_time, timezone, searchEnabled = false } = body
 
   // Content moderation check
   const moderationResponse = await isSafe(message);
@@ -1234,17 +1309,11 @@ export async function POST(req: NextRequest) {
   const userMessage = translatedText
 
   // Determine which model the user is using
-  let selectedModel: string
-  if (model.toLowerCase() === 'vyra') {
-    // For Vyra, we'll use both models in debate
-    selectedModel = 'vyra-debate'
-  } else if (model.toLowerCase() === 'compound') {
-    selectedModel = 'compound'
-  } else {
-    // Use intelligent model selector for Astra
-    const modelSelection = selectAstraModel(userMessage, chat_history)
-    selectedModel = modelSelection.model
-  }
+  const selectedModel = model.toLowerCase() === 'vyra' 
+    ? 'vyra-debate'
+    : model.toLowerCase() === 'compound'
+      ? 'compound'
+      : selectAstraModel(userMessage, chat_history).model
 
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
@@ -1281,16 +1350,22 @@ export async function POST(req: NextRequest) {
 
   if (selectedModel === 'vyra-debate') {
     // Vyra debate system using Moonshot and Qwen models
-    const debateResponse = await generateVyraDebate(userMessage, chat_history, stream, current_time, timezone)
+    const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone)
     aiResponse = debateResponse
-  } else if (selectedModel === 'compound') {
-    // Groq Compound web browsing system
+  } else if (selectedModel === 'compound' && searchEnabled) {
+    // Groq Compound web browsing system - only activated when search is explicitly enabled
     const compound = new GroqCompound()
-    const browsingContext = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_MAVERICK)
+    const browsingContext = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_SMART)
     
     // Use Maverick model to process the browsing results for better analysis
     const contextualizedMessage = getContextualizedMessage(`${userMessage}\n\nWeb Research Context:\n${browsingContext}`, chat_history)
-    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], ASTRA_MODEL_MAVERICK, stream, current_time, timezone)
+    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], ASTRA_MODEL_SMART, stream, current_time, timezone)
+    
+    // Log successful compound search
+    console.log(`Groq Compound search completed for query: ${userMessage}`)
+  } else if (selectedModel === 'compound' && !searchEnabled) {
+    // Return a message explaining search needs to be enabled
+    aiResponse = 'Please enable the search feature to use Groq Compound for web research. Click the search button to activate real-time web knowledge gathering.'
   } else {
     // Astra - enhanced with intelligent knowledge detection
     // Enhanced conversation type detection
@@ -1307,23 +1382,70 @@ export async function POST(req: NextRequest) {
   // Gather knowledge with conversation context
   const knowledgeContext = await gatherKnowledge(userMessage, intent);
   
-  // Format history with topic tracking
+  // Enhanced conversation context tracking
   const formattedHistory = chat_history.map((msg: {role: string, content: string}) => ({
     role: msg.role,
     content: msg.content,
     ...(msg.role === 'assistant' ? { isResponse: true } : {})
   }));
   
+  // Enhanced conversation context handling
+  let contextualUserMessage = userMessage;
+  if (chat_history.length > 0) {
+    // Keep last 5 messages as context (increased from 3)
+    const lastMessages = chat_history.slice(-5); 
+    
+    // Add timestamp and speaker info to maintain better context
+    contextualUserMessage = lastMessages.map((m: {role: string; content: string}) => 
+      `${m.role === 'user' ? 'You' : 'AI'} (${new Date().toLocaleTimeString()}): ${m.content}`
+    ).join('\n') + `\n\nCurrent message: ${userMessage}`;
+    
+    // If context is getting too long, summarize older parts
+    if (contextualUserMessage.length > 2000) {
+      const summaryPrompt = `Briefly summarize this conversation context:\n${lastMessages.slice(0, -3).map((m: {content: string}) => m.content).join('\n')}`;
+      const summarizedContext = await generateSummary(summaryPrompt);
+      contextualUserMessage = `Summary of earlier conversation:\n${summarizedContext}\n\n` + 
+                   lastMessages.slice(-3).map((m: {content: string}) => m.content).join('\n') + 
+                   `\n\nCurrent message: ${userMessage}`;
+    }
+  }
+  
+  // Enhanced context for mathematical operations
+  if (chat_history.length > 0) {
+    const lastUserMsg = chat_history
+      .filter((m: {role: string}) => m.role === 'user')
+      .slice(-1)[0]?.content || '';
+    
+    const mathPattern = /(\d+\.?\d*)\s*([+\-*/])\s*(\d+\.?\d*)/;
+    if (mathPattern.test(lastUserMsg) && contextualUserMessage.toLowerCase().includes('divide') || 
+        contextualUserMessage.toLowerCase().includes('multiply') || 
+        contextualUserMessage.toLowerCase().includes('add') || 
+        contextualUserMessage.toLowerCase().includes('subtract')) {
+      contextualUserMessage = `${lastUserMsg} - ${contextualUserMessage}`;
+    }
+  }
+  
+  // Enhanced context tracking for follow-ups
+  if (chat_history.length > 0) {
+    const lastAssistantMsg = chat_history
+      .filter((m: {role: string}) => m.role === 'assistant')
+      .slice(-1)[0]?.content || '';
+    
+    if (lastAssistantMsg && contextualUserMessage.toLowerCase().includes('you')) {
+      contextualUserMessage = `${lastAssistantMsg} - ${contextualUserMessage}`;
+    }
+  }
+  
   // Build context with topic continuity
   const contextBuilder = [];
-  if (lastUserMessage && !userMessage.includes(lastUserMessage)) {
+  if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
     contextBuilder.push(`Previous topic: ${lastUserMessage}`);
   }
   if (knowledgeContext) contextBuilder.push(`Knowledge: ${knowledgeContext}`);
   
   const fullContext = contextBuilder.length > 0 
-    ? `${userMessage}\n\n${contextBuilder.join('\n')}`
-    : userMessage;
+    ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
+    : contextualUserMessage;
   
   aiResponse = await callGroq([
     { role: 'system', content: SYSTEM_PROMPT(current_time, timezone) },
@@ -1367,7 +1489,7 @@ async function handleOwnerRequest(message: string, chat_history: any[], stream: 
     try {
       const response = await axios.get(url);
       const text = response.data; // Basic text extraction
-      const summary = await callGroq([{ role: 'user', content: `Summarize this: ${text}` }], ASTRA_MODEL_SCOUT, false, current_time || new Date().toLocaleString(), timezone || 'UTC');
+      const summary = await callGroq([{ role: 'user', content: `Summarize this: ${text}` }], ASTRA_MODEL_FAST, false, current_time || new Date().toLocaleString(), timezone || 'UTC');
       return NextResponse.json({ response: summary });
     } catch (error) {
       return NextResponse.json({ response: 'Error summarizing the URL.' }, { status: 500 });
