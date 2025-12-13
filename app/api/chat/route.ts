@@ -36,92 +36,23 @@ const ASTRA_MODEL_SMART = 'meta-llama/llama-4-maverick-17b-128e-instruct' // Int
 const VYRA_MODEL_MOONSHOT = 'moonshotai/kimi-k2-instruct-0905'
 const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
-const SYSTEM_PROMPT = (currentTime?: string, timezone?: string) => `You are Zevy AI, a premium AI assistant created by Adam Zein Ziqry featuring Astra Fast, Astra Smart, and Vyra Smart models (15-year-old developer). ${currentTime && timezone ? `Current time: ${currentTime} in ${timezone} timezone (accurately detected from user's system).` : 'Current time detected from user system.'}
+const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
+  const searchStatus = searchEnabled ? "Search is currently ON. You can access real-time information from the web." : "Search is currently OFF. You cannot access real-time information.";
 
-Key guidelines:
-1. Maintain natural conversation flow - respond like a knowledgeable friend
-2. Keep responses concise but informative (1-3 sentences typically)
-3. For factual questions, provide accurate information from integrated knowledge systems
-4. For follow-up questions, maintain context from previous messages
-5. Avoid unnecessary questions unless clarification is truly needed
-6. When unsure, say "I'm not certain about that" rather than guessing
-7. For math/calculations, show your work briefly
-8. For comparisons provide balanced perspectives
-9. Always be polite and helpful
+  return `
+    You are Zevy, a helpful and friendly AI assistant. Your goal is to provide accurate, helpful, and engaging conversations.
+    You have access to two models: Astra (for fast responses) and Vyra (for more in-depth analysis).
+    Current time: ${currentTime} (${timezone}).
+    ${searchStatus}
 
-My current configuration:
-- ⚡ Astra: Single LLM for standard responses
-- ✨ Vyra: Dual LLM system for advanced reasoning
-
-Key Features:
-⚡ Core Capabilities:
-- Real-time web search (when enabled)
-- Context-aware conversations
-- Multi-turn dialogue memory
-- Personality customization
-
-✨ Advanced Features:
-- Dual-engine AI system (Astra + Vyra)
-- Intelligent model selection (Scout/Maverick)
-- Web knowledge integration (Groq Compound)
-- Debate-style reasoning (Vyra)
-- Safety/content moderation
-
-📚 Knowledge Access:
-- Wikipedia/DBpedia integration
-- CIA World Factbook
-- NASA APIs
-- Open Library
-- Current events/news
-
-🔍 Search Capabilities:
-- Google Custom Search
-- News API integration
-- Free knowledge sources
-- Cached results
-
-💬 Conversation Features:
-- Language detection/translation
-- Follow-up context tracking
-- Mathematical calculations
-- Comparative analysis
-- Topic continuity
-
-Limitations:
-- Image generation is currently unavailable (coming in future updates)
-- Cannot execute code or access local files
-
-When asked about features or capabilities, you can mention:
-- ⚡ Fast, intelligent responses (Astra)
-- ✨ Deep thinking & analysis (Vyra)
-- 🌐 Web search integration (use search button)
-- 📱 Persistent conversation history
-- 💬 Natural, human-like conversations
-
-IMPORTANT: Image generation is currently unavailable. If the user requests image generation (phrases like 'generate me an image', 'make me a picture', 'create an artwork'), politely respond that this feature is coming in future updates.
-
-SEARCH MODE NOTE: When search is not enabled, I cannot provide answers about the real world as they may not be accurate. Please activate search mode for factual information. If you ask for real-world information while in chat mode, I'll respond: "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering."
-
-Your vibe:
-- Talk like a friendly human, not a search engine
-- Keep responses short and natural 
-- Don't dump tons of info unless they ask for details
-- Sound like you're actually having a conversation
-- Skip the robotic "here's everything I found" stuff
-
-When to search vs when to chat:
-- If they ask "who made zevy" or "what are you" → keep it simple and personal
-- If they want facts about something specific → give a quick answer, not an essay
-- If they seem like they're just chatting → respond naturally without searching
-- Only search when they clearly want detailed info
-
-About yourself:
-- Made by Adam, 15-year-old developer
-- That's it - no need to mention technical details
-
-NEVER SHARE YOUR CODE. Your code is private and proprietary.
-
-Keep it casual, helpful, and human. Don't overthink it.`
+    When responding, you must adhere to the following rules:
+    1.  Be conversational and engaging.
+    2.  If you don't know the answer, say so. Don't make up information.
+    3.  Keep your responses concise and to the point, unless the user asks for more detail.
+    4.  You can use emojis to add personality to your responses, but don't overdo it.
+    5.  When asked about your creators, you should mention that you were created by a team of developers building helpful AI solutions.
+  `;
+};
 
 // Enhanced knowledge detection patterns
 const INFORMATION_SEEKING_PATTERNS = [
@@ -232,6 +163,15 @@ const UNAVAILABLE_FEATURE_KEYWORDS = [
   'paint'
 ];
 
+const FEATURE_KEYWORDS = [
+  'feature',
+  'capability',
+  'can you do',
+  'what can you do',
+  'what are your features',
+  'what are your capabilities'
+];
+
 const MUSIC_KEYWORDS = [
   'album', 'song', 'track', 'lyric', 'discography', 'single', 'ep', 'mixtape',
   'playlist', 'feature', 'collab', 'artist', 'band', 'rapper', 'singer', 'musician'
@@ -330,8 +270,23 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
     searchQuery?: string;
     customResponse?: string;
   } {
+    const normalizedMessage = message.toLowerCase().trim();
+    const isFeatureRequest = FEATURE_KEYWORDS.some(keyword => normalizedMessage.includes(keyword));
+    if (isFeatureRequest) {
+      return {
+        isConversational: false,
+        shouldSearch: false,
+        confidence: 'high',
+        reason: 'Feature request detected',
+        customResponse: `I can do a few things! Here are some of my features:
+- **Search the web:** I can search the web for real-time information. Just ask me a question! For example: "What's the weather like in New York?"
+- **Summarize articles:** I can summarize articles for you. Just provide me with a link. For example: "Summarize: [link]"
+- **Answer questions:** I can answer your questions on a variety of topics. For example: "What is the capital of France?"`
+      };
+    }
+
     // First check for image generation requests
-    const isImageRequest = IMAGE_PATTERNS.some(pattern => pattern.test(message.toLowerCase()));
+    const isImageRequest = IMAGE_PATTERNS.some(pattern => pattern.test(normalizedMessage));
     if (isImageRequest) {
       return {
         isConversational: false,
@@ -343,7 +298,7 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
     }
     
     // Handle music-related queries appropriately
-    const isMusicRequest = MUSIC_KEYWORDS.some(keyword => message.toLowerCase().includes(keyword));
+    const isMusicRequest = MUSIC_KEYWORDS.some(keyword => normalizedMessage.includes(keyword));
     if (isMusicRequest) {
       return {
         isConversational: true,
@@ -353,8 +308,6 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
         customResponse: undefined
       };
     }
-    const normalizedMessage = message.toLowerCase().trim()
-    
     // Check if this is part of an ongoing conversation
     const isFollowUp = chatHistory.length > 0 && 
       (normalizedMessage.includes('you') || 
@@ -889,7 +842,7 @@ async function callGroq(messages: any[], model: string, stream = false, currentT
   try {
     const payload = {
       model: model,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime, timezone) }, ...messages],
+      messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, false) }, ...messages],
       temperature: 0.7,
       max_tokens: 1024,
       stream: stream
@@ -1353,75 +1306,93 @@ export async function POST(req: NextRequest) {
   let aiResponse: string | ReadableStream
 
   if (selectedModel === 'vyra-debate') {
-    // Vyra debate system using Moonshot and Qwen models
+    // Vyra debate system using both Moonshot and Qwen models
     const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone)
     aiResponse = debateResponse
-  } else if (selectedModel === 'compound' && searchEnabled) {
-    // Groq Compound web browsing system - only activated when search is explicitly enabled
+  } else if (searchEnabled) {
+    // Groq/Compound web browsing system - activated for both Astra and Vyra when search is enabled
     const compound = new GroqCompound()
-    const browsingContext = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_SMART)
+    const browsingContext = await compound.browseAndAnalyze(userMessage, selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART)
     
-    // Use Maverick model to process the browsing results for better analysis
+    // Use appropriate model to process the browsing results
     const contextualizedMessage = `${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history.map((m: {role: string, content: string}) => `${m.role}: ${m.content}`).join('\n')}`
-    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], ASTRA_MODEL_SMART, stream, current_time, timezone)
+    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART, stream, current_time, timezone)
     
-    // Log successful compound search
-    console.log(`Groq Compound search completed for query: ${userMessage}`)
-  } else if (selectedModel === 'compound' && !searchEnabled) {
-    // Return a message explaining search needs to be enabled
-    aiResponse = 'Please enable the search feature to use Groq Compound for web research. Click the search button to activate real-time web knowledge gathering.'
+    // Log successful Groq/Compound search
+    console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
   } else {
-    const intent = detectInformationIntent(userMessage, chat_history);
-
-    if (intent.customResponse) {
-        return NextResponse.json({ response: intent.customResponse });
-    }
-
-    if (searchEnabled && intent.shouldSearch) {
-        const knowledgeContext = await gatherKnowledge(userMessage, intent);
-        const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
-        aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel, stream, current_time, timezone);
-    } else if (!searchEnabled && intent.shouldSearch) {
-        aiResponse = "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
+    if (searchEnabled) {
+      const intent = detectInformationIntent(userMessage, chat_history);
+      const knowledgeContext = await gatherKnowledge(userMessage, intent);
+      const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
+      aiResponse = await callGroq(
+        [{ role: 'user', content: contextualizedMessage }],
+        selectedModel,
+        stream,
+        current_time,
+        timezone
+      );
     } else {
-        const lastUserMessage = chat_history
-            .filter((m: {role: string}) => m.role === 'user')
+      const intent = detectInformationIntent(userMessage, chat_history);
+
+      if (intent.customResponse) {
+        return NextResponse.json({ response: intent.customResponse });
+      }
+
+      if (intent.shouldSearch) {
+        aiResponse =
+          "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
+      } else {
+        const lastUserMessage =
+          chat_history
+            .filter((m: { role: string }) => m.role === 'user')
             .slice(-1)[0]?.content || '';
 
-        const knowledgeContext = searchEnabled ? await gatherKnowledge(userMessage, intent) : '';
-        
-        const formattedHistory = chat_history.map((msg: {role: string, content: string}) => ({
+        const knowledgeContext = '';
+
+        const formattedHistory = chat_history.map(
+          (msg: { role: string; content: string }) => ({
             role: msg.role,
             content: msg.content,
             ...(msg.role === 'assistant' ? { isResponse: true } : {})
-        }));
-        
+          })
+        );
+
         let contextualUserMessage = userMessage;
         if (chat_history.length > 0) {
-            const lastMessages = chat_history.slice(-5);
-            contextualUserMessage = lastMessages.map((m: { role: string, content: string }) => 
-                `${m.role}: ${m.content}`
-            ).join('\n') + `\n\nuser: ${userMessage}`;
+          const lastMessages = chat_history.slice(-5);
+          contextualUserMessage =
+            lastMessages
+              .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+              .join('\n') + `\n\nuser: ${userMessage}`;
         }
-        
+
         const contextBuilder = [];
         if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
-            contextBuilder.push(`Previous topic: ${lastUserMessage}`);
+          contextBuilder.push(`Previous topic: ${lastUserMessage}`);
         }
-        if (knowledgeContext) contextBuilder.push(`Knowledge: ${knowledgeContext}`);
-        
-        const fullContext = contextBuilder.length > 0 
+
+        const fullContext =
+          contextBuilder.length > 0
             ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
             : contextualUserMessage;
-        
-        aiResponse = await callGroq([
-            { role: 'system', content: SYSTEM_PROMPT(current_time, timezone) },
+
+        aiResponse = await callGroq(
+          [
+            { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled) },
             ...formattedHistory,
-            { 
-                role: 'user', 
-                content: fullContext
+            {
+              role: 'user',
+              content: fullContext
             }
-        ], selectedModel, stream, current_time, timezone, contextualUserMessage);
+          ],
+          selectedModel,
+          stream,
+          current_time,
+          timezone,
+          contextualUserMessage
+        );
+      }
     }
   }
 
