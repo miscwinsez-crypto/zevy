@@ -1071,7 +1071,7 @@ async function generateVyraSmartDebate(userMessage: string, chat_history: any[],
     const knowledgeContext = await gatherKnowledge(userMessage, intent)
     
     // Create debate context
-    const debateContext = getContextualizedMessage(userMessage, chat_history)
+    const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
     
     // Both models independently analyze the prompt and provide their own results
     const moonshotAnalysisPrompt = `You are Vyra Smart, an AI with deep analytical capabilities. Analyze this question from your perspective and provide your independent assessment.
@@ -1198,7 +1198,7 @@ Since both models independently reached the same conclusion, provide a confident
   } catch (error) {
     console.error('Error in Vyra debate system:', error)
     // Fallback to simple Astra response if debate fails - use Astra Fast for speed
-    const fallbackPrompt = getContextualizedMessage(userMessage, chat_history)
+    const fallbackPrompt = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
     return await callGroq([{ role: 'user', content: fallbackPrompt }], ASTRA_MODEL_FAST, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
   }
 }
@@ -1362,7 +1362,7 @@ export async function POST(req: NextRequest) {
     const browsingContext = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_SMART)
     
     // Use Maverick model to process the browsing results for better analysis
-    const contextualizedMessage = getContextualizedMessage(`${userMessage}\n\nWeb Research Context:\n${browsingContext}`, chat_history)
+    const contextualizedMessage = `${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history.map((m: {role: string, content: string}) => `${m.role}: ${m.content}`).join('\n')}`
     aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], ASTRA_MODEL_SMART, stream, current_time, timezone)
     
     // Log successful compound search
@@ -1377,7 +1377,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ response: intent.customResponse });
     }
 
-    if (!searchEnabled && intent.type === 'information') {
+    if (searchEnabled && intent.shouldSearch) {
+        const knowledgeContext = await gatherKnowledge(userMessage, intent);
+        const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
+        aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel, stream, current_time, timezone);
+    } else if (!searchEnabled && intent.shouldSearch) {
         aiResponse = "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
     } else {
         const lastUserMessage = chat_history
@@ -1395,7 +1399,9 @@ export async function POST(req: NextRequest) {
         let contextualUserMessage = userMessage;
         if (chat_history.length > 0) {
             const lastMessages = chat_history.slice(-5);
-            contextualUserMessage = lastMessages.map((m: { content: string }) => m.content).join('\n') + `\n\n${userMessage}`;
+            contextualUserMessage = lastMessages.map((m: { role: string, content: string }) => 
+                `${m.role}: ${m.content}`
+            ).join('\n') + `\n\nuser: ${userMessage}`;
         }
         
         const contextBuilder = [];
@@ -1413,7 +1419,7 @@ export async function POST(req: NextRequest) {
             ...formattedHistory,
             { 
                 role: 'user', 
-                content: getContextualizedMessage(fullContext, formattedHistory)
+                content: fullContext
             }
         ], selectedModel, stream, current_time, timezone, contextualUserMessage);
     }
