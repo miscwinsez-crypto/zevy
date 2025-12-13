@@ -1,12 +1,11 @@
 import './globals.css'
 import type { Metadata } from 'next'
-
-// Removed Google Fonts import
-// const inter = Inter({ subsets: ['latin'] })
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata: Metadata = {
   title: 'Zevy AI - Multi-Model Intelligence',
-  description: 'Advanced AI assistant created by Adam Zein Ziqry (founder) - powered by Groq, Gemini, and comprehensive knowledge integration',
+  description:
+    'Advanced AI assistant created by Adam Zein Ziqry (founder) - powered by Groq, Gemini, and comprehensive knowledge integration',
   icons: {
     icon: '/zevy-logo.jpg',
   },
@@ -22,7 +21,10 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/zevy-logo.jpg" type="image/jpeg" />
       </head>
-      <body>{children}</body>
+      <body>
+        <Analytics />
+        {children}
+      </body>
     </html>
   )
 }
