@@ -430,7 +430,7 @@ ${allInformation
   })
   .join('\n\n')}
 
-Based on the comprehensive information from Wikipedia, Wikidata, DBpedia, web search, and news sources above, provide a detailed and accurate answer to the user's question. Synthesize the information from all sources and present it in a clear, conversational manner. Prioritize factual accuracy and cite the sources when relevant.`;
+Based on the comprehensive information from Wikipedia, Wikidata, DBpedia, web search, and news sources above, provide a detailed and accurate answer to the user's question. Synthesize the information from all sources and present it in a clear, conversational manner. When you cite evidence, you must quote the specific article, page, or dataset titles from the Information Sources section (for example, "Helion Signs Power Deal with Microsoft for 2028 Delivery") and, when available, include the publisher, date, and URL. Do not invent or guess titles, publishers, or dates and do not use generic labels such as "Reuters (December 2024)" if a more specific citation is available in the sources.`;
 
     return context;
   }

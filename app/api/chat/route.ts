@@ -23,6 +23,7 @@ import {
   newsApiKey2,
   nextPublicOwnerEmail
 } from '@/app/lib/env';
+import { determineIntent } from '@/app/lib/intent-router'
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
@@ -57,9 +58,11 @@ HOW YOU WORK:
 - For simple chat, creativity, or light questions, you can answer directly using Astra-style reasoning without heavy research.
 
 KEY RULES:
-- When using facts from external knowledge (Vector, web search, RSS, World Bank, finance or currency APIs, or any other retrieved data), you must briefly cite them in natural language, for example "(Source: Reuters, May 2024)" or "(Data: World Bank, 2023)".
+- When using facts from external knowledge (Vector, web search, RSS, World Bank, finance or currency APIs, or any other retrieved data), you must cite them using the specific article, page, or dataset titles and, when available, the publisher and date. For example: "(Source: 'Helion Signs Power Deal with Microsoft for 2028 Delivery' – Helion Energy press release, May 2023)" instead of generic labels like "Reuters (December 2024)".
+- When the user message or Knowledge Context includes lines such as "[NEWS] Title" or "Source: https://...", you must treat those as the canonical evidence and base your citations on those exact titles and URLs, not on your internal training data.
 - Never present retrieved external facts as your own internal knowledge; always treat them as sourced data.
 - If no reliable external data is available, you must start your answer with the exact phrase: "Based on general knowledge (no current data found)...".
+- When search is OFF for this request, you must not claim to have performed web search, used Vector, or accessed live data. In that case, answer only from general knowledge and the provided conversation context.
 - Be explicit when you are uncertain or interpolating beyond the retrieved data.
 
 CONVERSATION STYLE:
@@ -275,240 +278,244 @@ function selectAstraModel(message: string, chatHistory: Array<{content: string}>
     }
 }
 
-/**
- * Enhanced function to detect if user is seeking information vs just chatting
- * Uses pattern matching to distinguish between casual conversation and information requests
- */
-function detectInformationIntent(message: string, chatHistory: any[] = []): { 
-    isConversational: boolean;
-    shouldSearch: boolean; 
-    confidence: 'high' | 'medium' | 'low';
-    reason: string;
-    searchQuery?: string;
-    customResponse?: string;
-  } {
-    const normalizedMessage = message.toLowerCase().trim();
-    const isFeatureRequest = FEATURE_KEYWORDS.some(keyword => normalizedMessage.includes(keyword));
-    if (isFeatureRequest) {
-      return {
-        isConversational: false,
-        shouldSearch: false,
-        confidence: 'high',
-        reason: 'Feature request detected',
-        customResponse: `I can do a few things! Here are some of my features:
-- **Search the web:** I can search the web for real-time information. Just ask me a question! For example: "What's the weather like in New York?"
-- **Summarize articles:** I can summarize articles for you. Just provide me with a link. For example: "Summarize: [link]"
-- **Answer questions:** I can answer your questions on a variety of topics. For example: "What is the capital of France?"`
-      };
-    }
+function determineIntentInternal(message: string, chatHistory: any[] = []) {
+  const normalizedMessage = message.toLowerCase().trim()
 
-    // First check for image generation requests
-    const isImageRequest = IMAGE_PATTERNS.some(pattern => pattern.test(normalizedMessage));
-    if (isImageRequest) {
-      return {
-        isConversational: false,
-        shouldSearch: false,
-        confidence: 'high',
-        reason: 'Image generation request detected',
-        customResponse: "Sorry, image generation is currently unavailable. This feature may be coming in future updates!"
-      };
-    }
-    
-    // Handle music-related queries appropriately
-    const isMusicRequest = MUSIC_KEYWORDS.some(keyword => normalizedMessage.includes(keyword));
-    if (isMusicRequest) {
-      return {
-        isConversational: true,
-        shouldSearch: true,
-        confidence: 'medium',
-        reason: 'Music-related query detected',
-        customResponse: undefined
-      };
-    }
-    // Check if this is part of an ongoing conversation
-    const isFollowUp = chatHistory.length > 0 && 
-      (normalizedMessage.includes('you') || 
-       normalizedMessage.includes('?') || 
-       normalizedMessage.includes('what about') || 
-       normalizedMessage.includes('how about'))
-    
-    // Ultra-specific search patterns
-    const searchPatterns = [
-      /(search|find|look up|google)\s+(for|about)\s+/i,
-      /(what is|who is|where is|when was|how to|why does)\s+/i,
-      /\b(define|explain|describe|tell me about|show me|give me)\b\s+/i,
-      /\b(weather|forecast|temperature|humidity|precipitation)\b\s+/i,
-      /\b(news|headlines|breaking|article|report)\b\s+/i,
-      /\b(stock|price|quote|market|ticker|NASDAQ|NYSE)\b\s+/i,
-      /\b(score|result|stats|statistics|standings|league|tournament)\b\s+/i,
-      /\b(calculate|convert|comparison|difference|between)\b\s+/i,
-      /\b(recipe|ingredients|instructions|how to make|how to cook)\b\s+/i,
-      /\b(translate|meaning|in\s+\w+\s+language|how to say)\b\s+/i
-    ]
-    
-    const isSearchQuery = searchPatterns.some(pattern => pattern.test(normalizedMessage))
-    
-    // Ultra-specific conversational patterns
-    const conversationPatterns = [
-      /^(hi|hello|hey|greetings|sup|yo|what's good)\s*[!?]*$/i,
-      /(how are you|how's life|how's your day|what's up|how's it going)\s*[?]*$/i,
-      /(thank you|thanks|appreciate it|much obliged|cheers)\s*(very much|a lot|so much)*\s*[!]*$/i,
-      /(good\s+(morning|afternoon|evening|night)|g'morning|gm|gn|goodnight)\s*[!]*$/i,
-      /(that's cool|interesting|awesome|nice|great|wow|amazing)\s*[!]*$/i,
-      /(what do you think|your opinion|your thoughts)\s*[?]*$/i,
-      /(tell me more|go on|continue|elaborate)\s*[!?]*$/i,
-      /(i (like|love|enjoy|hate|dislike) (it|that|this))\s*[!]*$/i,
-      /(you're (awesome|great|amazing|the best|wonderful))\s*[!]*$/i,
-      /(catch you later|see you|talk later|bye|goodbye)\s*[!]*$/i
-    ]
-    
-    const isConversational = conversationPatterns.some(pattern => pattern.test(normalizedMessage)) || isFollowUp
-   
-   // Determine final intent
-   if (isConversational && !isSearchQuery) {
-     return {
-       isConversational: true,
-       shouldSearch: false,
-       confidence: 'high',
-       reason: 'Conversational pattern detected'
-     }
-   } else if (isSearchQuery) {
-     // Extract search query
-     const queryMatch = normalizedMessage.match(/(search|find|look up|what is|who is|where is|when was|how to|define|explain|describe|tell me about)\s+(.+)/i)
-     const searchQuery = queryMatch ? queryMatch[2] : normalizedMessage
-     
-     return {
-       isConversational: false,
-       shouldSearch: true,
-       confidence: isSearchQuery ? 'high' : 'medium',
-       reason: isSearchQuery ? 'Explicit search pattern detected' : 'Potential information request',
-       searchQuery
-     }
-   }
-   
-   // Default case for ambiguous messages
-   return {
-     isConversational: false,
-     shouldSearch: false,
-     confidence: 'low',
-     reason: 'Unable to determine intent clearly'
-   }
-  const isChatPattern = CHAT_PATTERNS.some(pattern => pattern.test(normalizedMessage))
-  if (isChatPattern) {
+  const isFeatureRequest = FEATURE_KEYWORDS.some(keyword => normalizedMessage.includes(keyword))
+  if (isFeatureRequest) {
     return {
-      isConversational: true,
-      shouldSearch: false,
+      isConversational: false,
+      needsVector: false,
       confidence: 'high',
-      reason: 'Detected casual conversation pattern'
+      reason: 'Feature request detected',
+      customResponse:
+        `I can do a few things! Here are some of my features:\n` +
+        `- Search the web for real-time information when search is enabled\n` +
+        `- Summarize articles when you provide a link (for example: "Summarize: [link]")\n` +
+        `- Answer questions and explain concepts across many topics`,
     }
   }
-  
-  // Check for information seeking patterns
-  const infoPatternCount = INFORMATION_SEEKING_PATTERNS.filter(pattern => 
-    pattern.test(normalizedMessage)
-  ).length
-  
-  // Check for question marks
+
+  const isImageRequest = IMAGE_PATTERNS.some(pattern => pattern.test(normalizedMessage))
+  if (isImageRequest) {
+    return {
+      isConversational: false,
+      needsVector: false,
+      confidence: 'high',
+      reason: 'Image generation request detected',
+      customResponse:
+        'Sorry, image generation is currently unavailable. This feature may be coming in future updates!',
+    }
+  }
+
+  const isMusicRequest = MUSIC_KEYWORDS.some(keyword => normalizedMessage.includes(keyword))
+  if (isMusicRequest) {
+    const wantsLatest =
+      normalizedMessage.includes('latest') ||
+      normalizedMessage.includes('new') ||
+      normalizedMessage.includes('recent')
+
+    return {
+      isConversational: true,
+      needsVector: wantsLatest,
+      confidence: wantsLatest ? 'high' : 'medium',
+      reason: wantsLatest ? 'Music query about latest releases' : 'General music-related query',
+    }
+  }
+
+  const isFollowUp =
+    chatHistory.length > 0 &&
+    (normalizedMessage.includes('you') ||
+      normalizedMessage.includes('?') ||
+      normalizedMessage.includes('what about') ||
+      normalizedMessage.includes('how about'))
+
+  const conversationPatterns = [
+    /^(hi|hello|hey|greetings|sup|yo|what's good)\s*[!?]*$/i,
+    /(how are you|how's life|how's your day|what's up|how's it going)\s*[?]*$/i,
+    /(thank you|thanks|appreciate it|much obliged|cheers)\s*(very much|a lot|so much)*\s*[!]*$/i,
+    /(good\s+(morning|afternoon|evening|night)|g'morning|gm|gn|goodnight)\s*[!]*$/i,
+    /(that's cool|interesting|awesome|nice|great|wow|amazing)\s*[!]*$/i,
+    /(what do you think|your opinion|your thoughts)\s*[?]*$/i,
+    /(tell me more|go on|continue|elaborate)\s*[!?]*$/i,
+    /(i (like|love|enjoy|hate|dislike) (it|that|this))\s*[!]*$/i,
+    /(you're (awesome|great|amazing|the best|wonderful))\s*[!]*$/i,
+    /(catch you later|see you|talk later|bye|goodbye)\s*[!]*$/i,
+  ]
+
+  const isConversational = conversationPatterns.some(pattern => pattern.test(normalizedMessage)) || isFollowUp
+
+  if (isConversational) {
+    return {
+      isConversational: true,
+      needsVector: false,
+      confidence: 'high',
+      reason: 'Conversational pattern detected',
+    }
+  }
+
+  const liveFactKeywords = [
+    'today',
+    'right now',
+    'currently',
+    'current',
+    'latest',
+    'recent',
+    'breaking',
+    'this week',
+    'this month',
+    'this year',
+    'tonight',
+    'live score',
+    'score today',
+    'weather',
+    'forecast',
+    'temperature',
+    'humidity',
+    'rain',
+    'stock price',
+    'share price',
+    'price of',
+    'exchange rate',
+    'convert',
+    'conversion rate',
+    'market cap',
+    'ranking',
+    'standings',
+    'table',
+    'upcoming match',
+    'schedule',
+    'fixture',
+    'flight status',
+    'delay',
+    'traffic',
+    'trending',
+    'up to date',
+    'as of today',
+    'news about',
+  ]
+
+  const liveFactPatterns = [
+    /\b(news|headlines|breaking|article|report)\b/i,
+    /\b(stock|price|quote|market|ticker|nasdaq|nyse)\b/i,
+    /\b(score|result|stats|statistics|standings|league|tournament)\b/i,
+    /\b(weather|forecast|temperature|humidity|precipitation)\b/i,
+    /\b(exchange rate|fx rate|currency rate)\b/i,
+    /\b(release date|launch date)\b/i,
+    /\b(covid|inflation rate|interest rate)\b/i,
+    /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\b/i,
+    /\b(202[0-9]|20[3-9][0-9])\b/i,
+  ]
+
+  const reasoningKeywords = [
+    'riddle',
+    'puzzle',
+    'paradox',
+    'brain teaser',
+    'brain-teaser',
+    'brainteaser',
+    'logic puzzle',
+    'proof',
+    'show that',
+    'prove that',
+    'counterexample',
+    'walk me through',
+    'step by step',
+    'step-by-step',
+    'reason about',
+    'reasoning',
+    'thought experiment',
+    'intuition',
+    'intuitively',
+    'analogy',
+    'metaphor',
+    'explain like i am',
+    'explain like im',
+    'eli5',
+    'conceptually',
+    'architecture',
+    'design',
+    'trade off',
+    'trade-off',
+    'tradeoff',
+    'failure mode',
+    'edge case',
+    'bias',
+    'cause misinformation',
+    'misinformation',
+  ]
+
+  const hasLiveKeyword = liveFactKeywords.some(keyword => normalizedMessage.includes(keyword))
+  const hasLivePattern = liveFactPatterns.some(pattern => pattern.test(normalizedMessage))
+  const hasReasoningKeyword = reasoningKeywords.some(keyword => normalizedMessage.includes(keyword))
+
+  const isLogicPuzzle = /\b(riddle|puzzle|paradox|brain teaser|brain-teaser|brainteaser|logic puzzle)\b/i.test(
+    normalizedMessage
+  )
+
+  const mentionsZevyArchitecture =
+    /\bzevy\b/i.test(normalizedMessage) &&
+    (normalizedMessage.includes('architecture') ||
+      normalizedMessage.includes('design') ||
+      normalizedMessage.includes('misinformation') ||
+      normalizedMessage.includes('failure') ||
+      normalizedMessage.includes('risk'))
+
   const hasQuestionMark = normalizedMessage.includes('?')
-  
-  // Check message length (longer messages often need more detailed responses)
-  const isLongMessage = normalizedMessage.length > 50
-  
-  // Check for specific knowledge indicators
-  const hasSpecificTerms = /\b(specific|exact|accurate|correct|true|real)\b/i.test(normalizedMessage)
-  
-  // Check for date-specific queries (high priority for current events)
-  const hasDatePattern = /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\b/i.test(normalizedMessage) ||
-                        /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b/i.test(normalizedMessage) ||
-                        /\b\d{1,2}\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/i.test(normalizedMessage) ||
-                        /\b(202[0-9]|20[2-9][0-9])\b/i.test(normalizedMessage)
-  
-  // Check for current event indicators
-  const hasCurrentEventTerms = /\b(today|yesterday|this week|this month|current|recent|latest|news|happened|occurred|took place)\b/i.test(normalizedMessage)
-  
-  // Calculate search necessity - more aggressive for dates and current events
-  if (hasDatePattern && hasCurrentEventTerms) {
+  const isLongMessage = normalizedMessage.length > 80
+
+  if (hasLiveKeyword || hasLivePattern) {
     return {
       isConversational: false,
-      shouldSearch: true,
+      needsVector: true,
       confidence: 'high',
-      reason: 'Date-specific current event query detected'
+      reason: 'Live fact or time-sensitive information requested',
     }
   }
-  
-  if (hasDatePattern && hasQuestionMark) {
+
+  if (isLogicPuzzle || hasReasoningKeyword || mentionsZevyArchitecture) {
     return {
       isConversational: false,
-      shouldSearch: true,
+      needsVector: false,
       confidence: 'high',
-      reason: 'Date-specific question detected'
+      reason: 'Reasoning or conceptual question that does not require live data',
     }
   }
-  
-  if (infoPatternCount >= 2 || (hasQuestionMark && infoPatternCount >= 1) || isLongMessage) {
+
+  if (hasQuestionMark && isLongMessage) {
     return {
       isConversational: false,
-      shouldSearch: true,
-      confidence: 'high',
-      reason: 'Multiple information patterns detected (${infoPatternCount})'
-    }
-  }
-  
-  if (hasCurrentEventTerms && hasQuestionMark) {
-    return {
-      isConversational: false,
-      shouldSearch: true,
-      confidence: 'high',
-      reason: 'Current event question detected'
-    }
-  }
-  
-  if (hasQuestionMark && hasSpecificTerms) {
-    return {
-      isConversational: false,
-      shouldSearch: true,
+      needsVector: false,
       confidence: 'medium',
-      reason: 'Question with specific knowledge request'
+      reason: 'Complex question better handled with offline reasoning',
     }
   }
-  
-  if (infoPatternCount === 1 && hasQuestionMark) {
+
+  if (hasQuestionMark) {
     return {
       isConversational: false,
-      shouldSearch: true,
+      needsVector: false,
       confidence: 'medium',
-      reason: 'Single information pattern with question'
+      reason: 'General knowledge question without clear need for live data',
     }
   }
-  
-  if (hasCurrentEventTerms || hasDatePattern) {
-    return {
-      isConversational: false,
-      shouldSearch: true,
-      confidence: 'medium',
-      reason: 'Current event or date context detected'
-    }
-  }
-  
-  // Default to no search for very short messages
-  if (normalizedMessage.length < 15 && !hasQuestionMark) {
+
+  if (normalizedMessage.length < 15) {
     return {
       isConversational: true,
-      shouldSearch: false,
+      needsVector: false,
       confidence: 'medium',
       reason: 'Short message without clear information intent',
-      customResponse: isFollowUp 
-        ? `Continuing our conversation: ${normalizedMessage}` 
-        : undefined
+      customResponse: isFollowUp ? `Continuing our conversation: ${normalizedMessage}` : undefined,
     }
   }
-  
+
   return {
-      isConversational: false,
-      shouldSearch: true,
-      confidence: 'low',
-      reason: 'Default to search for better response quality'
-    }
+    isConversational: false,
+    needsVector: false,
+    confidence: 'low',
+    reason: 'Defaulting to offline reasoning; no clear need for live data',
+  }
 }
 
 /**
@@ -919,76 +926,121 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Call Groq API — Vercel-only keys
-async function callGroq(messages: any[], model: string, stream = false, currentTime?: string, timezone?: string, contextualUserMessage?: string): Promise<string | ReadableStream> {
+function getFallbackModel(primaryModel: string): string | undefined {
+  if (primaryModel === ASTRA_MODEL_SMART) {
+    return ASTRA_MODEL_FAST
+  }
+  if (primaryModel === VYRA_MODEL_MOONSHOT || primaryModel === VYRA_MODEL_QWEN) {
+    return ASTRA_MODEL_FAST
+  }
+  return undefined
+}
+
+async function safeAICall(
+  primaryModel: string,
+  basePayload: { messages: any[]; temperature: number; max_tokens: number; stream: boolean }
+): Promise<string | ReadableStream> {
   const apiKeys = getGroqApiKeys()
+  const stream = basePayload.stream
+
   if (apiKeys.length === 0) {
+    const friendly =
+      'I am temporarily unable to reach my reasoning backend. Please try again in a little while.'
     if (stream) {
-      const message =
-        'Feature temporarily unavailable: no valid GROQ API keys configured. Please try again later.'
       return new ReadableStream({
         start(controller) {
-          controller.enqueue(`data: ${JSON.stringify({ response: message })}\n\n`)
+          controller.enqueue(`data: ${JSON.stringify({ response: friendly })}\n\n`)
           controller.close()
-        }
+        },
       })
     }
-    return 'Feature temporarily unavailable: no valid GROQ API keys configured. Please try again later.'
+    return friendly
   }
 
-  const payload = {
-    model: model,
-    messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, false) }, ...messages],
-    temperature: 0.7,
-    max_tokens: 1024,
-    stream: stream
+  const fallbackModel = getFallbackModel(primaryModel)
+  const modelsToTry = fallbackModel ? [primaryModel, fallbackModel] : [primaryModel]
+
+  let lastError: any = null
+
+  for (const model of modelsToTry) {
+    for (const apiKey of apiKeys) {
+      try {
+        const response = await axios.post(
+          GROQ_API_URL,
+          { ...basePayload, model },
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 30000,
+            responseType: stream ? 'stream' : 'json',
+          }
+        )
+
+        if (stream) {
+          return response.data as ReadableStream
+        }
+
+        const content = response.data?.choices?.[0]?.message?.content
+        if (typeof content === 'string' && content.trim().length > 0) {
+          return content
+        }
+
+        lastError = new Error('Empty response from AI backend')
+      } catch (error: any) {
+        lastError = error
+        console.error('Groq backend error:', error.message || error)
+      }
+    }
   }
+
+  console.error('All AI backends failed.', lastError)
+
+  const friendly =
+    'I am having trouble connecting to my reasoning backend right now. Please try again in a few moments.'
+  if (stream) {
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(`data: ${JSON.stringify({ response: friendly })}\n\n`)
+        controller.close()
+      },
+    })
+  }
+  return friendly
+}
+
+async function callGroq(
+  messages: any[],
+  model: string,
+  stream = false,
+  currentTime?: string,
+  timezone?: string,
+  contextualUserMessage?: string,
+  searchEnabledForSystemPrompt: boolean = false
+): Promise<string | ReadableStream> {
+  const systemMessage = {
+    role: 'system',
+    content: SYSTEM_PROMPT(currentTime as string, timezone as string, searchEnabledForSystemPrompt),
+  }
+
+  const payloadMessages = [systemMessage, ...messages]
 
   if (contextualUserMessage) {
-    const lastMessage = payload.messages[payload.messages.length - 1]
+    const lastMessage = payloadMessages[payloadMessages.length - 1]
     if (lastMessage && lastMessage.role === 'user') {
       lastMessage.content = contextualUserMessage
     }
   }
 
-  let lastError: any = null
-
-  for (const apiKey of apiKeys) {
-    try {
-      const response = await axios.post(GROQ_API_URL, payload, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000,
-        responseType: stream ? 'stream' : 'json'
-      })
-
-      if (stream) {
-        return response.data as ReadableStream
-      }
-
-      return response.data.choices[0]?.message?.content || 'No response'
-    } catch (error: any) {
-      lastError = error
-      console.error('Groq error for one key:', error.message || error)
-    }
+  const basePayload = {
+    messages: payloadMessages,
+    temperature: 0.7,
+    max_tokens: 1024,
+    stream,
   }
 
-  console.error('All Groq API keys failed.', lastError)
-
-  if (stream) {
-    const message =
-      'Feature temporarily unavailable: all Groq backends are busy or unreachable. Please try again shortly.'
-    return new ReadableStream({
-      start(controller) {
-        controller.enqueue(`data: ${JSON.stringify({ response: message })}\n\n`)
-        controller.close()
-      }
-    })
-  }
-
-  return 'Feature temporarily unavailable: all Groq backends are busy or unreachable. Please try again shortly.'
+  return safeAICall(model, basePayload)
 }
 
 async function detectAndTranslate(text: string, targetLanguage: string = 'en'): Promise<{ detectedLanguage: string; translatedText: string }> {
@@ -1029,7 +1081,13 @@ async function detectAndTranslate(text: string, targetLanguage: string = 'en'): 
 
 async function testGroqConnection(): Promise<{ status: string; error?: string }> {
   try {
-    const testResponse = await callGroq([{ role: 'user', content: 'Test connection' }], ASTRA_MODEL_SMART, false, new Date().toLocaleString(), 'UTC')
+    const testResponse = await callGroq(
+      [{ role: 'user', content: 'Test connection' }],
+      ASTRA_MODEL_SMART,
+      false,
+      new Date().toLocaleString(),
+      'UTC'
+    )
     if (typeof testResponse === 'string' && testResponse.length > 0) {
       return { status: 'connected' }
     }
@@ -1126,18 +1184,26 @@ function checkResponseDisagreement(response1: string, response2: string): boolea
   return overlapRatio < 0.4
 }
 
-async function generateVyraSmartDebate(userMessage: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<string | ReadableStream> {
+async function generateVyraSmartDebate(
+  userMessage: string,
+  chat_history: any[],
+  stream: boolean,
+  current_time?: string,
+  timezone?: string
+): Promise<string | ReadableStream> {
   try {
-    // Enhanced knowledge detection for Vyra debate
-    const intent = detectInformationIntent(userMessage)
+    const intent = determineIntent(userMessage, chat_history)
     
     // Handle political questions differently
     if (userMessage.toLowerCase().includes('president') || userMessage.toLowerCase().includes('politic')) {
       return "I'm sorry, but I don't discuss political topics. I'm happy to help with other questions though!"
     }
     
-    // Gather knowledge based on detected intent
-    const knowledgeContext = await gatherKnowledge(userMessage, intent)
+    const knowledgeContext = await gatherKnowledge(userMessage, {
+      shouldSearch: intent.needsVector,
+      confidence: intent.confidence,
+      reason: intent.reason,
+    })
     
     // Create debate context
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
@@ -1164,8 +1230,24 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
     // Get independent responses from both models
-    const moonshotResponse = await callGroq([{ role: 'user', content: moonshotAnalysisPrompt }], VYRA_MODEL_MOONSHOT, false)
-    const qwenResponse = await callGroq([{ role: 'user', content: qwenAnalysisPrompt }], VYRA_MODEL_QWEN, false)
+    const moonshotResponse = await callGroq(
+      [{ role: 'user', content: moonshotAnalysisPrompt }],
+      VYRA_MODEL_MOONSHOT,
+      false,
+      current_time,
+      timezone,
+      undefined,
+      true
+    )
+    const qwenResponse = await callGroq(
+      [{ role: 'user', content: qwenAnalysisPrompt }],
+      VYRA_MODEL_QWEN,
+      false,
+      current_time,
+      timezone,
+      undefined,
+      true
+    )
     
     // Ensure responses are strings for comparison
     const moonshotText = typeof moonshotResponse === 'string' ? moonshotResponse : ''
@@ -1188,7 +1270,15 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Challenge Qwen's reasoning directly. Point out flaws in their logic, defend your position, and explain why your analysis is more accurate. Don't be diplomatic - be direct and assertive in your disagreement.`
       
-      const moonshotDebateResponse = await callGroq([{ role: 'user', content: moonshotDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
+      const moonshotDebateResponse = await callGroq(
+        [{ role: 'user', content: moonshotDebatePrompt }],
+        VYRA_MODEL_MOONSHOT,
+        false,
+        current_time,
+        timezone,
+        undefined,
+        true
+      )
       
       // Vyra Smart responds to both the original analysis and challenge
       const qwenDebatePrompt = `Vyra Smart, you've provided your analysis, but Vyra Smart has challenged your reasoning and defended their position. Respond directly to this challenge.
@@ -1205,7 +1295,15 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Defend your analysis against Kimi's challenge. Point out any flaws in their reasoning, explain why your approach is correct, and directly counter their arguments. Don't back down - be assertive and thorough in your defense.`
       
-      const qwenDebateResponse = await callGroq([{ role: 'user', content: qwenDebatePrompt }], VYRA_MODEL_QWEN, false)
+      const qwenDebateResponse = await callGroq(
+        [{ role: 'user', content: qwenDebatePrompt }],
+        VYRA_MODEL_QWEN,
+        false,
+        current_time,
+        timezone,
+        undefined,
+        true
+      )
       
       // Final round - Vyra Smart gets the last word in the debate
       const finalDebatePrompt = `Vyra Smart, you've responded to the challenge. This is your final opportunity in this debate.
@@ -1224,7 +1322,15 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Address Qwen's defense directly. Point out any remaining weaknesses in their argument, reinforce your position, and make your final case for why your analysis is superior. This is your closing argument in this debate.`
       
-      const finalDebateResponse = await callGroq([{ role: 'user', content: finalDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
+      const finalDebateResponse = await callGroq(
+        [{ role: 'user', content: finalDebatePrompt }],
+        VYRA_MODEL_MOONSHOT,
+        false,
+        current_time,
+        timezone,
+        undefined,
+        true
+      )
       
       // Final synthesis that captures the authentic debate
       const finalSynthesisPrompt = `You need to provide the final answer to the user after witnessing a genuine debate between two AI models. Here's what transpired:
@@ -1243,7 +1349,15 @@ Vyra Smart Final Argument: ${finalDebateResponse}
 
 Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
       
-      const finalResponse = await callGroq([{ role: 'user', content: finalSynthesisPrompt }], VYRA_MODEL_MOONSHOT, stream)
+      const finalResponse = await callGroq(
+        [{ role: 'user', content: finalSynthesisPrompt }],
+        VYRA_MODEL_MOONSHOT,
+        stream,
+        current_time,
+        timezone,
+        undefined,
+        true
+      )
       return finalResponse
       
     } else {
@@ -1260,7 +1374,15 @@ Vyra Smart Analysis: ${qwenText}
 
 Since both models independently reached the same conclusion, provide a confident, authoritative answer. But also briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
       
-      const finalResponse = await callGroq([{ role: 'user', content: agreementAnalysisPrompt }], VYRA_MODEL_MOONSHOT, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
+      const finalResponse = await callGroq(
+        [{ role: 'user', content: agreementAnalysisPrompt }],
+        VYRA_MODEL_MOONSHOT,
+        stream,
+        current_time || new Date().toLocaleString(),
+        timezone || 'UTC',
+        undefined,
+        true
+      )
       return finalResponse
     }
     
@@ -1268,7 +1390,13 @@ Since both models independently reached the same conclusion, provide a confident
     console.error('Error in Vyra debate system:', error)
     // Fallback to simple Astra response if debate fails - use Astra Fast for speed
     const fallbackPrompt = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
-    return await callGroq([{ role: 'user', content: fallbackPrompt }], ASTRA_MODEL_FAST, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
+    return await callGroq(
+      [{ role: 'user', content: fallbackPrompt }],
+      ASTRA_MODEL_FAST,
+      stream,
+      current_time || new Date().toLocaleString(),
+      timezone || 'UTC'
+    )
   }
 }
 
@@ -1348,7 +1476,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   let { chat_id } = body
 
-  const { message, chat_history = [], model = 'astra', stream = false, current_time, timezone, searchEnabled = false } = body
+  const {
+    message,
+    chat_history = [],
+    model = 'astra',
+    stream = false,
+    current_time,
+    timezone,
+    searchEnabled = false,
+  } = body
 
   // Content moderation check
   const moderationResponse = await isSafe(message);
@@ -1404,7 +1540,13 @@ export async function POST(req: NextRequest) {
     const harmfulResponsePrompt = `Generate a polite but firm response explaining that you cannot help with harmful or inappropriate requests. Be conversational and friendly while setting clear boundaries. Keep it under 100 words.`
     
     try {
-      const harmfulResponse = await callGroq([{ role: 'user', content: harmfulResponsePrompt }], selectedModel, false, current_time, timezone)
+      const harmfulResponse = await callGroq(
+        [{ role: 'user', content: harmfulResponsePrompt }],
+        selectedModel,
+        false,
+        current_time,
+        timezone
+      )
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
       // For streaming, we need to format it as a Server-Sent Event
@@ -1429,76 +1571,80 @@ export async function POST(req: NextRequest) {
 
   let aiResponse: string | ReadableStream
 
+  const intent = determineIntent(userMessage, chat_history)
+
   if (selectedModel === 'vyra-debate') {
     // Vyra debate system using both Moonshot and Qwen models
     const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone)
     aiResponse = debateResponse
-  } else if (searchEnabled) {
-    const intent = detectInformationIntent(userMessage, chat_history)
-    const knowledgeContext = await gatherKnowledge(userMessage, intent)
-    const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
-    const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history.map((m: { role: string, content: string }) => `${m.role}: ${m.content}`).join('\n')}`
-    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], researchModel, stream, current_time, timezone)
   } else {
-    const intent = detectInformationIntent(userMessage, chat_history);
-
     if (intent.customResponse) {
       return NextResponse.json({ response: intent.customResponse });
     }
 
-    if (intent.shouldSearch) {
-      aiResponse =
-        "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
+    if (searchEnabled && intent.needsVector) {
+      const knowledgeIntent = {
+        shouldSearch: intent.needsVector,
+        confidence: intent.confidence,
+        reason: intent.reason,
+      }
+      const knowledgeContext = await gatherKnowledge(userMessage, knowledgeIntent)
+      const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
+      const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history
+        .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+        .join('\n')}`
+      aiResponse = await callGroq(
+        [{ role: 'user', content: contextualizedMessage }],
+        researchModel,
+        stream,
+        current_time,
+        timezone,
+        undefined,
+        true
+      )
     } else {
       const lastUserMessage =
-        chat_history
-          .filter((m: { role: string }) => m.role === 'user')
-          .slice(-1)[0]?.content || '';
-
-      const knowledgeContext = '';
+        chat_history.filter((m: { role: string }) => m.role === 'user').slice(-1)[0]?.content || ''
 
       const formattedHistory = chat_history.map(
         (msg: { role: string; content: string }) => ({
           role: msg.role,
           content: msg.content,
-          ...(msg.role === 'assistant' ? { isResponse: true } : {})
+          ...(msg.role === 'assistant' ? { isResponse: true } : {}),
         })
-      );
+      )
 
-      let contextualUserMessage = userMessage;
+      let contextualUserMessage = userMessage
       if (chat_history.length > 0) {
-        const lastMessages = chat_history.slice(-5);
+        const lastMessages = chat_history.slice(-5)
         contextualUserMessage =
-          lastMessages
-            .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
-            .join('\n') + `\n\nuser: ${userMessage}`;
+          lastMessages.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join('\n') +
+          `\n\nuser: ${userMessage}`
       }
 
-      const contextBuilder = [];
+      const contextBuilder = []
       if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
-        contextBuilder.push(`Previous topic: ${lastUserMessage}`);
+        contextBuilder.push(`Previous topic: ${lastUserMessage}`)
       }
 
       const fullContext =
-        contextBuilder.length > 0
-          ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
-          : contextualUserMessage;
+        contextBuilder.length > 0 ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}` : contextualUserMessage
 
       aiResponse = await callGroq(
         [
-          { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled) },
           ...formattedHistory,
           {
             role: 'user',
-            content: fullContext
-          }
+            content: fullContext,
+          },
         ],
         selectedModel,
         stream,
         current_time,
         timezone,
-        contextualUserMessage
-      );
+        contextualUserMessage,
+        false
+      )
     }
   }
 
@@ -1534,7 +1680,13 @@ async function handleOwnerRequest(message: string, chat_history: any[], stream: 
     try {
       const response = await axios.get(url);
       const text = response.data; // Basic text extraction
-      const summary = await callGroq([{ role: 'user', content: `Summarize this: ${text}` }], ASTRA_MODEL_FAST, false, current_time || new Date().toLocaleString(), timezone || 'UTC');
+      const summary = await callGroq(
+        [{ role: 'user', content: `Summarize this: ${text}` }],
+        ASTRA_MODEL_FAST,
+        false,
+        current_time || new Date().toLocaleString(),
+        timezone || 'UTC'
+      );
       return NextResponse.json({ response: summary });
     } catch (error) {
       return NextResponse.json({ response: 'Error summarizing the URL.' }, { status: 500 });
