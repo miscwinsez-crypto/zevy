@@ -285,26 +285,28 @@ body[data-theme="green"] {
   --zevy-text: #e5e7eb;
 }
 
+.button-hover {
+  transition: background 0.2s, box-shadow 0.2s, transform 0.2s, color 0.2s;
+}
+
+.button-hover:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px) scale(1.02);
+}
+
 .btn, button {
-  transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.2s, color 0.2s;
 }
 
 .btn:hover, button:hover {
-  background: var(--zevy-primary, #10a37f);
-  box-shadow: 0 2px 8px rgba(16,163,127,0.15);
-  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px) scale(1.02);
 }
 
 button:focus, .btn-zevy:focus, .btn-primary:focus, .btn-secondary:focus {
   outline: 2px solid var(--accent-primary) !important;
   outline-offset: 2px !important;
   box-shadow: none !important;
-}
-
-button:hover, .btn-zevy:hover, .btn-primary:hover, .btn-secondary:hover {
-  background-color: #222 !important;
-  color: #fff !important;
-  transition: background 0.2s, color 0.2s;
 }
 .message, .message.user, .message.ai {
   outline: none !important;

@@ -1895,7 +1895,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
   return (
     <div 
-      className="flex h-screen"
+      className="flex h-screen w-full max-w-6xl mx-auto px-2 sm:px-4"
       style={{ background: palette.background, color: palette.accent }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -2208,11 +2208,17 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         </div>
 
         {/* Messages - ChatGPT/Grok Style */}
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6" style={{ background: palette.background }}>
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-6" style={{ background: palette.background }}>
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-2xl">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center animate-slideInUp" style={{ background: palette.secondary }}>
+              <div className="text-center max-w-2xl mx-auto space-y-6">
+                <div
+                  className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center animate-slideInUp"
+                  style={{
+                    background: palette.secondary,
+                    boxShadow: '0 18px 60px rgba(0,0,0,0.7)'
+                  }}
+                >
                   <Image
                     src="/zevy-logo.jpg"
                     alt="Zevy AI"
@@ -2221,13 +2227,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     style={{ borderRadius: '16px', objectFit: 'cover' }}
                   />
                 </div>
-                <h2 className="text-3xl font-bold mb-3" style={{ color: palette.accent }}>How can I help?</h2>
-                <p className="text-sm mb-8" style={{ color: palette.subdued }}>
+                <div className="space-y-2">
+                  <h2 className="text-3xl md:text-4xl font-semibold" style={{ color: palette.accent }}>How can I help?</h2>
+                  <p className="text-sm md:text-base" style={{ color: palette.subdued }}>
                   Ask me anything or explore features below
-                </p>
+                  </p>
+                </div>
 
-                {/* Quick Start Grid - Copilot Style */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-2">
                   {[
                     { icon: '🔍', title: 'Research', desc: 'Find latest info' },
                     { icon: '💡', title: 'Brainstorm', desc: 'Generate ideas' },
@@ -2237,11 +2244,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     <button
                       key={item.title}
                       onClick={() => setInput(`${item.title}: `)}
-                      className="p-4 rounded-lg text-left transition-all button-hover"
-                      style={{ background: palette.secondary, border: `1px solid ${palette.border}` }}
+                      className="p-4 rounded-xl text-left transition-all button-hover border shadow-sm hover:shadow-lg hover:-translate-y-0.5"
+                      style={{
+                        background: palette.panel,
+                        borderColor: palette.border
+                      }}
                     >
-                      <p className="text-2xl mb-1">{item.icon}</p>
-                      <p className="text-xs font-semibold" style={{ color: palette.accent }}>{item.title}</p>
+                      <p className="text-2xl mb-2">{item.icon}</p>
+                      <p className="text-sm font-semibold mb-0.5" style={{ color: palette.accent }}>{item.title}</p>
                       <p className="text-xs" style={{ color: palette.subdued }}>{item.desc}</p>
                     </button>
                   ))}
@@ -2517,7 +2527,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-3 rounded-xl transition-all button-hover"
+                  className="w-11 h-11 flex items-center justify-center rounded-xl transition-all button-hover"
                   style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}
                 >
                   <Plus size={16} style={{ color: palette.accent }} />
@@ -2539,14 +2549,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                 <button
                   onClick={() => sendMessage()}
                   disabled={loading || !input.trim()}
-                  className="p-3 rounded-xl transition-all button-hover"
+                  className="w-11 h-11 flex items-center justify-center rounded-xl transition-all button-hover"
                   style={{ background: palette.hover, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 :  1 }}
                 >
                   <Send size={16} color="#fff" />
                 </button>
               </div>
               <p className="text-xs text-center mt-2" style={{ color: palette.subdued }}>
-                 Zevy may make mistakes. Check before going with it.
+                Zevy may make mistakes. Check before going with it.
               </p>
             </div>
           </div>

@@ -1,16 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
+import { getVercelEnv } from './env'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseUrl = getVercelEnv('NEXT_PUBLIC_SUPABASE_URL')
+const supabaseAnonKey = getVercelEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
 let supabaseClient: ReturnType<typeof createClient<Database>> | null = null
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables:')
-  console.error('- NEXT_PUBLIC_SUPABASE_URL:', !!supabaseUrl)
-  console.error('- NEXT_PUBLIC_SUPABASE_ANON_KEY:', !!supabaseAnonKey)
-} else {
+if (supabaseUrl && supabaseAnonKey) {
   try {
     supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {

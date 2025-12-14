@@ -1067,7 +1067,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
+Do not just list arguments. For each main option or path the user could take, explicitly trace a short causal chain of consequences (what happens next, and then what, and then what) so the downstream impact is clear. Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
     
     const qwenAnalysisPrompt = `You are Logos, an internal debating AI known for precise reasoning inside the Vyra system. Analyze this question from your perspective and provide your independent assessment.
 
@@ -1077,7 +1077,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
+Do not just list arguments. For each main option or path the user could take, explicitly trace a short causal chain of consequences (what happens next, and then what, and then what) so the downstream impact is clear. Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
     
     // Get independent responses from both models
     const moonshotResponse = await callGroq([{ role: 'user', content: moonshotAnalysisPrompt }], VYRA_MODEL_MOONSHOT, false)
@@ -1100,7 +1100,7 @@ Logos's Analysis: ${qwenText}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Challenge this alternative reasoning directly. Point out flaws in its logic, defend your position, and explain why your analysis is more accurate. Keep the tone confident but still natural and conversational for the user, without long meta-commentary about models or systems.`
+Challenge this alternative reasoning directly. Compare not only the arguments but also the causal chains of consequences that each option would trigger. Point out flaws in its logic and in its predicted downstream effects, defend your position, and explain why your analysis leads to better real-world outcomes. Keep the tone confident but still natural and conversational for the user, without long meta-commentary about models or systems.`
       
       const moonshotDebateResponse = await callGroq([{ role: 'user', content: moonshotDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
       
@@ -1116,7 +1116,7 @@ Alternative Challenge: ${moonshotDebateResponse}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Defend your analysis against this challenge. Point out any flaws in the alternative reasoning, explain why your approach is correct, and directly counter the arguments. Keep the tone clear and conversational so a non-expert user can follow.`
+Defend your analysis against this challenge. Focus on where Kairo's predicted causal chain of consequences breaks down or misses important downstream risks and benefits. Explain why your causal model is stronger, and directly counter the arguments. Keep the tone clear and conversational so a non-expert user can follow.`
       
       const qwenDebateResponse = await callGroq([{ role: 'user', content: qwenDebatePrompt }], VYRA_MODEL_QWEN, false)
       
@@ -1154,7 +1154,12 @@ Challenge From A: ${moonshotDebateResponse}
 Defense From B: ${qwenDebateResponse}
 Final Argument From A: ${finalDebateResponse}
 
-Based on all of this, answer the user directly in a natural, conversational tone. Do not describe the debate or talk about models unless the user explicitly asked. Start with a clear, definitive answer to the question, then organize the rest of your response with bold section headings, short bullet lists, and, when comparing options or listing pros and cons, a small Markdown table. Keep formatting tidy and avoid long unstructured paragraphs.`
+Based on all of this, answer the user directly in a natural, conversational tone. Do not describe the debate or talk about models unless the user explicitly asked. Start with a clear, definitive recommendation. Then:
+- Briefly map the main options and, for each, outline the causal chain of consequences (what happens next, and then what) so the user sees the downstream effects.
+- Use these causal chains to synthesize a new, superior option that combines the strongest points from each side while explicitly mitigating their biggest risks.
+- Present this synthesized option as the primary path forward, and make it clear why it dominates the other options.
+
+Organize the response with bold section headings, short bullet lists, and, when comparing options or listing pros and cons, a small Markdown table. Keep formatting tidy and avoid long unstructured paragraphs.`
       
       const finalResponse = await callGroq([{ role: 'user', content: finalSynthesisPrompt }], VYRA_MODEL_MOONSHOT, stream)
       return finalResponse
@@ -1170,7 +1175,7 @@ Analysis A: ${moonshotText}
 
 Analysis B: ${qwenText}
 
-Using these as background, provide a confident, authoritative answer in your own words. Do not mention the internal analyses or consensus explicitly. Give a clear answer first, then a brief, user-friendly explanation. Use bold section headings, bullet lists, and Markdown tables when they make the answer easier to scan instead of long, dense paragraphs.`
+Using these as background, provide a confident, authoritative answer in your own words. Do not mention the internal analyses or consensus explicitly. Give a clear answer first, then briefly map the main options and their causal chains of consequences so the user understands how each path unfolds over time. Where appropriate, create a synthesized option that blends the strongest elements of the available paths while reducing their biggest risks, and recommend that as the best path forward. Use bold section headings, bullet lists, and Markdown tables when they make the answer easier to scan instead of long, dense paragraphs.`
       
       const finalResponse = await callGroq([{ role: 'user', content: agreementAnalysisPrompt }], VYRA_MODEL_MOONSHOT, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
       return finalResponse
