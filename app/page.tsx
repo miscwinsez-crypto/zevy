@@ -1288,76 +1288,11 @@ useEffect(() => {
             content: string
           }> = []
           if (attachedFiles.length > 0) {
-            const processedResults = await Promise.all(
-              attachedFiles.map(async (file) => {
-                try {
-                  if (file.name.endsWith('.pdf')) {
-                    const text = await extractPdfText(new File([file.data], file.name))
-                    return {
-                      name: file.name,
-                      type: 'pdf',
-                      content: text
-                    }
-                  } else if (file.name.endsWith('.txt')) {
-                    const response = await fetch(file.data)
-                    const text = await response.text()
-                    return {
-                      name: file.name,
-                      type: 'text',
-                      content: text
-                    }
-                  } else if (file.name.endsWith('.docx')) {
-                    const text = await extractDocxText(new File([file.data], file.name))
-                    return {
-                      name: file.name,
-                      type: 'docx',
-                      content: text
-                    }
-                  } else if (file.name.endsWith('.csv')) {
-                    const response = await fetch(file.data)
-                    const text = await response.text()
-                    return {
-                      name: file.name,
-                      type: 'csv',
-                      content: text
-                    }
-                  } else if (file.name.endsWith('.rtf')) {
-                    const text = await extractRtfText(new File([file.data], file.name))
-                    return {
-                      name: file.name,
-                      type: 'rtf',
-                      content: text
-                    }
-                  } else if (file.name.endsWith('.md')) {
-                    const response = await fetch(file.data)
-                    const text = await response.text()
-                    return {
-                      name: file.name,
-                      type: 'markdown',
-                      content: text
-                    }
-                  }
-                } catch (error: any) {
-                  console.error(`Error processing ${file.name}:`, error)
-                  return {
-                    name: file.name,
-                    type: file.name.endsWith('.pdf') ? 'pdf' : 
-                          file.name.endsWith('.txt') ? 'text' : 
-                          file.name.endsWith('.docx') ? 'docx' :
-                          file.name.endsWith('.csv') ? 'csv' :
-                          file.name.endsWith('.rtf') ? 'rtf' :
-                          file.name.endsWith('.md') ? 'markdown' : 'text',
-                    content: `Error reading ${file.name}: ${error?.message || 'Unknown error'}`
-                  }
-                }
-                return null
-              })
-            )
-            processedDocuments = processedResults.filter(Boolean) as Array<{
-              name: string
-              type: string
-              content: string
-            }>
+            processedDocuments = attachedFiles.map(file => ({
+              name: file.name,
+              type: file.type,
+              content: typeof file.data === 'string' ? file.data : ''
+            }))
           }
 
           const requestData = {
@@ -1928,7 +1863,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         const reader = new FileReader()
 
         reader.onload = async (ev: any) => {
-          const data = ev.target.result
+          const rawData = ev.target.result as string
           let preview: string | undefined
 
           if (file.name.endsWith('.pdf')) {
@@ -1944,6 +1879,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           } else if (file.name.endsWith('.md')) {
             preview = await extractMarkdownText(file)
           }
+
+          const contentData = typeof preview === 'string' && preview.length > 0 ? preview : rawData
 
           // Determine file type
           let fileType: 'pdf' | 'text' | 'docx' | 'csv' | 'rtf' | 'markdown' | 'image' = 'pdf'
@@ -1963,7 +1900,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
           setAttachedFiles(prev => [...prev, {
             type: fileType,
-            data,
+            data: contentData,
             name: file.name,
             preview
           }])
@@ -2433,9 +2370,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         >
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <div className="w-full max-w-3xl mx-auto">
+              <div className="w-full max-w-2xl lg:max-w-3xl mx-auto px-3 sm:px-0">
                 <div
-                  className="rounded-3xl px-6 sm:px-10 py-8 sm:py-10 shadow-[0_24px_80px_rgba(0,0,0,0.7)] border space-y-8"
+                  className="rounded-2xl sm:rounded-3xl px-4 sm:px-8 lg:px-10 py-6 sm:py-8 lg:py-10 shadow-[0_18px_60px_rgba(0,0,0,0.7)] border space-y-6 sm:space-y-8"
                   style={{
                     background: `radial-gradient(circle at top, ${palette.panel} 0, ${palette.background} 55%)`,
                     borderColor: palette.border
@@ -2475,15 +2412,15 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     </div>
                   </div>
 
-                  <div className="space-y-3 text-center sm:text-left">
+                  <div className="space-y-2 sm:space-y-3 text-center sm:text-left">
                     <h2
-                      className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight"
+                      className="text-xl sm:text-2xl lg:text-4xl font-semibold tracking-tight"
                       style={{ color: palette.accent }}
                     >
                       How can I help?
                     </h2>
                     <p
-                      className="text-xs sm:text-sm md:text-base max-w-xl"
+                      className="text-xs sm:text-sm lg:text-base max-w-xl mx-auto sm:mx-0"
                       style={{ color: palette.subdued }}
                     >
                       Ask anything, or start with a preset. Vyra gives deep debate-style reasoning,
@@ -2491,7 +2428,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 text-xs">
+                  <div className="flex flex-wrap gap-2 text-[11px] sm:text-xs">
                     {[
                       { label: '✨ Vyra Deep Reasoning', value: 'vyra' },
                       { label: '⚡ Astra Fast', value: 'astra' },
@@ -2523,7 +2460,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     ))}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-1">
                     {[
                       { icon: '🔍', title: 'Research', desc: 'Find latest info' },
                       { icon: '💡', title: 'Brainstorm', desc: 'Generate ideas' },
@@ -2533,7 +2470,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                       <button
                         key={item.title}
                         onClick={() => setInput(`${item.title}: `)}
-                        className="p-4 rounded-xl text-left transition-all button-hover border"
+                        className="p-3 sm:p-4 rounded-xl text-left transition-all button-hover border"
                         style={{
                           background: palette.panel,
                           borderColor: palette.border,

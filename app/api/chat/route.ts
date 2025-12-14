@@ -523,13 +523,6 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
     }
 }
 
-/**
- * Checks if a user's prompt is safe using Llama Guard 4-12b as a moderator.
- * This function acts as our advanced harm detector.
- * @param prompt The user's input prompt.
- * @param userModel The AI model the user is currently using.
- * @returns A boolean indicating if the prompt is safe.
- */
 async function isPromptSafe(prompt: string, userModel: string): Promise<boolean> {
   const apiKey = getGroqApiKey();
   
@@ -541,7 +534,16 @@ async function isPromptSafe(prompt: string, userModel: string): Promise<boolean>
 
   const groq = new Groq({ apiKey })
 
-  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Analyze the user's prompt for harmful content including: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content, or any dangerous/inappropriate requests. 
+  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Your job is to check ONLY for clearly harmful content, such as: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content involving minors or violence, or any clearly dangerous/inappropriate requests.
+
+Creative, non-harmful content is always SAFE. Treat the following as SAFE by default:
+- Song lyrics (requesting, quoting, or analyzing lyrics)
+- Fictional stories, roleplay, or fanfiction
+- Romantic content that is not graphic or violent
+- Artistic, poetic, or expressive writing
+- Requests about music, artists, or albums
+
+Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm or serious violence.
 
 User prompt: "${prompt}"
 Current AI model being used: ${userModel}
@@ -1217,53 +1219,6 @@ async function generateSummary(prompt: string): Promise<string> {
   return response.choices[0]?.message?.content || 'Summary unavailable';
 }
 
-async function isSafe(prompt: string): Promise<NextResponse | null> {
-  const groq = new Groq({ apiKey: getGroqApiKey() });
-
-  const moderationPrompt = `[INST] Task: Check if there is unsafe content in 'User' messages in conversations. Categories of unsafe content are: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content." Provide a single-word response: "safe" or "unsafe."
-
-<BEGIN CONVERSATION>
-
-User: ${prompt}
-
-<END CONVERSATION>
-
-[/INST]`;
-
-  try {
-    const response = await groq.chat.completions.create({
-      model: GUARD_MODEL,
-      messages: [{ role: 'user', content: moderationPrompt }],
-      temperature: 0.0,
-    });
-
-    const result = response.choices[0]?.message?.content?.toLowerCase().trim() || '';
-
-    if (result === 'unsafe') {
-      let reason = 'The prompt contains unsafe content.';
-
-      if (/illegal/i.test(prompt)) {
-        reason = `I cannot give information about ${prompt}`;
-      } else if (/private|code/i.test(prompt)) {
-        reason = 'I can\'t give that information because it is private.';
-      }
-
-      return new NextResponse(JSON.stringify({ response: reason }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Error in content moderation:', error);
-    return new NextResponse(JSON.stringify({ response: 'Error processing your request.' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
-
 export async function POST(req: NextRequest) {
   const supabase = createRouteHandlerClient<Database>({ cookies })
   const {
@@ -1282,12 +1237,6 @@ export async function POST(req: NextRequest) {
     searchEnabled = false,
     documents = []
   } = body
-
-  // Content moderation check
-  const moderationResponse = await isSafe(message);
-  if (moderationResponse) {
-    return moderationResponse;
-  }
 
   // Allow guest users to use the AI without signing in
   let userId = 'guest';
