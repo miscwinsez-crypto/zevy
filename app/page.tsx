@@ -1162,9 +1162,17 @@ useEffect(() => {
   }
 
   const sendMessage = async (messageContent?: string, isRetry = false) => {
-    const textToSend = messageContent || input
-    
-    if (!textToSend.trim() || loading) return
+    const baseText = messageContent ?? input
+    const hasText = baseText.trim().length > 0
+    const hasFiles = attachedFiles.length > 0
+
+    // Require either some text or at least one attached file
+    if (!hasText && !hasFiles) return
+    if (loading) return
+
+    const textToSend = hasText
+      ? baseText
+      : 'Please analyze the attached document(s) and answer based on them.'
 
     // Content moderation is handled server-side in the API route
     // No client-side content moderation needed
@@ -2450,9 +2458,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                         }}
                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full button-hover"
                         style={{
-                          background: palette.secondary,
-                          color: palette.accent,
-                          border: `1px solid ${palette.border}`
+                          background:
+                            item.value === 'search' && isSearchMode ? '#22c55e' : palette.secondary,
+                          color:
+                            item.value === 'search' && isSearchMode ? '#ffffff' : palette.accent,
+                          border:
+                            item.value === 'search' && isSearchMode
+                              ? '1px solid #16a34a'
+                              : `1px solid ${palette.border}`
                         }}
                       >
                         <span>{item.label}</span>
@@ -2720,9 +2733,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   }}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs button-hover"
                   style={{
-                    background: isSearchMode ? palette.hover : palette.secondary,
-                    color: isSearchMode ? '#fff' : palette.accent,
-                    border: `1px solid ${palette.border}`
+                    background: isSearchMode ? '#22c55e' : palette.secondary,
+                    color: isSearchMode ? '#ffffff' : palette.accent,
+                    border: isSearchMode ? '1px solid #16a34a' : `1px solid ${palette.border}`
                   }}
                 >
                   <Globe size={14} />
@@ -2809,7 +2822,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                 <button
                   onClick={() => sendMessage()}
-                  disabled={loading || !input.trim()}
+                  disabled={loading || (!input.trim() && attachedFiles.length === 0)}
                   className="w-11 h-11 flex items-center justify-center rounded-xl transition-all button-hover"
                   style={{ background: palette.hover, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 :  1 }}
                 >

@@ -63,36 +63,59 @@ export function getGroqApiKey(): string {
 **meta-llama/llama-guard-4-12b Integration:**
 - **Universal Content Moderation**: Every prompt checked regardless of model
 - **Context-Aware Analysis**: Considers the AI model being used
-- **Comprehensive Harm Categories**: Illegal activities, hate speech, harassment, violence, self-harm, explicit content
-- **Fail-Safe Design**: Defaults to 'unsafe' if moderation fails
-- **Real-Time Processing**: Instant safety classification
+- **Comprehensive Harm Categories**: Illegal activities, hate speech, harassment, violence, self-harm, explicit content involving minors or violence
+- **Creative Content Aware**: Treats lyrics, fiction, and non-graphic romantic content as safe by default
+- **Graceful Failure Handling**: If the safety check is unavailable, the system allows the request instead of breaking the chat flow
 
-**Safety Implementation:**
+**Safety Implementation (High Level):**
 ```typescript
 async function isPromptSafe(prompt: string, userModel: string): Promise<boolean> {
-  const moderationPrompt = `You are Llama Guard 4-12b. Analyze for harmful content:
-  
-  User prompt: "${prompt}"
-  Current AI model: ${userModel}
-  
-  Classify as 'safe' or 'unsafe'.`
-  
-  const response = await groq.chat.completions.create({
-    model: 'meta-llama/llama-guard-4-12b',
-    messages: [{ role: 'user', content: moderationPrompt }],
-    temperature: 0,
-    max_tokens: 10
-  })
-  
-  return response.choices[0]?.message?.content?.trim().toLowerCase() === 'safe'
+  const apiKey = getGroqApiKey()
+  if (!apiKey) {
+    // If no moderation key is available, allow the request
+    return true
+  }
+
+  const groq = new Groq({ apiKey })
+
+  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Your job is to check ONLY for clearly harmful content, such as: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content involving minors or violence, or any clearly dangerous/inappropriate requests.
+
+Creative, non-harmful content is always SAFE. Treat the following as SAFE by default:
+- Song lyrics (requesting, quoting, or analyzing lyrics)
+- Fictional stories, roleplay, or fanfiction
+- Romantic content that is not graphic or violent
+- Artistic, poetic, or expressive writing
+- Requests about music, artists, or albums
+
+Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm or serious violence.
+
+User prompt: "${prompt}"
+Current AI model being used: ${userModel}
+
+Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: either 'safe' or 'unsafe'.`
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: 'meta-llama/llama-guard-4-12b',
+      messages: [{ role: 'user', content: moderationPrompt }],
+      temperature: 0,
+      max_tokens: 10
+    })
+
+    const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
+    return result === 'safe'
+  } catch {
+    // If moderation fails for any reason, allow the request
+    return true
+  }
 }
 ```
 
 #### 4. **Enhanced Knowledge Integration for Both Models**
 **Astra AI (Research-Focused):**
-- **Llama-3.3-70b-versatile**: Enhanced with comprehensive knowledge sources
+- **Llama-4 Scout + Llama-4 Maverick**: Fast (Scout) vs intelligent (Maverick) model pairing on Groq
 - **125 Daily Uses**: Maintained with full knowledge access
-- **Research-First Approach**: Prioritizes encyclopedic and factual information
+- **Research-First Approach**: Prioritizes encyclopedic and factual information with smart model selection
 
 **Vyra AI (Debate Engine):**
 - **Kimi K2 + Qwen 32B**: Both models enhanced with knowledge integration
@@ -249,15 +272,15 @@ for (const apiKey of apiKeys) {
 
 **Zevy AI** is a revolutionary multi-model artificial intelligence system created by **Adam Zein Ziqry** (15-year-old founder and developer). This system combines the power of multiple cutting-edge language models with comprehensive knowledge integration, advanced safety features, and intelligent usage management. Zevy AI is the flagship AI product developed under **Zevy Cloud** (the company).
 
-**Last Updated**: December 12, 2025
+**Last Updated**: December 14, 2025
 
 ### 🌟 Key Innovations:
-- **Multi-Model Intelligence**: Seamlessly integrates Kimi K2, Qwen, Llama-3.3-70b, and Groq models
+- **Multi-Model Intelligence**: Seamlessly integrates Kimi K2, Qwen 32B, and Llama-4 Scout/Maverick models on Groq
 - **Super Brain Knowledge System**: Wikipedia + Web Search + News APIs for comprehensive research
 - **Universal Safety Guard**: Llama Guard 4-12b protects all interactions
 - **Intelligent Usage Management**: Sophisticated tracking with daily limits and auto-reset
 - **Real-Time Knowledge Synthesis**: Combines multiple information sources for superior responses
-- **Advanced Document Processing**: PDF, DOCX, and TXT file upload with intelligent text extraction
+- **Advanced Document Processing**: PDF, DOCX, TXT, CSV, RTF, and Markdown upload with intelligent text extraction
 - **Expanded Free Knowledge Sources**: 15+ integrated knowledge sources including Open Library, NASA API, OpenStreetMap, RSS feeds
 - **Enhanced API Key Management**: 10 Groq API keys with intelligent rotation system
 - **Advanced Harm Detection**: meta-llama/llama-guard-4-12b for comprehensive content safety
@@ -360,12 +383,13 @@ When you ask a question, Groq Compound automatically searches multiple sources, 
 
 **Upload documents and let Zevy AI analyze them alongside your questions!**
 
-With Zevy AI's document processing, you can attach PDF, Word documents (DOCX), and text files to your conversations. The AI will read and understand your documents to provide more informed, contextual responses.
+With Zevy AI's document processing, you can attach PDF, Word documents (DOCX), text files, CSV, RTF, and Markdown documents to your conversations. The AI will read and understand your documents to provide more informed, contextual responses.
 
 #### What You Can Do:
 - **Upload PDF files** - Share research papers, reports, or any PDF documents
 - **Upload Word documents** - Attach DOCX files with your work or study materials  
 - **Upload text files** - Share plain text documents, notes, or code files
+- **Upload CSV / RTF / Markdown** - Attach structured data, rich text documents, or markdown notes
 - **Multiple attachments** - Add several documents to one conversation
 - **Smart preview** - See what the AI extracted before sending
 
@@ -382,7 +406,7 @@ When you upload a document, Zevy AI automatically:
 - Share multiple PDFs and ask "Compare the approaches in these papers"
 - Upload a text file with code and ask "Explain what this code does"
 
-**Note**: Document processing works best with text-based content. The AI will extract and analyze the text from your files to provide more informed responses based on your specific documents.
+**Note**: Document processing works best with text-based content. The AI extracts the text (up to a safe length) from your files and includes it directly in the conversation context so responses are grounded in your documents.
 
 ### Wikipedia Integration
 
@@ -466,31 +490,50 @@ Zevy AI doesn't just search multiple sources - it intelligently combines them to
 **Universal Safety Checking:**
 ```typescript
 async function isPromptSafe(prompt: string, userModel: string): Promise<boolean> {
-  const groq = new Groq({ apiKey: getGroqApiKey() })
-  
-  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Analyze the user's prompt for harmful content including: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content, or any dangerous/inappropriate requests.
-  
-  User prompt: "${prompt}"
-  Current AI model being used: ${userModel}
-  
-  Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: either 'safe' or 'unsafe'.`
-  
-  const response = await groq.chat.completions.create({
-    model: 'meta-llama/llama-guard-4-12b',
-    messages: [{ role: 'user', content: moderationPrompt }],
-    temperature: 0,
-    max_tokens: 10
-  })
-  
-  const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
-  return result === 'safe'
+  const apiKey = getGroqApiKey()
+  if (!apiKey) {
+    return true
+  }
+
+  const groq = new Groq({ apiKey })
+
+  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Your job is to check ONLY for clearly harmful content, such as: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content involving minors or violence, or any clearly dangerous/inappropriate requests.
+
+Creative, non-harmful content is always SAFE. Treat the following as SAFE by default:
+- Song lyrics (requesting, quoting, or analyzing lyrics)
+- Fictional stories, roleplay, or fanfiction
+- Romantic content that is not graphic or violent
+- Artistic, poetic, or expressive writing
+- Requests about music, artists, or albums
+
+Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm or serious violence.
+
+User prompt: "${prompt}"
+Current AI model being used: ${userModel}
+
+Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: either 'safe' or 'unsafe'.`
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: 'meta-llama/llama-guard-4-12b',
+      messages: [{ role: 'user', content: moderationPrompt }],
+      temperature: 0,
+      max_tokens: 10
+    })
+
+    const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
+    return result === 'safe'
+  } catch {
+    return true
+  }
 }
 ```
 
 **Safety Features:**
 - ✅ **Universal Protection**: Every prompt checked regardless of model
 - ✅ **Context-Aware**: Considers the AI model being used
-- ✅ **Fail-Safe**: Defaults to 'unsafe' if moderation fails
+- ✅ **Creative-Safe Defaults**: Treats lyrics and other non-harmful creative content as safe
+- ✅ **Graceful Failure**: If moderation fails or is unavailable, requests are allowed instead of breaking the chat
 - ✅ **Real-Time**: Instant safety classification
 - ✅ **Comprehensive**: Covers all major harm categories
 

@@ -6,20 +6,23 @@ export type Database = {
         Row: {
           id: string
           user_id: string
-          request_count: number
-          created_at: string
+          model_type: 'vyra' | 'astra'
+          usage_count: number
+          last_reset: string
         }
         Insert: {
           id?: string
           user_id: string
-          request_count?: number
-          created_at?: string
+          model_type: 'vyra' | 'astra'
+          usage_count?: number
+          last_reset?: string
         }
         Update: {
           id?: string
           user_id?: string
-          request_count?: number
-          created_at?: string
+          model_type?: 'vyra' | 'astra'
+          usage_count?: number
+          last_reset?: string
         }
       }
     }

@@ -16,10 +16,10 @@ const shouldResetUsage = (userId: string) => {
 }
 
 export async function getUserUsage(userId: string, modelType: 'vyra' | 'astra'): Promise<{ usage: number; limit: number; remaining: number }> {
-  const supabase = createSupabaseClient()
+  const supabase = await createSupabaseClient()
   
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('user_usage')
       .select('usage_count, last_reset')
       .eq('user_id', userId)
@@ -36,7 +36,7 @@ export async function getUserUsage(userId: string, modelType: 'vyra' | 'astra'):
     
     if (!data) {
       // First time user, create usage record
-      await supabase.from('user_usage').insert([
+      await (supabase as any).from('user_usage').insert([
         {
           user_id: userId,
           model_type: modelType,
@@ -52,7 +52,7 @@ export async function getUserUsage(userId: string, modelType: 'vyra' | 'astra'):
 
     // Reset if more than 24 hours have passed and not guest
     if (hoursSinceReset >= 24 && shouldResetUsage(userId)) {
-      await supabase
+      await (supabase as any)
         .from('user_usage')
         .update({ usage_count: 0, last_reset: now.toISOString() })
         .eq('user_id', userId)
@@ -61,8 +61,9 @@ export async function getUserUsage(userId: string, modelType: 'vyra' | 'astra'):
       return { usage: 0, limit, remaining: limit }
     }
 
-    const remaining = Math.max(0, limit - data.usage_count)
-    return { usage: data.usage_count, limit, remaining }
+    const typedData = data as UsageData
+    const remaining = Math.max(0, limit - typedData.usage_count)
+    return { usage: typedData.usage_count, limit, remaining }
   } catch (error) {
     console.error('Error in getUserUsage:', error)
     const limit = modelType === 'vyra' ? VYRA_DAILY_LIMIT : ASTRA_DAILY_LIMIT
@@ -71,10 +72,10 @@ export async function getUserUsage(userId: string, modelType: 'vyra' | 'astra'):
 }
 
 export async function incrementUserUsage(userId: string, modelType: 'vyra' | 'astra'): Promise<boolean> {
-  const supabase = createSupabaseClient()
+  const supabase = await createSupabaseClient()
   
   try {
-    const { data: existingData } = await supabase
+    const { data: existingData } = await (supabase as any)
       .from('user_usage')
       .select('usage_count, last_reset')
       .eq('user_id', userId)
@@ -85,7 +86,7 @@ export async function incrementUserUsage(userId: string, modelType: 'vyra' | 'as
     
     if (!existingData) {
       // Create new record
-      const { error } = await supabase.from('user_usage').insert([
+      const { error } = await (supabase as any).from('user_usage').insert([
         {
           user_id: userId,
           model_type: modelType,
@@ -96,7 +97,8 @@ export async function incrementUserUsage(userId: string, modelType: 'vyra' | 'as
       return !error
     }
 
-    const lastReset = new Date(existingData.last_reset)
+    const typedExisting = existingData as UsageData
+    const lastReset = new Date(typedExisting.last_reset)
     const hoursSinceReset = (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60)
 
     let newCount: number
@@ -105,7 +107,7 @@ export async function incrementUserUsage(userId: string, modelType: 'vyra' | 'as
       newCount = 1
     } else {
       // Increment existing counter
-      newCount = existingData.usage_count + 1
+      newCount = typedExisting.usage_count + 1
     }
 
     const limit = modelType === 'vyra' ? VYRA_DAILY_LIMIT : ASTRA_DAILY_LIMIT
@@ -115,11 +117,11 @@ export async function incrementUserUsage(userId: string, modelType: 'vyra' | 'as
       return false
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('user_usage')
       .update({ 
         usage_count: newCount, 
-        last_reset: hoursSinceReset >= 24 ? now.toISOString() : existingData.last_reset 
+        last_reset: hoursSinceReset >= 24 ? now.toISOString() : typedExisting.last_reset 
       })
       .eq('user_id', userId)
       .eq('model_type', modelType)

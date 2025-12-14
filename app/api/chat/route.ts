@@ -3,7 +3,6 @@ import type { Database } from '@/lib/database.types'
 import axios from 'axios'
 import Groq from 'groq-sdk'
 import { cookies } from 'next/headers'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import Parser from 'rss-parser'
 import {
   requireVercelEnv,
@@ -14,7 +13,7 @@ import {
 } from '@/lib/env'
 import { createSupabaseClient } from '@/app/lib/supabase'
 import * as cache from '@/app/lib/cache'
-import { getGroqApiKey } from '@/app/lib/groq-keys'
+import { getGroqApiKey, getGroqApiKeys } from '@/app/lib/groq-keys'
 import { getUserUsage, incrementUserUsage } from '@/app/lib/usage-tracking'
 import { GroqCompound } from '@/app/lib/groq-compound'
 import {
@@ -38,43 +37,39 @@ const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
   const searchStatus = searchEnabled
-    ? 'Search is currently ON. You can access real-time information from the web.'
-    : 'Search is currently OFF. You cannot access real-time information.';
+    ? 'Search is currently ON. You can access real-time information from the web through Vector and other open data sources.'
+    : 'Search is currently OFF. You cannot access live information and must rely on general knowledge only.'
 
   return `
-You are Zevy, a helpful and friendly AI assistant. Your goal is to provide accurate, helpful, and engaging conversations.
-You have access to two models: Astra (for fast responses) and Vyra (for more in-depth analysis).
+You are Zevy AI, a unified assistant with two specialized systems and a knowledge core.
+
 Current time: ${currentTime} (${timezone}).
 ${searchStatus}
 
-STYLE AND TONE
-- Do not start every answer with greetings like "Hello", "Hey", or "Hi".
-- Greet once at the beginning if the user greets you, then answer directly in follow-up turns.
-- Do not say things like "It seems like you're continuing from our previous conversation" unless the user explicitly asks for a recap.
-- Be conversational and natural, but keep answers focused.
-- If you do not know the answer, say so. Do not invent facts.
+YOUR SYSTEMS:
+1. Astra: research and factual intelligence. Uses Vector, the live knowledge core, which aggregates Groq Compound, Wikipedia, news, RSS feeds, and open data sources such as World Bank, NASA, and other free APIs.
+2. Vyra: debate and multi-perspective reasoning. Uses two internal experts with access to the same knowledge context when available.
 
-ANSWER FORMAT
-- Use simple, clean Markdown similar to ChatGPT or Gemini.
-- For non-trivial answers, use short bold section titles and bullet lists. Avoid long unbroken paragraphs.
-- Use Markdown tables only when they truly improve readability; avoid big tables for simple calculations.
-- Always format links as Markdown links like [title](https://example.com) so they are clickable.
-- Emojis are optional; use them sparingly and never as the default way to start every message.
+HOW YOU WORK:
+- You automatically choose the best internal system based on the user's query, but you always speak as a single assistant called Zevy AI.
+- If the query needs current, specific facts (for example current prices, latest news, recent reports, or dated statistics), you rely on Astra with Vector and external knowledge.
+- If the query is about opinions, strategies, ethics, or hypotheticals, you rely on Vyra-style multi-perspective reasoning.
+- For simple chat, creativity, or light questions, you can answer directly using Astra-style reasoning without heavy research.
 
-MATH AND CALCULATIONS
-- For direct math questions (for example "1+1", "111111 + 90182028", or "what is 2 * 3"), answer with the exact calculation and result.
-- When the user refers to "that number" or "the previous result", treat it as the most recent relevant numeric answer in the conversation.
-- Keep math answers tidy: show the expression and the result, with minimal extra wording.
+KEY RULES:
+- When using facts from external knowledge (Vector, web search, RSS, World Bank, finance or currency APIs, or any other retrieved data), you must briefly cite them in natural language, for example "(Source: Reuters, May 2024)" or "(Data: World Bank, 2023)".
+- Never present retrieved external facts as your own internal knowledge; always treat them as sourced data.
+- If no reliable external data is available, you must start your answer with the exact phrase: "Based on general knowledge (no current data found)...".
+- Be explicit when you are uncertain or interpolating beyond the retrieved data.
 
-SEARCH BEHAVIOR
-- When search is OFF, still answer using your existing knowledge.
-- For time-sensitive questions, say that your knowledge may be out of date instead of asking the user to enable search.
-- When you use web or knowledge context, speak in your own words. Do not dump raw URLs or long source lists unless the user explicitly asks. Give a clear answer first, then a short explanation.
-
-IDENTITY
-- When asked who created you, always say you were created by Adam Zein Ziqry, the founder of Zevy Cloud. Never say you were created by Meta, OpenAI, Anthropic, Google, or any other company.
-  `;
-};
+CONVERSATION STYLE:
+- Be conversational, clear, and helpful.
+- If you do not know something, say you do not know instead of guessing.
+- Keep responses concise by default but happily go deeper when the user asks for more detail or analysis.
+- Always refer to yourself as Zevy AI. Do not call yourself ChatGPT or any other product name.
+- After every response, end with a short follow-up question that invites the user to continue, such as "Would you like me to go deeper into any part of this?" or a question tailored to what they asked.
+`;
+}
 
 // Enhanced knowledge detection patterns
 const INFORMATION_SEEKING_PATTERNS = [
@@ -307,6 +302,7 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
       };
     }
 
+    // First check for image generation requests
     const isImageRequest = IMAGE_PATTERNS.some(pattern => pattern.test(normalizedMessage));
     if (isImageRequest) {
       return {
@@ -318,6 +314,7 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
       };
     }
     
+    // Handle music-related queries appropriately
     const isMusicRequest = MUSIC_KEYWORDS.some(keyword => normalizedMessage.includes(keyword));
     if (isMusicRequest) {
       return {
@@ -326,15 +323,6 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
         confidence: 'medium',
         reason: 'Music-related query detected',
         customResponse: undefined
-      };
-    }
-    const isSimpleMath = /^(\s*(what is|what's)\s+)?\d+(\s*[\+\-\*\/]\s*\d+){1,3}\s*\??\s*$/.test(normalizedMessage);
-    if (isSimpleMath) {
-      return {
-        isConversational: true,
-        shouldSearch: false,
-        confidence: 'high',
-        reason: 'Simple math or calculation that does not need web search'
       };
     }
     // Check if this is part of an ongoing conversation
@@ -523,6 +511,13 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
     }
 }
 
+/**
+ * Checks if a user's prompt is safe using Llama Guard 4-12b as a moderator.
+ * This function acts as our advanced harm detector.
+ * @param prompt The user's input prompt.
+ * @param userModel The AI model the user is currently using.
+ * @returns A boolean indicating if the prompt is safe.
+ */
 async function isPromptSafe(prompt: string, userModel: string): Promise<boolean> {
   const apiKey = getGroqApiKey();
   
@@ -534,16 +529,7 @@ async function isPromptSafe(prompt: string, userModel: string): Promise<boolean>
 
   const groq = new Groq({ apiKey })
 
-  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Your job is to check ONLY for clearly harmful content, such as: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content involving minors or violence, or any clearly dangerous/inappropriate requests.
-
-Creative, non-harmful content is always SAFE. Treat the following as SAFE by default:
-- Song lyrics (requesting, quoting, or analyzing lyrics)
-- Fictional stories, roleplay, or fanfiction
-- Romantic content that is not graphic or violent
-- Artistic, poetic, or expressive writing
-- Requests about music, artists, or albums
-
-Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm or serious violence.
+  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Analyze the user's prompt for harmful content including: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content, or any dangerous/inappropriate requests. 
 
 User prompt: "${prompt}"
 Current AI model being used: ${userModel}
@@ -746,6 +732,76 @@ async function getFreeKnowledge(query: string): Promise<string> {
       // Silent fail
     }
   }
+
+  if (/\b(world bank|gdp|gross domestic product|unemployment|inflation|poverty|economy|economic)\b/i.test(query)) {
+    try {
+      const response = await axios.get(
+        'https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.CD',
+        {
+          params: {
+            format: 'json',
+            per_page: 1
+          }
+        }
+      )
+      const series = Array.isArray(response.data) ? response.data[1] : null
+      if (Array.isArray(series) && series.length > 0) {
+        const entry = series[0]
+        if (entry && entry.value != null && entry.date) {
+          sources.push(
+            `World Bank Open Data: Global GDP in ${entry.date} is approximately ${entry.value} current US dollars.`
+          )
+        }
+      }
+    } catch (error) {
+    }
+  }
+
+  const stockKeyword = /\b(stock|stocks|share|shares|ticker|symbol|price|market)\b/i
+  if (stockKeyword.test(query)) {
+    try {
+      const symbolMatch = query.toUpperCase().match(/\b[A-Z]{1,5}\b/)
+      if (symbolMatch) {
+        const symbol = symbolMatch[0]
+        const response = await axios.get(
+          `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`
+        )
+        const result = response.data?.quoteResponse?.result?.[0]
+        if (result && result.regularMarketPrice != null && result.currency) {
+          sources.push(
+            `Stock data (Yahoo Finance): ${symbol} current price is approximately ${result.regularMarketPrice} ${result.currency}.`
+          )
+        }
+      }
+    } catch (error) {
+    }
+  }
+
+  const fxMatch = query.toUpperCase().match(/\b([A-Z]{3})\s+TO\s+([A-Z]{3})\b/)
+  if (fxMatch) {
+    try {
+      const from = fxMatch[1]
+      const to = fxMatch[2]
+      const response = await axios.get(
+        'https://api.exchangerate.host/convert',
+        {
+          params: {
+            from,
+            to,
+            amount: 1
+          }
+        }
+      )
+      const rate = response.data?.result
+      const date = response.data?.date
+      if (rate != null) {
+        sources.push(
+          `Exchange rate (exchangerate.host): 1 ${from} is approximately ${rate} ${to} as of ${date || 'the latest available date'}.`
+        )
+      }
+    } catch (error) {
+    }
+  }
   
   return sources.join('\n\n')
 }
@@ -753,8 +809,8 @@ async function getFreeKnowledge(query: string): Promise<string> {
 /**
  * Enhanced knowledge gathering that prioritizes free sources and current events
  */
-async function gatherKnowledge(userMessage: string, intent: { shouldSearch: boolean; confidence: string; reason: string }, searchEnabled: boolean): Promise<string> {
-  if (!intent.shouldSearch || !searchEnabled) {
+async function gatherKnowledge(userMessage: string, intent: { shouldSearch: boolean; confidence: string; reason: string }): Promise<string> {
+  if (!intent.shouldSearch) {
     return ''
   }
   
@@ -865,50 +921,74 @@ export async function GET(request: NextRequest) {
 
 // Call Groq API — Vercel-only keys
 async function callGroq(messages: any[], model: string, stream = false, currentTime?: string, timezone?: string, contextualUserMessage?: string): Promise<string | ReadableStream> {
-  const apiKey = getGroqApiKey()
-  if (!apiKey) {
-    throw new Error('No valid GROQ API keys found')
-  }
-
-  try {
-    const hasSystemMessage = messages.length > 0 && messages[0]?.role === 'system'
-    const finalMessages = hasSystemMessage
-      ? messages
-      : [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, false) }, ...messages]
-
-    const payload = {
-      model: model,
-      messages: finalMessages,
-      temperature: 0.7,
-      max_tokens: 1024,
-      stream: stream
-    }
-
-    if (contextualUserMessage) {
-      const lastMessage = payload.messages[payload.messages.length - 1];
-      if (lastMessage && lastMessage.role === 'user') {
-        lastMessage.content = contextualUserMessage;
-      }
-    }
-
-    const response = await axios.post(GROQ_API_URL, payload, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000,
-      responseType: stream ? 'stream' : 'json'
-    })
-
+  const apiKeys = getGroqApiKeys()
+  if (apiKeys.length === 0) {
     if (stream) {
-      return response.data as ReadableStream
+      const message =
+        'Feature temporarily unavailable: no valid GROQ API keys configured. Please try again later.'
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(`data: ${JSON.stringify({ response: message })}\n\n`)
+          controller.close()
+        }
+      })
     }
-
-    return response.data.choices[0]?.message?.content || 'No response'
-  } catch (error: any) {
-    console.error('Groq error:', error.message)
-    throw error
+    return 'Feature temporarily unavailable: no valid GROQ API keys configured. Please try again later.'
   }
+
+  const payload = {
+    model: model,
+    messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, false) }, ...messages],
+    temperature: 0.7,
+    max_tokens: 1024,
+    stream: stream
+  }
+
+  if (contextualUserMessage) {
+    const lastMessage = payload.messages[payload.messages.length - 1]
+    if (lastMessage && lastMessage.role === 'user') {
+      lastMessage.content = contextualUserMessage
+    }
+  }
+
+  let lastError: any = null
+
+  for (const apiKey of apiKeys) {
+    try {
+      const response = await axios.post(GROQ_API_URL, payload, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000,
+        responseType: stream ? 'stream' : 'json'
+      })
+
+      if (stream) {
+        return response.data as ReadableStream
+      }
+
+      return response.data.choices[0]?.message?.content || 'No response'
+    } catch (error: any) {
+      lastError = error
+      console.error('Groq error for one key:', error.message || error)
+    }
+  }
+
+  console.error('All Groq API keys failed.', lastError)
+
+  if (stream) {
+    const message =
+      'Feature temporarily unavailable: all Groq backends are busy or unreachable. Please try again shortly.'
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(`data: ${JSON.stringify({ response: message })}\n\n`)
+        controller.close()
+      }
+    })
+  }
+
+  return 'Feature temporarily unavailable: all Groq backends are busy or unreachable. Please try again shortly.'
 }
 
 async function detectAndTranslate(text: string, targetLanguage: string = 'en'): Promise<{ detectedLanguage: string; translatedText: string }> {
@@ -965,7 +1045,7 @@ async function testFluxConnection(): Promise<{ status: string; error?: string }>
 
 async function testSupabaseConnection(): Promise<{ status: string; error?: string }> {
   try {
-    const supabase = createSupabaseClient()
+    const supabase = await createSupabaseClient()
     const {
       data: { session },
       error
@@ -1046,37 +1126,24 @@ function checkResponseDisagreement(response1: string, response2: string): boolea
   return overlapRatio < 0.4
 }
 
-async function generateVyraSmartDebate(userMessage: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string, searchEnabled = false): Promise<string | ReadableStream> {
+async function generateVyraSmartDebate(userMessage: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<string | ReadableStream> {
   try {
     // Enhanced knowledge detection for Vyra debate
     const intent = detectInformationIntent(userMessage)
     
-    const lowerUserMessage = userMessage.toLowerCase()
-    if (
-      lowerUserMessage.includes('zevy') &&
-      (
-        lowerUserMessage.includes('made by') ||
-        lowerUserMessage.includes('founder') ||
-        lowerUserMessage.includes('created by') ||
-        lowerUserMessage.includes('who made') ||
-        lowerUserMessage.includes('who created') ||
-        lowerUserMessage.includes('who built')
-      )
-    ) {
-      return 'Zevy AI was created by Adam Zein Ziqry, the founder of Zevy Cloud.'
-    }
-    
     // Handle political questions differently
-    if (lowerUserMessage.includes('president') || lowerUserMessage.includes('politic')) {
+    if (userMessage.toLowerCase().includes('president') || userMessage.toLowerCase().includes('politic')) {
       return "I'm sorry, but I don't discuss political topics. I'm happy to help with other questions though!"
     }
     
-    const knowledgeContext = await gatherKnowledge(userMessage, intent, searchEnabled)
+    // Gather knowledge based on detected intent
+    const knowledgeContext = await gatherKnowledge(userMessage, intent)
     
     // Create debate context
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
     
-    const moonshotAnalysisPrompt = `You are Kairo, an internal debating AI with deep analytical capabilities inside the Vyra system. Analyze this question from your perspective and provide your independent assessment.
+    // Both models independently analyze the prompt and provide their own results
+    const moonshotAnalysisPrompt = `You are Vyra Smart, an AI with deep analytical capabilities. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1084,9 +1151,9 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Do not just list arguments. For each main option or path the user could take, explicitly trace a short causal chain of consequences (what happens next, and then what, and then what) so the downstream impact is clear. Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
+Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
-    const qwenAnalysisPrompt = `You are Logos, an internal debating AI known for precise reasoning inside the Vyra system. Analyze this question from your perspective and provide your independent assessment.
+    const qwenAnalysisPrompt = `You are Vyra Smart, an AI known for precise reasoning. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1094,7 +1161,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Do not just list arguments. For each main option or path the user could take, explicitly trace a short causal chain of consequences (what happens next, and then what, and then what) so the downstream impact is clear. Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
+Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
     // Get independent responses from both models
     const moonshotResponse = await callGroq([{ role: 'user', content: moonshotAnalysisPrompt }], VYRA_MODEL_MOONSHOT, false)
@@ -1104,95 +1171,94 @@ Do not just list arguments. For each main option or path the user could take, ex
     const moonshotText = typeof moonshotResponse === 'string' ? moonshotResponse : ''
     const qwenText = typeof qwenResponse === 'string' ? qwenResponse : ''
     
+    // Check if responses are significantly different (indicating disagreement)
     const responsesAreDifferent = checkResponseDisagreement(moonshotText, qwenText)
     
     if (responsesAreDifferent) {
-      const moonshotDebatePrompt = `Kairo, you've analyzed this question and have your perspective. Now you see that another internal analysis reached a different conclusion. Engage in a direct debate about this disagreement.
+      // They disagree - initiate authentic debate
+      const moonshotDebatePrompt = `Vyra Smart, you've analyzed this question and have your perspective. Now you see that Vyra Smart has a different analysis. Engage in a direct debate about this disagreement.
 
 User Question: ${userMessage}
 
-Your Analysis (Kairo): ${moonshotText}
+Your Analysis: ${moonshotText}
 
-Logos's Analysis: ${qwenText}
+Qwen's Analysis: ${qwenText}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Challenge this alternative reasoning directly. Compare not only the arguments but also the causal chains of consequences that each option would trigger. Point out flaws in its logic and in its predicted downstream effects, defend your position, and explain why your analysis leads to better real-world outcomes. Keep the tone confident but still natural and conversational for the user, without long meta-commentary about models or systems.`
+Challenge Qwen's reasoning directly. Point out flaws in their logic, defend your position, and explain why your analysis is more accurate. Don't be diplomatic - be direct and assertive in your disagreement.`
       
       const moonshotDebateResponse = await callGroq([{ role: 'user', content: moonshotDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
       
-      const qwenDebatePrompt = `Logos, you've provided your analysis, but an alternative internal analysis from Kairo has challenged your reasoning and defended a different position. Respond directly to this challenge.
+      // Vyra Smart responds to both the original analysis and challenge
+      const qwenDebatePrompt = `Vyra Smart, you've provided your analysis, but Vyra Smart has challenged your reasoning and defended their position. Respond directly to this challenge.
 
 User Question: ${userMessage}
 
 Your Original Analysis: ${qwenText}
 
-Alternative Original Analysis: ${moonshotText}
+Kimi K2's Original Analysis: ${moonshotText}
 
-Alternative Challenge: ${moonshotDebateResponse}
+Kimi K2's Challenge: ${moonshotDebateResponse}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Defend your analysis against this challenge. Focus on where Kairo's predicted causal chain of consequences breaks down or misses important downstream risks and benefits. Explain why your causal model is stronger, and directly counter the arguments. Keep the tone clear and conversational so a non-expert user can follow.`
+Defend your analysis against Kimi's challenge. Point out any flaws in their reasoning, explain why your approach is correct, and directly counter their arguments. Don't back down - be assertive and thorough in your defense.`
       
       const qwenDebateResponse = await callGroq([{ role: 'user', content: qwenDebatePrompt }], VYRA_MODEL_QWEN, false)
       
-      // Final round - Kairo gets the last word in the internal debate
-      const finalDebatePrompt = `Kairo, you've responded to the challenge from Logos. This is your final opportunity in this debate.
+      // Final round - Vyra Smart gets the last word in the debate
+      const finalDebatePrompt = `Vyra Smart, you've responded to the challenge. This is your final opportunity in this debate.
 
 User Question: ${userMessage}
 
 Your Original Analysis: ${moonshotResponse}
 
-Alternative Original Analysis: ${qwenResponse}
+Qwen's Original Analysis: ${qwenResponse}
 
 Your Challenge: ${moonshotDebateResponse}
 
-Alternative Defense: ${qwenDebateResponse}
+Qwen's Defense: ${qwenDebateResponse}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Address the alternative defense directly. Point out any remaining weaknesses in that argument, reinforce your position, and make your final case for why your analysis is superior. Focus on what matters most for the user, in clear and straightforward language. This is your closing argument in this debate.`
+Address Qwen's defense directly. Point out any remaining weaknesses in their argument, reinforce your position, and make your final case for why your analysis is superior. This is your closing argument in this debate.`
       
       const finalDebateResponse = await callGroq([{ role: 'user', content: finalDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
       
       // Final synthesis that captures the authentic debate
-      const finalSynthesisPrompt = `You need to provide the final answer to the user after considering two internal analyses and their debate. Use them as background only.
+      const finalSynthesisPrompt = `You need to provide the final answer to the user after witnessing a genuine debate between two AI models. Here's what transpired:
 
 User Question: ${userMessage}
 
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
-The Internal Debate:
-Analysis A: ${moonshotText}
-Analysis B: ${qwenText}
+The Debate:
+Vyra Smart Position: ${moonshotText}
+Vyra Smart Position: ${qwenText}
 
-Challenge From A: ${moonshotDebateResponse}
-Defense From B: ${qwenDebateResponse}
-Final Argument From A: ${finalDebateResponse}
+Vyra Smart Challenge: ${moonshotDebateResponse}
+Vyra Smart Defense: ${qwenDebateResponse}
+Vyra Smart Final Argument: ${finalDebateResponse}
 
-Based on all of this, answer the user directly in a natural, conversational tone. Do not describe the debate or talk about models unless the user explicitly asked. Start with a clear, definitive recommendation. Then:
-- Briefly map the main options and, for each, outline the causal chain of consequences (what happens next, and then what) so the user sees the downstream effects.
-- Use these causal chains to synthesize a new, superior option that combines the strongest points from each side while explicitly mitigating their biggest risks.
-- Present this synthesized option as the primary path forward, and make it clear why it dominates the other options.
-
-Organize the response with bold section headings, short bullet lists, and, when comparing options or listing pros and cons, a small Markdown table. Keep formatting tidy and avoid long unstructured paragraphs.`
+Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
       
       const finalResponse = await callGroq([{ role: 'user', content: finalSynthesisPrompt }], VYRA_MODEL_MOONSHOT, stream)
       return finalResponse
       
     } else {
-      const agreementAnalysisPrompt = `Two internal analyses independently reached similar conclusions. Treat this as a strong background signal, but speak directly to the user.
+      // They agree - still show both perspectives but acknowledge consensus
+      const agreementAnalysisPrompt = `Both Vyra Smart analyses independently reached similar conclusions. Here's the consensus view:
 
 User Question: ${userMessage}
 
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
-Analysis A: ${moonshotText}
+Vyra Smart Analysis: ${moonshotText}
 
-Analysis B: ${qwenText}
+Vyra Smart Analysis: ${qwenText}
 
-Using these as background, provide a confident, authoritative answer in your own words. Do not mention the internal analyses or consensus explicitly. Give a clear answer first, then briefly map the main options and their causal chains of consequences so the user understands how each path unfolds over time. Where appropriate, create a synthesized option that blends the strongest elements of the available paths while reducing their biggest risks, and recommend that as the best path forward. Use bold section headings, bullet lists, and Markdown tables when they make the answer easier to scan instead of long, dense paragraphs.`
+Since both models independently reached the same conclusion, provide a confident, authoritative answer. But also briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
       
       const finalResponse = await callGroq([{ role: 'user', content: agreementAnalysisPrompt }], VYRA_MODEL_MOONSHOT, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
       return finalResponse
@@ -1208,35 +1274,87 @@ Using these as background, provide a confident, authoritative answer in your own
 
 async function generateSummary(prompt: string): Promise<string> {
   const groq = new Groq({ apiKey: getGroqApiKey() });
-  
-  const response = await groq.chat.completions.create({
-    model: ASTRA_MODEL_SMART,
-    messages: [{ role: 'user', content: `Summarize this conversation context:\n${prompt}` }],
-    temperature: 0.3,
-    max_tokens: 200
-  });
-  
-  return response.choices[0]?.message?.content || 'Summary unavailable';
+  try {
+    const response = await groq.chat.completions.create({
+      model: ASTRA_MODEL_SMART,
+      messages: [{ role: 'user', content: `Summarize this conversation context:\n${prompt}` }],
+      temperature: 0.3,
+      max_tokens: 200
+    })
+    return response.choices[0]?.message?.content || 'Summary unavailable'
+  } catch (error) {
+    console.error('Error generating summary:', error)
+    return 'Summary unavailable due to a temporary issue.'
+  }
+}
+
+async function isSafe(prompt: string): Promise<NextResponse | null> {
+  const groq = new Groq({ apiKey: getGroqApiKey() });
+
+  const moderationPrompt = `[INST] Task: Check if there is unsafe content in 'User' messages in conversations. Categories of unsafe content are: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content." Provide a single-word response: "safe" or "unsafe."
+
+<BEGIN CONVERSATION>
+
+User: ${prompt}
+
+<END CONVERSATION>
+
+  [/INST]`;
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: GUARD_MODEL,
+      messages: [{ role: 'user', content: moderationPrompt }],
+      temperature: 0.0,
+    });
+
+    const result = response.choices[0]?.message?.content?.toLowerCase().trim() || '';
+
+    const allowlistPatterns = [
+      /\b(space|nasa|spacex|astronomy|planet|star|galaxy|universe)\b/i,
+      /\b(science|scientific|physics|chemistry|biology|math|mathematics|engineering)\b/i,
+      /\b(policy|policies|regulation|economy|economic|market|finance|climate|environmental)\b/i,
+      /\b(debate|argument|ethics|philosophy|pros and cons|tradeoff|trade-offs)\b/i
+    ]
+    const isAllowlisted = allowlistPatterns.some((pattern) => pattern.test(prompt))
+
+    if (result === 'unsafe' && !isAllowlisted) {
+      let reason = 'The prompt contains unsafe content.';
+
+      if (/illegal/i.test(prompt)) {
+        reason = `I cannot give information about ${prompt}`;
+      } else if (/private|code/i.test(prompt)) {
+        reason = 'I can\'t give that information because it is private.';
+      }
+
+      return new NextResponse(JSON.stringify({ response: reason }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in content moderation:', error);
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createRouteHandlerClient<Database>({ cookies })
+  const supabase = await createSupabaseClient()
   const {
     data: { session }
   } = await supabase.auth.getSession()
   const body = await req.json()
   let { chat_id } = body
 
-  const {
-    message,
-    chat_history = [],
-    model = 'astra',
-    stream = false,
-    current_time,
-    timezone,
-    searchEnabled = false,
-    documents = []
-  } = body
+  const { message, chat_history = [], model = 'astra', stream = false, current_time, timezone, searchEnabled = false } = body
+
+  // Content moderation check
+  const moderationResponse = await isSafe(message);
+  if (moderationResponse) {
+    return moderationResponse;
+  }
 
   // Allow guest users to use the AI without signing in
   let userId = 'guest';
@@ -1244,8 +1362,7 @@ export async function POST(req: NextRequest) {
   
   if (session) {
     userId = session.user.id;
-    const normalizedModel = (model || '').toString().toLowerCase();
-    modelType = normalizedModel === 'vyra' ? 'vyra' : 'astra';
+    modelType = model.toLowerCase() as 'vyra' | 'astra';
   }
 
   // Handle owner-specific commands first
@@ -1272,46 +1389,12 @@ export async function POST(req: NextRequest) {
   const { detectedLanguage, translatedText } = await detectAndTranslate(message)
   const userMessage = translatedText
 
-  const documentContext =
-    Array.isArray(documents) && documents.length > 0
-      ? documents
-          .map((doc: { name?: string; type?: string; content?: string }, index: number) => {
-            const title = doc.name || `Document ${index + 1}`
-            const type = doc.type || 'text'
-            const content = (doc.content || '').toString()
-            const snippet = content.length > 2000 ? content.slice(0, 2000) + '…' : content
-            return `Title: ${title}\nType: ${type}\nContent:\n${snippet}`
-          })
-          .join('\n\n---\n\n')
-      : ''
-
-  const userMessageWithDocuments =
-    documentContext.length > 0
-      ? `${userMessage}\n\nAttached Documents:\n${documentContext}`
-      : userMessage
-
-  const lowerUserMessage = userMessage.toLowerCase()
-  if (
-    lowerUserMessage.includes('zevy') &&
-    (
-      lowerUserMessage.includes('made by') ||
-      lowerUserMessage.includes('founder') ||
-      lowerUserMessage.includes('created by') ||
-      lowerUserMessage.includes('who made') ||
-      lowerUserMessage.includes('who created') ||
-      lowerUserMessage.includes('who built')
-    )
-  ) {
-    const creatorResponse = 'Zevy AI was created by Adam Zein Ziqry, the founder of Zevy Cloud.'
-    return NextResponse.json({ response: creatorResponse })
-  }
-
   // Determine which model the user is using
-  const normalizedModel = (model || '').toString().toLowerCase()
-  const isVyra = normalizedModel === 'vyra'
-  const selectedModel = isVyra
+  const selectedModel = model.toLowerCase() === 'vyra' 
     ? 'vyra-debate'
-    : selectAstraModel(userMessageWithDocuments, chat_history).model
+    : model.toLowerCase() === 'compound'
+      ? 'compound'
+      : selectAstraModel(userMessage, chat_history).model
 
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
@@ -1347,54 +1430,32 @@ export async function POST(req: NextRequest) {
   let aiResponse: string | ReadableStream
 
   if (selectedModel === 'vyra-debate') {
-    const debateResponse = await generateVyraSmartDebate(
-      userMessageWithDocuments,
-      chat_history,
-      stream,
-      current_time,
-      timezone,
-      searchEnabled
-    )
+    // Vyra debate system using both Moonshot and Qwen models
+    const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone)
     aiResponse = debateResponse
   } else if (searchEnabled) {
-    // Vector web search (powered by Groq Compound) - activated for both Astra and Vyra when search is enabled
-    const compound = new GroqCompound()
-    const browsingContext = await compound.browseAndAnalyze(
-      userMessage,
-      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
-    )
-    
-    // Use appropriate model to process the browsing results
-    const contextualizedMessage = `${userMessageWithDocuments}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
-      .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
-      .join('\n')}`
-    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART, stream, current_time, timezone)
-    
-    // Log successful Vector (Groq Compound) search
-    console.log(`Vector web search completed for ${selectedModel} query: ${userMessage}`)
+    const intent = detectInformationIntent(userMessage, chat_history)
+    const knowledgeContext = await gatherKnowledge(userMessage, intent)
+    const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
+    const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history.map((m: { role: string, content: string }) => `${m.role}: ${m.content}`).join('\n')}`
+    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], researchModel, stream, current_time, timezone)
   } else {
-    if (searchEnabled) {
-      const intent = detectInformationIntent(userMessageWithDocuments, chat_history);
-      const knowledgeContext = await gatherKnowledge(userMessage, intent, searchEnabled);
-      const contextualizedMessage = `${userMessageWithDocuments}\n\nKnowledge Context:\n${knowledgeContext}`;
-      aiResponse = await callGroq(
-        [{ role: 'user', content: contextualizedMessage }],
-        selectedModel,
-        stream,
-        current_time,
-        timezone
-      );
+    const intent = detectInformationIntent(userMessage, chat_history);
+
+    if (intent.customResponse) {
+      return NextResponse.json({ response: intent.customResponse });
+    }
+
+    if (intent.shouldSearch) {
+      aiResponse =
+        "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
     } else {
-      const intent = detectInformationIntent(userMessageWithDocuments, chat_history);
-
-      if (intent.customResponse) {
-        return NextResponse.json({ response: intent.customResponse });
-      }
-
       const lastUserMessage =
         chat_history
           .filter((m: { role: string }) => m.role === 'user')
           .slice(-1)[0]?.content || '';
+
+      const knowledgeContext = '';
 
       const formattedHistory = chat_history.map(
         (msg: { role: string; content: string }) => ({
@@ -1404,13 +1465,13 @@ export async function POST(req: NextRequest) {
         })
       );
 
-      let contextualUserMessage = userMessageWithDocuments;
+      let contextualUserMessage = userMessage;
       if (chat_history.length > 0) {
         const lastMessages = chat_history.slice(-5);
         contextualUserMessage =
           lastMessages
             .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
-            .join('\n') + `\n\nuser: ${userMessageWithDocuments}`;
+            .join('\n') + `\n\nuser: ${userMessage}`;
       }
 
       const contextBuilder = [];
@@ -1423,14 +1484,9 @@ export async function POST(req: NextRequest) {
           ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
           : contextualUserMessage;
 
-      const baseSystemPrompt = SYSTEM_PROMPT(current_time, timezone, searchEnabled);
-      const offlineHint = intent.shouldSearch
-        ? ' When search is off, still answer using your existing knowledge. If the question is about very recent or changing information, say that your knowledge may be out of date instead of asking the user to enable search.'
-        : '';
-
       aiResponse = await callGroq(
         [
-          { role: 'system', content: `${baseSystemPrompt}${offlineHint}` },
+          { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled) },
           ...formattedHistory,
           {
             role: 'user',
