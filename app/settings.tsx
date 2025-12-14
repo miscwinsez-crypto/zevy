@@ -83,20 +83,31 @@ export default function Settings() {
   const colorKeys = Object.keys(customColors) as Array<keyof ThemeColors>
 
   return (
-    <div style={{ background: currentPalette.background, color: currentPalette.accent }} className="min-h-screen p-4">
-      <div className="max-w-2xl mx-auto">
+    <div
+      style={{ background: currentPalette.background, color: currentPalette.accent }}
+      className="min-h-screen flex items-center justify-center px-4 py-10"
+    >
+      <div className="w-full max-w-3xl">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center justify-between mb-8">
           <Link href="/">
-            <button className="p-2 rounded-lg hover:bg-opacity-10 hover:bg-white transition-smooth">
+            <button className="p-2 rounded-xl hover:bg-opacity-10 hover:bg-white transition-smooth border border-white/5">
               <ArrowLeft size={20} />
             </button>
           </Link>
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <div className="text-right">
+            <h1 className="text-3xl font-semibold">Settings</h1>
+            <p className="text-xs mt-1" style={{ color: currentPalette.subdued }}>
+              Tune how Zevy looks, feels, and connects with you
+            </p>
+          </div>
         </div>
 
         {/* Theme Customization */}
-        <div className="p-6 rounded-lg mb-6" style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}>
+        <div
+          className="p-6 rounded-2xl mb-6 shadow-lg"
+          style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
+        >
           <h2 className="text-xl font-semibold mb-4">🎨 Theme Customization</h2>
           
           <div className="mb-6">
@@ -162,7 +173,10 @@ export default function Settings() {
         </div>
 
         {/* Account Info */}
-        <div className="p-6 rounded-lg mb-6" style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}>
+        <div
+          className="p-6 rounded-2xl mb-6 shadow-lg"
+          style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
+        >
           <h2 className="text-xl font-semibold mb-4">👤 Account</h2>
           
           <div className="space-y-3">
@@ -179,7 +193,10 @@ export default function Settings() {
         </div>
 
         {/* About */}
-        <div className="p-6 rounded-lg mb-6" style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}>
+        <div
+          className="p-6 rounded-2xl mb-6 shadow-lg"
+          style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
+        >
           <h2 className="text-xl font-semibold mb-4">ℹ️ About Zevy AI</h2>
           
           <div className="space-y-3 text-sm">
@@ -222,7 +239,10 @@ export default function Settings() {
         </div>
 
         {/* Support */}
-        <div className="p-6 rounded-lg" style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}>
+        <div
+          className="p-6 rounded-2xl shadow-lg"
+          style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
+        >
           <h2 className="text-xl font-semibold mb-4">📧 Support</h2>
           
           <button

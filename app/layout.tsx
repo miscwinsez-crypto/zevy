@@ -1,6 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: 'Zevy AI - Multi-Model Intelligence',
@@ -23,6 +24,7 @@ export default function RootLayout({
       </head>
       <body>
         <Analytics />
+        <SpeedInsights />
         {children}
       </body>
     </html>

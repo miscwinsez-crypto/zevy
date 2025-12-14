@@ -28,6 +28,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   ChevronDown,
+  Edit2,
 } from 'lucide-react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
@@ -281,6 +282,11 @@ export default function ZevyCloudAI() {
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline' | 'checking'>('online')
   const [apiError, setApiError] = useState<string | null>(null)
   const [blockedContentWarning, setBlockedContentWarning] = useState<{show: boolean, number: string}>({show: false, number: 'default'})
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null)
+  const [editingMessageContent, setEditingMessageContent] = useState('')
+  const [displayedMessages, setDisplayedMessages] = useState<Message[]>([])
+  const [typingIndex, setTypingIndex] = useState<number | null>(null)
+  const [typingContent, setTypingContent] = useState('')
   
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -518,10 +524,24 @@ export default function ZevyCloudAI() {
     return false
   }
 
-  // Load theme from localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem('zevy_theme') as 'dark' | 'light' | null
     if (savedTheme) setTheme(savedTheme)
+  }, [])
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('zevy_token')
+    const storedEmail = localStorage.getItem('zevy_email')
+    const storedUserId = localStorage.getItem('zevy_user_id')
+
+    if (storedToken && storedEmail && storedUserId) {
+      setAuth({
+        isLoggedIn: true,
+        userId: storedUserId,
+        email: storedEmail,
+        token: storedToken
+      })
+    }
   }, [])
 
   // Cleanup function to handle tab closure and session management
@@ -593,7 +613,7 @@ export default function ZevyCloudAI() {
   // Effects - All at top level
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [displayedMessages])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -610,10 +630,8 @@ export default function ZevyCloudAI() {
     }
   }, [])
 
-  // Generate unique conversation ID
   const generateConvId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-  // Initialize or check usage stats
 const resetUsageStats = useCallback(() => {
   const newStats: UsageStats = {
     astra: { used: 0, limit: 20, resetTime: new Date(Date.now() + 86400000).toLocaleTimeString() },
@@ -694,6 +712,10 @@ useEffect(() => {
   }
 }, [currentConvIdx, allConversations])
 
+  useEffect(() => {
+    setDisplayedMessages(messages)
+  }, [messages])
+
   // Save conversations to localStorage when they change (for both logged-in and guest users)
   useEffect(() => {
     if (allConversations.length > 0) {
@@ -735,7 +757,6 @@ useEffect(() => {
     localStorage.setItem(`zevy_usage_${auth.email}`, JSON.stringify({ ...updated, lastReset: new Date() }))
   }
 
-  // useEffect - Initialize conversations with auth
   useEffect(() => {
     if (!auth.isLoggedIn) {
       const newId = generateConvId()
@@ -1263,6 +1284,13 @@ useEffect(() => {
         timestamp: new Date().toISOString(),
         reasoning: response.data.reasoning
       };
+      if (typingIndex !== null) {
+        setTypingIndex(null)
+        setTypingContent('')
+      }
+      setDisplayedMessages(prev => [...prev, userMessage, { ...assistantMessage, content: '' }])
+      setTypingIndex(messages.length + 1)
+      setTypingContent(assistantMessage.content || '')
       updateMessages([...messages, userMessage, assistantMessage]);
       setApiError(null)
       addNotification('success', '✅ Response received!')
@@ -1538,6 +1566,26 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       e.preventDefault()
       sendMessage()
     }
+  }
+
+  const startEditMessage = (index: number) => {
+    const message = messages[index]
+    if (!message || message.role !== 'user') return
+    setEditingMessageIndex(index)
+    setEditingMessageContent(message.content)
+  }
+
+  const applyEditAndSend = () => {
+    if (editingMessageIndex === null) return
+    const trimmed = editingMessageContent.trim()
+    if (!trimmed) {
+      setEditingMessageIndex(null)
+      setEditingMessageContent('')
+      return
+    }
+    setEditingMessageIndex(null)
+    setEditingMessageContent('')
+    sendMessage(trimmed, false)
   }
 
   const handleLogin = async () => {
@@ -1876,6 +1924,31 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   }
 
+  useEffect(() => {
+    if (typingIndex === null || typingContent.length === 0) return
+    let currentIndex = 0
+    const interval = setInterval(() => {
+      currentIndex += 5
+      if (currentIndex >= typingContent.length) {
+        currentIndex = typingContent.length
+      }
+      setDisplayedMessages(prev => {
+        const updated = [...prev]
+        const target = updated[typingIndex as number]
+        if (target && target.role === 'assistant') {
+          updated[typingIndex as number] = { ...target, content: typingContent.slice(0, currentIndex) }
+        }
+        return updated
+      })
+      if (currentIndex >= typingContent.length) {
+        clearInterval(interval)
+        setTypingIndex(null)
+        setTypingContent('')
+      }
+    }, 20)
+    return () => clearInterval(interval)
+  }, [typingIndex, typingContent])
+
   // Add this effect to check connectivity on page load
   useEffect(() => {
     const checkConnection = async () => {
@@ -1895,7 +1968,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
   return (
     <div 
-      className="flex h-screen w-full max-w-6xl mx-auto px-2 sm:px-4"
+      className="flex h-screen w-full"
       style={{ background: palette.background, color: palette.accent }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -2023,13 +2096,13 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       <div
         className="transition-width flex flex-col border-r"
         style={{
-          width: sidebarCollapsed ? '70px' : '260px',
+          width: sidebarCollapsed ? '72px' : '300px',
           background: palette.sidebar,
           borderColor: palette.border
         }}
       >
         {/* Logo & Toggle */}
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: palette.border }}>
+            <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: palette.border }}>
           {!sidebarCollapsed && (
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: palette.panel }}>
@@ -2207,60 +2280,137 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           )}
         </div>
 
-        {/* Messages - ChatGPT/Grok Style */}
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-6" style={{ background: palette.background }}>
+        {/* Messages - ChatGPT/Grok/Gemini Style */}
+        <div
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto px-4 sm:px-6 py-6"
+          style={{
+            background: palette.background
+          }}
+        >
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-2xl mx-auto space-y-6">
+              <div className="w-full max-w-3xl mx-auto">
                 <div
-                  className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center animate-slideInUp"
+                  className="rounded-3xl px-6 sm:px-10 py-8 sm:py-10 shadow-[0_24px_80px_rgba(0,0,0,0.7)] border space-y-8"
                   style={{
-                    background: palette.secondary,
-                    boxShadow: '0 18px 60px rgba(0,0,0,0.7)'
+                    background: `radial-gradient(circle at top, ${palette.panel} 0, ${palette.background} 55%)`,
+                    borderColor: palette.border
                   }}
                 >
-                  <Image
-                    src="/zevy-logo.jpg"
-                    alt="Zevy AI"
-                    width={80}
-                    height={80}
-                    style={{ borderRadius: '16px', objectFit: 'cover' }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-3xl md:text-4xl font-semibold" style={{ color: palette.accent }}>How can I help?</h2>
-                  <p className="text-sm md:text-base" style={{ color: palette.subdued }}>
-                  Ask me anything or explore features below
-                  </p>
-                </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                        style={{ background: palette.secondary }}
+                      >
+                        <Image
+                          src="/zevy-logo.jpg"
+                          alt="Zevy AI"
+                          width={40}
+                          height={40}
+                          style={{ borderRadius: '12px', objectFit: 'cover' }}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em]" style={{ color: palette.subdued }}>
+                          Zevy AI
+                        </p>
+                        <p className="text-sm font-medium" style={{ color: palette.accent }}>
+                          Astra • Vyra • Web search
+                        </p>
+                      </div>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-2 text-xs">
+                      <span
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full"
+                        style={{ background: palette.secondary, color: palette.accent }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: palette.success }} />
+                        Ready
+                      </span>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-2">
-                  {[
-                    { icon: '🔍', title: 'Research', desc: 'Find latest info' },
-                    { icon: '💡', title: 'Brainstorm', desc: 'Generate ideas' },
-                    { icon: '🧠', title: 'Explain', desc: 'Simplify topics' },
-                    { icon: '📄', title: 'Scan Document', desc: 'Check document' }
-                  ].map((item) => (
-                    <button
-                      key={item.title}
-                      onClick={() => setInput(`${item.title}: `)}
-                      className="p-4 rounded-xl text-left transition-all button-hover border shadow-sm hover:shadow-lg hover:-translate-y-0.5"
-                      style={{
-                        background: palette.panel,
-                        borderColor: palette.border
-                      }}
+                  <div className="space-y-3 text-center sm:text-left">
+                    <h2
+                      className="text-3xl md:text-4xl font-semibold tracking-tight"
+                      style={{ color: palette.accent }}
                     >
-                      <p className="text-2xl mb-2">{item.icon}</p>
-                      <p className="text-sm font-semibold mb-0.5" style={{ color: palette.accent }}>{item.title}</p>
-                      <p className="text-xs" style={{ color: palette.subdued }}>{item.desc}</p>
-                    </button>
-                  ))}
+                      How can I help?
+                    </h2>
+                    <p
+                      className="text-sm md:text-base max-w-xl"
+                      style={{ color: palette.subdued }}
+                    >
+                      Ask anything, or start with a preset. Vyra gives deep debate-style reasoning,
+                      Astra keeps things fast and focused.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {[
+                      { label: '✨ Vyra Deep Reasoning', value: 'vyra' },
+                      { label: '⚡ Astra Fast', value: 'astra' },
+                      { label: '🌐 Vector Web Search', value: 'search' }
+                    ].map(item => (
+                      <button
+                        key={item.label}
+                        onClick={() => {
+                          if (item.value === 'vyra' || item.value === 'astra') {
+                            setMode(item.value as 'vyra' | 'astra')
+                          }
+                          if (item.value === 'search') {
+                            setIsSearchMode(true)
+                            addNotification(
+                              'info',
+                              'Vector web search enabled - Groq Compound will gather knowledge from the web'
+                            )
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full button-hover"
+                        style={{
+                          background: palette.secondary,
+                          color: palette.accent,
+                          border: `1px solid ${palette.border}`
+                        }}
+                      >
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-1">
+                    {[
+                      { icon: '🔍', title: 'Research', desc: 'Find latest info' },
+                      { icon: '💡', title: 'Brainstorm', desc: 'Generate ideas' },
+                      { icon: '🧠', title: 'Explain', desc: 'Simplify topics' },
+                      { icon: '📄', title: 'Scan Document', desc: 'Check document' }
+                    ].map((item) => (
+                      <button
+                        key={item.title}
+                        onClick={() => setInput(`${item.title}: `)}
+                        className="p-4 rounded-xl text-left transition-all button-hover border"
+                        style={{
+                          background: palette.panel,
+                          borderColor: palette.border,
+                          boxShadow: '0 14px 40px rgba(0,0,0,0.4)'
+                        }}
+                      >
+                        <p className="text-2xl mb-2">{item.icon}</p>
+                        <p className="text-sm font-semibold mb-0.5" style={{ color: palette.accent }}>
+                          {item.title}
+                        </p>
+                        <p className="text-xs" style={{ color: palette.subdued }}>{item.desc}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="max-w-2xl mx-auto space-y-4">
-              {messages.map((message, idx) => (
+            <div className="max-w-3xl mx-auto space-y-4">
+              {displayedMessages.map((message, idx) => (
                 <div key={message.id || idx} className={`fade-in ${message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}>
                   {/* Assistant Message */}
                   {message.role === 'assistant' && (
@@ -2365,13 +2515,21 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                   {/* User Message */}
                   {message.role === 'user' && (
-                    <div className="flex justify-end w-full gap-3">
+                    <div className="flex justify-end w-full gap-2 items-center">
                       <div className="max-w-lg p-3 rounded-lg" style={{ background: palette.hover, color: '#fff' }}>
                         <p className="text-sm">{message.content}</p>
                       </div>
+                      <button
+                        onClick={() => startEditMessage(idx)}
+                        className="p-1.5 rounded hover:bg-opacity-10 transition-all"
+                        style={{ background: palette.secondary }}
+                        title="Edit and resend"
+                      >
+                        <Edit2 size={14} style={{ color: palette.subdued }} />
+                      </button>
                       <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: palette.secondary }}>
-                <span style={{ color: palette.accent }}>👤</span>
-              </div>
+                        <span style={{ color: palette.accent }}>👤</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2407,9 +2565,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           )}
         </div>
 
-        {/* Input Section - ChatGPT Style */}
+        {/* Input Section */}
         <div className="p-4 border-t" style={{ borderColor: palette.border, background: palette.panel }}>
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-3xl mx-auto">
             {attachedFiles.length > 0 && (
               <div className="mb-4 space-y-2">
                 {attachedFiles.map((file, idx) => (
@@ -2429,10 +2587,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                         {file.name}
                       </p>
                     </div>
-
-                    {/* fixed: single proper closing button (removed conflict markers and duplicate closing) */}
                     <button onClick={() => removeAttachedFile(idx)}>
-                     
                       <X size={16} style={{ color: palette.error }} />
                     </button>
                   </div>
@@ -2440,90 +2595,116 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
               </div>
             )}
 
-            <div className="relative flex flex-col gap-2">
-              <div className="relative flex items-center gap-2">
-                <div className="relative flex-1">
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 z-10 flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setIsSearchMode(!isSearchMode);
-                        if (!isSearchMode) {
-                          addNotification('info', 'Web search enabled - Groq Compound will now gather knowledge from the web');
-                        }
-                      }}
-                      className={`flex items-center gap-2 p-2 rounded-lg text-xs transition-all ${isSearchMode ? 'bg-blue-500 text-white' : ''}`}
-                      style={{ 
-                        background: isSearchMode ? palette.hover : palette.secondary, 
-                        color: isSearchMode ? '#fff' : palette.accent 
-                      }}
-                    >
-                      <Globe size={14} />
-                      <span>{isSearchMode ? 'Search On' : 'Search'}</span>
-                    </button>
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowModelDropdown(!showModelDropdown)}
-                        className="flex items-center gap-2 p-2 rounded-lg text-xs"
-                        style={{ background: palette.secondary, color: palette.accent }}
-                      >
-                        {mode === 'astra' ? <Zap size={12} /> : <Sparkles size={12} />}
-                        <span>{mode === 'astra' ? 'Astra' : 'Vyra'}</span>
-                        <ChevronDown size={14} />
-                      </button>
-                      {showModelDropdown && (
-                        <div className="absolute bottom-full mb-2 w-full rounded-lg shadow-lg" style={{ background: palette.secondary }}>
-                          <button
-                            onClick={() => {
-                              setMode('astra')
-                              setShowModelDropdown(false)
-                            }}
-                            className="w-full flex items-center gap-2 p-2 text-xs"
-                          >
-                            <Zap size={12} />
-                            <span>Astra</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setMode('vyra')
-                              setShowModelDropdown(false)
-                            }}
-                            className="w-full flex items-center gap-2 p-2 text-xs"
-                          >
-                            <Sparkles size={12} />
-                            <span>Vyra</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {input === '' && (
-                    <div 
-                    className="absolute inset-0 text-sm pointer-events-none"
-                    style={{ color: palette.subdued, paddingLeft: '240px', paddingTop: '13px' }}
+            <div className="space-y-3">
+              {editingMessageIndex !== null && (
+                <div className="p-3 rounded-lg flex items-center gap-2" style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}>
+                  <input
+                    value={editingMessageContent}
+                    onChange={e => setEditingMessageContent(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        applyEditAndSend()
+                      }
+                    }}
+                    className="flex-1 bg-transparent text-sm outline-none"
+                    style={{ color: palette.accent }}
+                    placeholder="Edit your message"
+                  />
+                  <button
+                    onClick={applyEditAndSend}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold button-hover"
+                    style={{ background: palette.accent, color: palette.background }}
                   >
-                      Message Zevy or attach documents for analysis...
+                    Send
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingMessageIndex(null)
+                      setEditingMessageContent('')
+                    }}
+                    className="p-1.5 rounded-lg button-hover"
+                    style={{ background: palette.secondary }}
+                  >
+                    <X size={14} style={{ color: palette.subdued }} />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsSearchMode(!isSearchMode);
+                    if (!isSearchMode) {
+                      addNotification('info', 'Vector web search enabled - Groq Compound will now gather knowledge from the web');
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs button-hover"
+                  style={{
+                    background: isSearchMode ? palette.hover : palette.secondary,
+                    color: isSearchMode ? '#fff' : palette.accent,
+                    border: `1px solid ${palette.border}`
+                  }}
+                >
+                  <Globe size={14} />
+                  <span>{isSearchMode ? 'Vector Search On' : 'Vector'}</span>
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs button-hover"
+                    style={{ background: palette.secondary, color: palette.accent, border: `1px solid ${palette.border}` }}
+                  >
+                    {mode === 'astra' ? <Zap size={12} /> : <Sparkles size={12} />}
+                    <span>{mode === 'astra' ? 'Astra' : 'Vyra'}</span>
+                    <ChevronDown size={14} />
+                  </button>
+                  {showModelDropdown && (
+                    <div className="absolute bottom-full mb-2 min-w-[160px] rounded-lg shadow-lg" style={{ background: palette.secondary, border: `1px solid ${palette.border}` }}>
+                      <button
+                        onClick={() => {
+                          setMode('astra')
+                          setShowModelDropdown(false)
+                        }}
+                        className="w-full flex items-center gap-2 p-2 text-xs"
+                        style={{ color: palette.accent }}
+                      >
+                        <Zap size={12} />
+                        <span>Astra</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMode('vyra')
+                          setShowModelDropdown(false)
+                        }}
+                        className="w-full flex items-center gap-2 p-2 text-xs"
+                        style={{ color: palette.accent }}
+                      >
+                        <Sparkles size={12} />
+                        <span>Vyra</span>
+                      </button>
                     </div>
                   )}
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => {
-                      setInput(e.target.value)
-                    }}
-                    onKeyPress={handleKeyPress}
-                    placeholder=""
-                    className="w-full p-3 pl-[240px] rounded-lg resize-none focus:outline-none text-sm transition-all"
-                    style={{
-                      background: palette.panel,
-                      border: `1px solid ${palette.border}`,
-                      color: palette.accent,
-                      minHeight: '44px',
-                      boxShadow: `0 2px 4px ${palette.border}20`,
-                      paddingTop: '13px',
-                      paddingBottom: '12px'
-                    }}
-                  />
                 </div>
+              </div>
+
+              <div className="flex items-end gap-2">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value)
+                  }}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Message Zevy or attach documents for analysis..."
+                  className="flex-1 p-3 rounded-xl resize-none focus:outline-none text-sm transition-all"
+                  style={{
+                    background: palette.panel,
+                    border: `1px solid ${palette.border}`,
+                    color: palette.accent,
+                    minHeight: '60px',
+                    boxShadow: `0 2px 4px ${palette.border}20`
+                  }}
+                />
 
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -2555,7 +2736,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   <Send size={16} color="#fff" />
                 </button>
               </div>
-              <p className="text-xs text-center mt-2" style={{ color: palette.subdued }}>
+
+              <p className="text-xs text-center" style={{ color: palette.subdued }}>
                 Zevy may make mistakes. Check before going with it.
               </p>
             </div>
@@ -2627,40 +2809,45 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-0 border-b" style={{ borderColor: palette.border }}>
-              <button
-                onClick={() => setSettingsTab('account')}
-                className="flex-1 px-4 py-3 border-b-2 transition-all text-sm font-semibold"
-                style={{
-                  borderColor: settingsTab === 'account' ? palette.hover : 'transparent',
-                  color: settingsTab === 'account' ? palette.hover : palette.subdued,
-                  background: settingsTab === 'account' ? palette.secondary : 'transparent'
-                }}
+            <div className="px-6 pt-3 pb-1 border-b" style={{ borderColor: palette.border }}>
+              <div
+                className="inline-flex items-center justify-center gap-1 rounded-xl p-1"
+                style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}
               >
-                Account
-              </button>
-              <button
-                onClick={() => setSettingsTab('appearance')}
-                className="flex-1 px-4 py-3 border-b-2 transition-all text-sm font-semibold"
-                style={{
-                  borderColor: settingsTab === 'appearance' ? palette.hover : 'transparent',
-                  color: settingsTab === 'appearance' ? palette.hover : palette.subdued,
-                  background: settingsTab === 'appearance' ? palette.secondary : 'transparent'
-                }}
-              >
-                Appearance
-              </button>
-              <button
-                onClick={() => setSettingsTab('about')}
-                className="flex-1 px-4 py-3 border-b-2 transition-all text-sm font-semibold"
-                style={{
-                  borderColor: settingsTab === 'about' ? palette.hover : 'transparent',
-                  color: settingsTab === 'about' ? palette.hover : palette.subdued,
-                  background: settingsTab === 'about' ? palette.secondary : 'transparent'
-                }}
-              >
-                About
-              </button>
+                <button
+                  onClick={() => setSettingsTab('account')}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                  style={{
+                    background: settingsTab === 'account' ? palette.hover : 'transparent',
+                    color: settingsTab === 'account' ? '#fff' : palette.subdued,
+                    boxShadow: settingsTab === 'account' ? '0 0 0 1px rgba(255,255,255,0.08)' : 'none'
+                  }}
+                >
+                  Account
+                </button>
+                <button
+                  onClick={() => setSettingsTab('appearance')}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                  style={{
+                    background: settingsTab === 'appearance' ? palette.hover : 'transparent',
+                    color: settingsTab === 'appearance' ? '#fff' : palette.subdued,
+                    boxShadow: settingsTab === 'appearance' ? '0 0 0 1px rgba(255,255,255,0.08)' : 'none'
+                  }}
+                >
+                  Appearance
+                </button>
+                <button
+                  onClick={() => setSettingsTab('about')}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                  style={{
+                    background: settingsTab === 'about' ? palette.hover : 'transparent',
+                    color: settingsTab === 'about' ? '#fff' : palette.subdued,
+                    boxShadow: settingsTab === 'about' ? '0 0 0 1px rgba(255,255,255,0.08)' : 'none'
+                  }}
+                >
+                  About
+                </button>
+              </div>
             </div>
 
             {/* Content */}

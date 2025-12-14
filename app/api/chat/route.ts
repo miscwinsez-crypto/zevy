@@ -1257,7 +1257,16 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   let { chat_id } = body
 
-  const { message, chat_history = [], model = 'astra', stream = false, current_time, timezone, searchEnabled = false } = body
+  const {
+    message,
+    chat_history = [],
+    model = 'astra',
+    stream = false,
+    current_time,
+    timezone,
+    searchEnabled = false,
+    documents = []
+  } = body
 
   // Content moderation check
   const moderationResponse = await isSafe(message);
@@ -1299,6 +1308,24 @@ export async function POST(req: NextRequest) {
   const { detectedLanguage, translatedText } = await detectAndTranslate(message)
   const userMessage = translatedText
 
+  const documentContext =
+    Array.isArray(documents) && documents.length > 0
+      ? documents
+          .map((doc: { name?: string; type?: string; content?: string }, index: number) => {
+            const title = doc.name || `Document ${index + 1}`
+            const type = doc.type || 'text'
+            const content = (doc.content || '').toString()
+            const snippet = content.length > 2000 ? content.slice(0, 2000) + '…' : content
+            return `Title: ${title}\nType: ${type}\nContent:\n${snippet}`
+          })
+          .join('\n\n---\n\n')
+      : ''
+
+  const userMessageWithDocuments =
+    documentContext.length > 0
+      ? `${userMessage}\n\nAttached Documents:\n${documentContext}`
+      : userMessage
+
   const lowerUserMessage = userMessage.toLowerCase()
   if (
     lowerUserMessage.includes('zevy') &&
@@ -1320,7 +1347,7 @@ export async function POST(req: NextRequest) {
   const isVyra = normalizedModel === 'vyra'
   const selectedModel = isVyra
     ? 'vyra-debate'
-    : selectAstraModel(userMessage, chat_history).model
+    : selectAstraModel(userMessageWithDocuments, chat_history).model
 
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
@@ -1356,24 +1383,36 @@ export async function POST(req: NextRequest) {
   let aiResponse: string | ReadableStream
 
   if (selectedModel === 'vyra-debate') {
-    const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone, searchEnabled)
+    const debateResponse = await generateVyraSmartDebate(
+      userMessageWithDocuments,
+      chat_history,
+      stream,
+      current_time,
+      timezone,
+      searchEnabled
+    )
     aiResponse = debateResponse
   } else if (searchEnabled) {
-    // Groq/Compound web browsing system - activated for both Astra and Vyra when search is enabled
+    // Vector web search (powered by Groq Compound) - activated for both Astra and Vyra when search is enabled
     const compound = new GroqCompound()
-    const browsingContext = await compound.browseAndAnalyze(userMessage, selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART)
+    const browsingContext = await compound.browseAndAnalyze(
+      userMessage,
+      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
+    )
     
     // Use appropriate model to process the browsing results
-    const contextualizedMessage = `${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history.map((m: {role: string, content: string}) => `${m.role}: ${m.content}`).join('\n')}`
+    const contextualizedMessage = `${userMessageWithDocuments}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
+      .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+      .join('\n')}`
     aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART, stream, current_time, timezone)
     
-    // Log successful Groq/Compound search
-    console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
+    // Log successful Vector (Groq Compound) search
+    console.log(`Vector web search completed for ${selectedModel} query: ${userMessage}`)
   } else {
     if (searchEnabled) {
-      const intent = detectInformationIntent(userMessage, chat_history);
+      const intent = detectInformationIntent(userMessageWithDocuments, chat_history);
       const knowledgeContext = await gatherKnowledge(userMessage, intent, searchEnabled);
-      const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
+      const contextualizedMessage = `${userMessageWithDocuments}\n\nKnowledge Context:\n${knowledgeContext}`;
       aiResponse = await callGroq(
         [{ role: 'user', content: contextualizedMessage }],
         selectedModel,
@@ -1382,7 +1421,7 @@ export async function POST(req: NextRequest) {
         timezone
       );
     } else {
-      const intent = detectInformationIntent(userMessage, chat_history);
+      const intent = detectInformationIntent(userMessageWithDocuments, chat_history);
 
       if (intent.customResponse) {
         return NextResponse.json({ response: intent.customResponse });
@@ -1401,13 +1440,13 @@ export async function POST(req: NextRequest) {
         })
       );
 
-      let contextualUserMessage = userMessage;
+      let contextualUserMessage = userMessageWithDocuments;
       if (chat_history.length > 0) {
         const lastMessages = chat_history.slice(-5);
         contextualUserMessage =
           lastMessages
             .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
-            .join('\n') + `\n\nuser: ${userMessage}`;
+            .join('\n') + `\n\nuser: ${userMessageWithDocuments}`;
       }
 
       const contextBuilder = [];
