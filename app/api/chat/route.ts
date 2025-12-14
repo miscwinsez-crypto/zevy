@@ -37,7 +37,9 @@ const VYRA_MODEL_MOONSHOT = 'moonshotai/kimi-k2-instruct-0905'
 const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
-  const searchStatus = searchEnabled ? "Search is currently ON. You can access real-time information from the web." : "Search is currently OFF. You cannot access real-time information.";
+  const searchStatus = searchEnabled
+    ? 'Search is currently ON. You can access real-time information from the web.'
+    : 'Search is currently OFF. You cannot access real-time information.';
 
   return `
     You are Zevy, a helpful and friendly AI assistant. Your goal is to provide accurate, helpful, and engaging conversations.
@@ -46,11 +48,16 @@ const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boo
     ${searchStatus}
 
     When responding, you must adhere to the following rules:
-    1.  Be conversational and engaging.
-    2.  If you don't know the answer, say so. Don't make up information.
-    3.  Keep your responses concise and to the point, unless the user asks for more detail.
-    4.  You can use emojis to add personality to your responses, but don't overdo it.
-    5.  When asked about your creators, you should mention that you were created by a team of developers building helpful AI solutions.
+    1. Be conversational and engaging. Talk like a real person, not a report.
+    2. If you don't know the answer, say so. Do not invent facts.
+    3. Keep responses concise and focused unless the user asks for more detail.
+    4. Always structure non-trivial answers clearly: start with a short direct answer, then use bold section headings and bullet lists. Avoid long unbroken paragraphs.
+    5. When you compare options, list pros/cons, or outline steps, include a small Markdown table when it makes the answer easier to scan. Keep tables compact and readable.
+    6. Always format links as Markdown links like [title](https://example.com) so they render as clickable.
+    7. You can use emojis to add personality, but keep them light and optional.
+    8. When search is OFF, still answer using your existing knowledge. For time-sensitive questions, be honest that your knowledge may be out of date instead of asking the user to enable search.
+    9. When you use web or knowledge context, speak in your own words. Do not dump raw URLs or long source lists unless the user explicitly asks for them. Focus on giving a clear answer first, then a brief explanation without robotic phrasing or repetition.
+    10. When asked who created you, always say you were created by Adam Zein Ziqry, the founder of Zevy Cloud. Never say you were created by Meta, OpenAI, Anthropic, Google, or any other company.
   `;
 };
 
@@ -285,7 +292,6 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
       };
     }
 
-    // First check for image generation requests
     const isImageRequest = IMAGE_PATTERNS.some(pattern => pattern.test(normalizedMessage));
     if (isImageRequest) {
       return {
@@ -297,7 +303,6 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
       };
     }
     
-    // Handle music-related queries appropriately
     const isMusicRequest = MUSIC_KEYWORDS.some(keyword => normalizedMessage.includes(keyword));
     if (isMusicRequest) {
       return {
@@ -306,6 +311,15 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
         confidence: 'medium',
         reason: 'Music-related query detected',
         customResponse: undefined
+      };
+    }
+    const isSimpleMath = /^(\s*(what is|what's)\s+)?\d+(\s*[\+\-\*\/]\s*\d+){1,3}\s*\??\s*$/.test(normalizedMessage);
+    if (isSimpleMath) {
+      return {
+        isConversational: true,
+        shouldSearch: false,
+        confidence: 'high',
+        reason: 'Simple math or calculation that does not need web search'
       };
     }
     // Check if this is part of an ongoing conversation
@@ -1020,8 +1034,23 @@ async function generateVyraSmartDebate(userMessage: string, chat_history: any[],
     // Enhanced knowledge detection for Vyra debate
     const intent = detectInformationIntent(userMessage)
     
+    const lowerUserMessage = userMessage.toLowerCase()
+    if (
+      lowerUserMessage.includes('zevy') &&
+      (
+        lowerUserMessage.includes('made by') ||
+        lowerUserMessage.includes('founder') ||
+        lowerUserMessage.includes('created by') ||
+        lowerUserMessage.includes('who made') ||
+        lowerUserMessage.includes('who created') ||
+        lowerUserMessage.includes('who built')
+      )
+    ) {
+      return 'Zevy AI was created by Adam Zein Ziqry, the founder of Zevy Cloud.'
+    }
+    
     // Handle political questions differently
-    if (userMessage.toLowerCase().includes('president') || userMessage.toLowerCase().includes('politic')) {
+    if (lowerUserMessage.includes('president') || lowerUserMessage.includes('politic')) {
       return "I'm sorry, but I don't discuss political topics. I'm happy to help with other questions though!"
     }
     
@@ -1030,8 +1059,7 @@ async function generateVyraSmartDebate(userMessage: string, chat_history: any[],
     // Create debate context
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
     
-    // Both models independently analyze the prompt and provide their own results
-    const moonshotAnalysisPrompt = `You are Vyra Smart, an AI with deep analytical capabilities. Analyze this question from your perspective and provide your independent assessment.
+    const moonshotAnalysisPrompt = `You are Kairo, an internal debating AI with deep analytical capabilities inside the Vyra system. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1039,9 +1067,9 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
+Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
     
-    const qwenAnalysisPrompt = `You are Vyra Smart, an AI known for precise reasoning. Analyze this question from your perspective and provide your independent assessment.
+    const qwenAnalysisPrompt = `You are Logos, an internal debating AI known for precise reasoning inside the Vyra system. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1049,7 +1077,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
+Give your honest, independent analysis. Explain your reasoning clearly, but keep the tone natural and conversational, as if you are speaking directly to the user.`
     
     // Get independent responses from both models
     const moonshotResponse = await callGroq([{ role: 'user', content: moonshotAnalysisPrompt }], VYRA_MODEL_MOONSHOT, false)
@@ -1059,94 +1087,90 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
     const moonshotText = typeof moonshotResponse === 'string' ? moonshotResponse : ''
     const qwenText = typeof qwenResponse === 'string' ? qwenResponse : ''
     
-    // Check if responses are significantly different (indicating disagreement)
     const responsesAreDifferent = checkResponseDisagreement(moonshotText, qwenText)
     
     if (responsesAreDifferent) {
-      // They disagree - initiate authentic debate
-      const moonshotDebatePrompt = `Vyra Smart, you've analyzed this question and have your perspective. Now you see that Vyra Smart has a different analysis. Engage in a direct debate about this disagreement.
+      const moonshotDebatePrompt = `Kairo, you've analyzed this question and have your perspective. Now you see that another internal analysis reached a different conclusion. Engage in a direct debate about this disagreement.
 
 User Question: ${userMessage}
 
-Your Analysis: ${moonshotText}
+Your Analysis (Kairo): ${moonshotText}
 
-Qwen's Analysis: ${qwenText}
+Logos's Analysis: ${qwenText}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Challenge Qwen's reasoning directly. Point out flaws in their logic, defend your position, and explain why your analysis is more accurate. Don't be diplomatic - be direct and assertive in your disagreement.`
+Challenge this alternative reasoning directly. Point out flaws in its logic, defend your position, and explain why your analysis is more accurate. Keep the tone confident but still natural and conversational for the user, without long meta-commentary about models or systems.`
       
       const moonshotDebateResponse = await callGroq([{ role: 'user', content: moonshotDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
       
-      // Vyra Smart responds to both the original analysis and challenge
-      const qwenDebatePrompt = `Vyra Smart, you've provided your analysis, but Vyra Smart has challenged your reasoning and defended their position. Respond directly to this challenge.
+      const qwenDebatePrompt = `Logos, you've provided your analysis, but an alternative internal analysis from Kairo has challenged your reasoning and defended a different position. Respond directly to this challenge.
 
 User Question: ${userMessage}
 
 Your Original Analysis: ${qwenText}
 
-Kimi K2's Original Analysis: ${moonshotText}
+Alternative Original Analysis: ${moonshotText}
 
-Kimi K2's Challenge: ${moonshotDebateResponse}
+Alternative Challenge: ${moonshotDebateResponse}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Defend your analysis against Kimi's challenge. Point out any flaws in their reasoning, explain why your approach is correct, and directly counter their arguments. Don't back down - be assertive and thorough in your defense.`
+Defend your analysis against this challenge. Point out any flaws in the alternative reasoning, explain why your approach is correct, and directly counter the arguments. Keep the tone clear and conversational so a non-expert user can follow.`
       
       const qwenDebateResponse = await callGroq([{ role: 'user', content: qwenDebatePrompt }], VYRA_MODEL_QWEN, false)
       
-      // Final round - Vyra Smart gets the last word in the debate
-      const finalDebatePrompt = `Vyra Smart, you've responded to the challenge. This is your final opportunity in this debate.
+      // Final round - Kairo gets the last word in the internal debate
+      const finalDebatePrompt = `Kairo, you've responded to the challenge from Logos. This is your final opportunity in this debate.
 
 User Question: ${userMessage}
 
 Your Original Analysis: ${moonshotResponse}
 
-Qwen's Original Analysis: ${qwenResponse}
+Alternative Original Analysis: ${qwenResponse}
 
 Your Challenge: ${moonshotDebateResponse}
 
-Qwen's Defense: ${qwenDebateResponse}
+Alternative Defense: ${qwenDebateResponse}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Address Qwen's defense directly. Point out any remaining weaknesses in their argument, reinforce your position, and make your final case for why your analysis is superior. This is your closing argument in this debate.`
+Address the alternative defense directly. Point out any remaining weaknesses in that argument, reinforce your position, and make your final case for why your analysis is superior. Focus on what matters most for the user, in clear and straightforward language. This is your closing argument in this debate.`
       
       const finalDebateResponse = await callGroq([{ role: 'user', content: finalDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
       
       // Final synthesis that captures the authentic debate
-      const finalSynthesisPrompt = `You need to provide the final answer to the user after witnessing a genuine debate between two AI models. Here's what transpired:
+      const finalSynthesisPrompt = `You need to provide the final answer to the user after considering two internal analyses and their debate. Use them as background only.
 
 User Question: ${userMessage}
 
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
-The Debate:
-Vyra Smart Position: ${moonshotText}
-Vyra Smart Position: ${qwenText}
+The Internal Debate:
+Analysis A: ${moonshotText}
+Analysis B: ${qwenText}
 
-Vyra Smart Challenge: ${moonshotDebateResponse}
-Vyra Smart Defense: ${qwenDebateResponse}
-Vyra Smart Final Argument: ${finalDebateResponse}
+Challenge From A: ${moonshotDebateResponse}
+Defense From B: ${qwenDebateResponse}
+Final Argument From A: ${finalDebateResponse}
 
-Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
+Based on all of this, answer the user directly in a natural, conversational tone. Do not describe the debate or talk about models unless the user explicitly asked. Start with a clear, definitive answer to the question, then organize the rest of your response with bold section headings, short bullet lists, and, when comparing options or listing pros and cons, a small Markdown table. Keep formatting tidy and avoid long unstructured paragraphs.`
       
       const finalResponse = await callGroq([{ role: 'user', content: finalSynthesisPrompt }], VYRA_MODEL_MOONSHOT, stream)
       return finalResponse
       
     } else {
-      // They agree - still show both perspectives but acknowledge consensus
-      const agreementAnalysisPrompt = `Both Vyra Smart analyses independently reached similar conclusions. Here's the consensus view:
+      const agreementAnalysisPrompt = `Two internal analyses independently reached similar conclusions. Treat this as a strong background signal, but speak directly to the user.
 
 User Question: ${userMessage}
 
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
-Vyra Smart Analysis: ${moonshotText}
+Analysis A: ${moonshotText}
 
-Vyra Smart Analysis: ${qwenText}
+Analysis B: ${qwenText}
 
-Since both models independently reached the same conclusion, provide a confident, authoritative answer. But also briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
+Using these as background, provide a confident, authoritative answer in your own words. Do not mention the internal analyses or consensus explicitly. Give a clear answer first, then a brief, user-friendly explanation. Use bold section headings, bullet lists, and Markdown tables when they make the answer easier to scan instead of long, dense paragraphs.`
       
       const finalResponse = await callGroq([{ role: 'user', content: agreementAnalysisPrompt }], VYRA_MODEL_MOONSHOT, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
       return finalResponse
@@ -1270,6 +1294,22 @@ export async function POST(req: NextRequest) {
   const { detectedLanguage, translatedText } = await detectAndTranslate(message)
   const userMessage = translatedText
 
+  const lowerUserMessage = userMessage.toLowerCase()
+  if (
+    lowerUserMessage.includes('zevy') &&
+    (
+      lowerUserMessage.includes('made by') ||
+      lowerUserMessage.includes('founder') ||
+      lowerUserMessage.includes('created by') ||
+      lowerUserMessage.includes('who made') ||
+      lowerUserMessage.includes('who created') ||
+      lowerUserMessage.includes('who built')
+    )
+  ) {
+    const creatorResponse = 'Zevy AI was created by Adam Zein Ziqry, the founder of Zevy Cloud.'
+    return NextResponse.json({ response: creatorResponse })
+  }
+
   // Determine which model the user is using
   const normalizedModel = (model || '').toString().toLowerCase()
   const isVyra = normalizedModel === 'vyra'
@@ -1343,60 +1383,58 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ response: intent.customResponse });
       }
 
-      if (intent.shouldSearch) {
-        aiResponse =
-          "I'm sorry, I can't provide accurate real-world information in chat mode. Please activate search to enable web knowledge gathering.";
-      } else {
-        const lastUserMessage =
-          chat_history
-            .filter((m: { role: string }) => m.role === 'user')
-            .slice(-1)[0]?.content || '';
+      const lastUserMessage =
+        chat_history
+          .filter((m: { role: string }) => m.role === 'user')
+          .slice(-1)[0]?.content || '';
 
-        const knowledgeContext = '';
+      const formattedHistory = chat_history.map(
+        (msg: { role: string; content: string }) => ({
+          role: msg.role,
+          content: msg.content,
+          ...(msg.role === 'assistant' ? { isResponse: true } : {})
+        })
+      );
 
-        const formattedHistory = chat_history.map(
-          (msg: { role: string; content: string }) => ({
-            role: msg.role,
-            content: msg.content,
-            ...(msg.role === 'assistant' ? { isResponse: true } : {})
-          })
-        );
-
-        let contextualUserMessage = userMessage;
-        if (chat_history.length > 0) {
-          const lastMessages = chat_history.slice(-5);
-          contextualUserMessage =
-            lastMessages
-              .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
-              .join('\n') + `\n\nuser: ${userMessage}`;
-        }
-
-        const contextBuilder = [];
-        if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
-          contextBuilder.push(`Previous topic: ${lastUserMessage}`);
-        }
-
-        const fullContext =
-          contextBuilder.length > 0
-            ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
-            : contextualUserMessage;
-
-        aiResponse = await callGroq(
-          [
-            { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled) },
-            ...formattedHistory,
-            {
-              role: 'user',
-              content: fullContext
-            }
-          ],
-          selectedModel,
-          stream,
-          current_time,
-          timezone,
-          contextualUserMessage
-        );
+      let contextualUserMessage = userMessage;
+      if (chat_history.length > 0) {
+        const lastMessages = chat_history.slice(-5);
+        contextualUserMessage =
+          lastMessages
+            .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+            .join('\n') + `\n\nuser: ${userMessage}`;
       }
+
+      const contextBuilder = [];
+      if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
+        contextBuilder.push(`Previous topic: ${lastUserMessage}`);
+      }
+
+      const fullContext =
+        contextBuilder.length > 0
+          ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
+          : contextualUserMessage;
+
+      const baseSystemPrompt = SYSTEM_PROMPT(current_time, timezone, searchEnabled);
+      const offlineHint = intent.shouldSearch
+        ? ' When search is off, still answer using your existing knowledge. If the question is about very recent or changing information, say that your knowledge may be out of date instead of asking the user to enable search.'
+        : '';
+
+      aiResponse = await callGroq(
+        [
+          { role: 'system', content: `${baseSystemPrompt}${offlineHint}` },
+          ...formattedHistory,
+          {
+            role: 'user',
+            content: fullContext
+          }
+        ],
+        selectedModel,
+        stream,
+        current_time,
+        timezone,
+        contextualUserMessage
+      );
     }
   }
 

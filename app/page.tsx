@@ -2285,7 +2285,24 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                               className="p-3 rounded-lg prose prose-sm max-w-none"
                               style={{ background: palette.panel, border: `1px solid ${palette.border}`, color: palette.accent }}
                             >
-                              <ReactMarkdown components={{sup: ({node, ...props}) => <sup style={{fontSize: '0.8em', verticalAlign: 'super'}} {...props} />}}>{message.content}</ReactMarkdown>
+                              <ReactMarkdown
+                                components={{
+                                  a: ({ node, href, ...props }) => (
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="chat-link"
+                                      {...props}
+                                    />
+                                  ),
+                                  sup: ({ node, ...props }) => (
+                                    <sup style={{ fontSize: '0.8em', verticalAlign: 'super' }} {...props} />
+                                  )
+                                }}
+                              >
+                                {message.content}
+                              </ReactMarkdown>
                             </div>
                           </>
                         )}
