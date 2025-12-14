@@ -263,6 +263,7 @@ export default function ZevyCloudAI() {
   const [settingsTab, setSettingsTab] = useState<'account' | 'appearance' | 'about'>('account')
   const [customColors, setCustomColors] = useState(palette)
   const [pendingColors, setPendingColors] = useState(palette)
+  const [isMobile, setIsMobile] = useState(false)
 
   // FIX: Add missing per-conversation error handling
   const [conversationErrors, setConversationErrors] = useState<{ [key: string]: string | null }>({})
@@ -287,6 +288,7 @@ export default function ZevyCloudAI() {
   const [displayedMessages, setDisplayedMessages] = useState<Message[]>([])
   const [typingIndex, setTypingIndex] = useState<number | null>(null)
   const [typingContent, setTypingContent] = useState('')
+  const [lastCalcResult, setLastCalcResult] = useState<number | null>(null)
   
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -357,6 +359,106 @@ export default function ZevyCloudAI() {
     throw lastError
   }
 
+  const isMathExpression = (text: string) => {
+    const cleaned = text.replace(/\s+/g, '')
+    if (!cleaned) return false
+    if (!/[+\-*/()%]/.test(cleaned)) return false
+    return /^[0-9+\-*/().%]+$/.test(cleaned)
+  }
+
+  const safeEvalExpression = (expression: string): number | null => {
+    const cleaned = expression.replace(/\s+/g, '')
+    if (!/^[0-9+\-*/().%]+$/.test(cleaned)) return null
+    try {
+      const fn = new Function(`return (${cleaned})`)
+      const result = fn()
+      if (typeof result === 'number' && Number.isFinite(result)) {
+        return result
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  const tryHandleCalculator = (rawText: string) => {
+    const text = rawText.trim()
+    if (!text) return null
+
+    const lower = text.toLowerCase()
+
+    const stripped = lower.replace(/^(what is|whats|what's|calculate|calc|solve)\s+/i, '')
+    if (isMathExpression(stripped)) {
+      const result = safeEvalExpression(stripped)
+      if (result !== null) {
+        return {
+          value: result,
+          explanation: `Calculation:\n${stripped} = ${result}\n\nResult: ${result}`
+        }
+      }
+    }
+
+    if (isMathExpression(text)) {
+      const result = safeEvalExpression(text)
+      if (result !== null) {
+        return {
+          value: result,
+          explanation: `Calculation:\n${text} = ${result}\n\nResult: ${result}`
+        }
+      }
+    }
+
+    if (lastCalcResult !== null) {
+      const multiplyMatch = lower.match(/times that number by\s+(-?\d+(\.\d+)?)/)
+      if (multiplyMatch) {
+        const factor = parseFloat(multiplyMatch[1])
+        const result = lastCalcResult * factor
+        return {
+          value: result,
+          explanation: `Calculation:\n${lastCalcResult} × ${factor} = ${result}\n\nResult: ${result}`
+        }
+      }
+
+      const divideMatch = lower.match(/divide that number by\s+(-?\d+(\.\d+)?)/)
+      if (divideMatch) {
+        const divisor = parseFloat(divideMatch[1])
+        if (divisor === 0) {
+          return {
+            value: lastCalcResult,
+            explanation: `Calculation:\nCannot divide by 0.\n\nLast result: ${lastCalcResult}`
+          }
+        }
+        const result = lastCalcResult / divisor
+        return {
+          value: result,
+          explanation: `Calculation:\n${lastCalcResult} ÷ ${divisor} = ${result}\n\nResult: ${result}`
+        }
+      }
+
+      const addMatch = lower.match(/add\s+(-?\d+(\.\d+)?)\s+to that number/)
+      if (addMatch) {
+        const addend = parseFloat(addMatch[1])
+        const result = lastCalcResult + addend
+        return {
+          value: result,
+          explanation: `Calculation:\n${lastCalcResult} + ${addend} = ${result}\n\nResult: ${result}`
+        }
+      }
+
+      const subtractMatch = lower.match(/subtract\s+(-?\d+(\.\d+)?)\s+from that number/)
+      if (subtractMatch) {
+        const subtrahend = parseFloat(subtractMatch[1])
+        const result = lastCalcResult - subtrahend
+        return {
+          value: result,
+          explanation: `Calculation:\n${lastCalcResult} - ${subtrahend} = ${result}\n\nResult: ${result}`
+        }
+      }
+    }
+
+    return null
+  }
+
   const currentConvName = allConversations[currentConvIdx]?.name || 'New Chat'
   const currentConvId = allConversations[currentConvIdx]?.id
   const currentConvError = conversationErrors[currentConvId || ''] || null
@@ -409,6 +511,27 @@ export default function ZevyCloudAI() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
+
+  useEffect(() => {
+    const updateIsMobile = () => {
+      if (typeof window === 'undefined') return
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+    }
+
+    updateIsMobile()
+    window.addEventListener('resize', updateIsMobile)
+
+    return () => {
+      window.removeEventListener('resize', updateIsMobile)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarCollapsed(true)
+    }
+  }, [isMobile])
 
   // Play notification sound
   const playNotificationSound = (type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
@@ -1038,7 +1161,6 @@ useEffect(() => {
     }
   }
 
-  // Enhanced sendMessage with better error handling
   const sendMessage = async (messageContent?: string, isRetry = false) => {
     const textToSend = messageContent || input
     
@@ -1057,7 +1179,6 @@ useEffect(() => {
       timestamp: new Date().toISOString()
     }
 
-    // Only update input if not retrying
     if (!isRetry) {
       updateMessages([...messages, userMessage])
       setInput('')
@@ -1076,6 +1197,28 @@ useEffect(() => {
       }
 
       moveChatToTop(currentConvIdx)
+    }
+
+    const calcResult = tryHandleCalculator(textToSend)
+    if (calcResult) {
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: calcResult.explanation,
+        mode: mode,
+        timestamp: new Date().toISOString()
+      }
+      if (typingIndex !== null) {
+        setTypingIndex(null)
+        setTypingContent('')
+      }
+      setDisplayedMessages(prev => [...prev, userMessage, { ...assistantMessage, content: '' }])
+      setTypingIndex(messages.length + 1)
+      setTypingContent(assistantMessage.content)
+      updateMessages([...messages, userMessage, assistantMessage])
+      setLastCalcResult(calcResult.value)
+      setApiError(null)
+      setLoading(false)
+      return
     }
 
     setLoading(true)
@@ -2096,7 +2239,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       <div
         className="transition-width flex flex-col border-r"
         style={{
-          width: sidebarCollapsed ? '72px' : '300px',
+          width: isMobile ? (sidebarCollapsed ? '56px' : '240px') : (sidebarCollapsed ? '72px' : '300px'),
           background: palette.sidebar,
           borderColor: palette.border
         }}
@@ -2334,13 +2477,13 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                   <div className="space-y-3 text-center sm:text-left">
                     <h2
-                      className="text-3xl md:text-4xl font-semibold tracking-tight"
+                      className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight"
                       style={{ color: palette.accent }}
                     >
                       How can I help?
                     </h2>
                     <p
-                      className="text-sm md:text-base max-w-xl"
+                      className="text-xs sm:text-sm md:text-base max-w-xl"
                       style={{ color: palette.subdued }}
                     >
                       Ask anything, or start with a preset. Vyra gives deep debate-style reasoning,
@@ -2380,7 +2523,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     ))}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
                     {[
                       { icon: '🔍', title: 'Research', desc: 'Find latest info' },
                       { icon: '💡', title: 'Brainstorm', desc: 'Generate ideas' },
