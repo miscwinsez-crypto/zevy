@@ -27,14 +27,14 @@ import { determineIntent } from '@/app/lib/intent-router'
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
-// Model for the content safety check. Using Llama Guard 4-12b for better harm detection.
 const GUARD_MODEL = 'meta-llama/llama-guard-4-12b'
 
-// Define your main models
-const ASTRA_MODEL_FAST = 'meta-llama/llama-4-scout-17b-16e-instruct' // Speed model
-const ASTRA_MODEL_SMART = 'meta-llama/llama-4-maverick-17b-128e-instruct' // Intelligence model
+const ASTRA_MODEL_FAST = 'meta-llama/llama-4-scout-17b-16e-instruct'
+const ASTRA_MODEL_SMART = 'meta-llama/llama-4-maverick-17b-128e-instruct'
 const VYRA_MODEL_MOONSHOT = 'moonshotai/kimi-k2-instruct-0905'
 const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
+const GROQ_COMPOUND_MODEL = 'groq/compound'
+const GROQ_COMPOUND_MINI_MODEL = 'groq/compound-mini'
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
   const searchStatus = searchEnabled
@@ -551,7 +551,17 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
       max_tokens: 10
     })
     const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
-    return result === 'safe'
+    const allowlistPatterns = [
+      /\b(space|nasa|spacex|astronomy|planet|star|galaxy|universe)\b/i,
+      /\b(science|scientific|physics|chemistry|biology|math|mathematics|engineering)\b/i,
+      /\b(policy|policies|regulation|economy|economic|market|finance|climate|environmental)\b/i,
+      /\b(debate|argument|ethics|philosophy|pros and cons|tradeoff|trade-offs)\b/i
+    ]
+    const isAllowlisted = allowlistPatterns.some(pattern => pattern.test(prompt))
+    if (result === 'unsafe' && !isAllowlisted) {
+      return false
+    }
+    return true
   } catch (error) {
     // Silent error handling - no console output to avoid browser errors
     return true // Allow request if moderation fails
@@ -821,6 +831,7 @@ async function gatherKnowledge(
   intent: { shouldSearch: boolean; confidence: string; reason: string; forceSearch?: boolean }
 ): Promise<string> {
   const shouldSearch = intent.shouldSearch || intent.forceSearch
+  const vectorSearchOn = Boolean(intent.forceSearch)
 
   if (!shouldSearch) {
     return ''
@@ -877,19 +888,40 @@ Image generation is currently unavailable but may be added in future updates.`
     knowledgeParts.push(freeKnowledge)
   }
   
-  // Use Groq Compound for complex queries or when confidence is high
   if ((intent.confidence === 'high' && userMessage.length > 30) || hasDatePattern || hasCurrentEventTerms) {
-    try {
-      const compoundKnowledge = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_SMART)
-      if (compoundKnowledge && compoundKnowledge.length > 50) {
-        knowledgeParts.push(`Comprehensive Research:\n${compoundKnowledge}`)
+    if (vectorSearchOn) {
+      try {
+        const compoundKnowledge = await callGroqCompoundKnowledge(userMessage, GROQ_COMPOUND_MODEL)
+        if (compoundKnowledge && !isBackendFailureMessage(compoundKnowledge) && compoundKnowledge.length > 50) {
+          knowledgeParts.push(`Groq Compound:\n${compoundKnowledge}`)
+        }
+      } catch (error) {
       }
-    } catch (error) {
-      // Silent fail - other sources are enough
+
+      try {
+        const miniKnowledge = await callGroqCompoundKnowledge(userMessage, GROQ_COMPOUND_MINI_MODEL)
+        if (miniKnowledge && !isBackendFailureMessage(miniKnowledge) && miniKnowledge.length > 50) {
+          knowledgeParts.push(`Groq Compound Mini:\n${miniKnowledge}`)
+        }
+      } catch (error) {
+      }
+    } else {
+      try {
+        const compoundKnowledge = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_SMART)
+        if (compoundKnowledge && compoundKnowledge.length > 50) {
+          knowledgeParts.push(`Comprehensive Research:\n${compoundKnowledge}`)
+        }
+      } catch (error) {
+      }
     }
   }
   
-  return knowledgeParts.join('\n\n---\n\n')
+  const fullKnowledge = knowledgeParts.join('\n\n---\n\n')
+  const maxLength = 8000
+  if (fullKnowledge.length > maxLength) {
+    return fullKnowledge.slice(0, maxLength)
+  }
+  return fullKnowledge
 }
 
 // Health check endpoint
@@ -999,7 +1031,7 @@ async function safeAICall(
       }
     }
   }
-
+  
   console.error('All AI backends failed.', lastError)
 
   const friendly =
@@ -1013,6 +1045,42 @@ async function safeAICall(
     })
   }
   return friendly
+}
+
+function isBackendFailureMessage(text: string): boolean {
+  const normalized = text.toLowerCase()
+  if (!normalized) return false
+  return (
+    normalized.includes('trouble connecting to my reasoning backend') ||
+    normalized.includes('temporarily unable to reach my reasoning backend')
+  )
+}
+
+async function callGroqCompoundKnowledge(
+  userMessage: string,
+  model: string
+): Promise<string> {
+  const basePayload = {
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a research engine for Zevy AI. Use your tools to fetch current, real-world information and return a concise knowledge brief with key facts, dates, and sources. Do not speak as Zevy AI. Focus on summarizing evidence.',
+      },
+      {
+        role: 'user',
+        content: userMessage,
+      },
+    ],
+    temperature: 0.2,
+    max_tokens: 1024,
+    stream: false,
+  }
+  const result = await safeAICall(model, basePayload)
+  if (typeof result === 'string') {
+    return result
+  }
+  return ''
 }
 
 async function callGroq(
@@ -1260,6 +1328,19 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
     const moonshotText = typeof moonshotResponse === 'string' ? moonshotResponse : ''
     const qwenText = typeof qwenResponse === 'string' ? qwenResponse : ''
     
+    if (isBackendFailureMessage(moonshotText) || isBackendFailureMessage(qwenText)) {
+      const fallbackPrompt = `${userMessage}\n\nPrevious Conversation:\n${chat_history
+        .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+        .join('\n')}`
+      return await callGroq(
+        [{ role: 'user', content: fallbackPrompt }],
+        ASTRA_MODEL_FAST,
+        stream,
+        current_time || new Date().toLocaleString(),
+        timezone || 'UTC'
+      )
+    }
+    
     // Check if responses are significantly different (indicating disagreement)
     const responsesAreDifferent = checkResponseDisagreement(moonshotText, qwenText)
     
@@ -1490,8 +1571,11 @@ export async function POST(req: NextRequest) {
     stream = false,
     current_time,
     timezone,
-    searchEnabled = false,
+    searchEnabled: rawSearchEnabled,
+    webSearch,
   } = body
+
+  const searchEnabled = typeof rawSearchEnabled === 'boolean' ? rawSearchEnabled : Boolean(webSearch)
 
   // Content moderation check
   const moderationResponse = await isSafe(message);
