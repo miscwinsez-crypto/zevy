@@ -816,8 +816,13 @@ async function getFreeKnowledge(query: string): Promise<string> {
 /**
  * Enhanced knowledge gathering that prioritizes free sources and current events
  */
-async function gatherKnowledge(userMessage: string, intent: { shouldSearch: boolean; confidence: string; reason: string }): Promise<string> {
-  if (!intent.shouldSearch) {
+async function gatherKnowledge(
+  userMessage: string,
+  intent: { shouldSearch: boolean; confidence: string; reason: string; forceSearch?: boolean }
+): Promise<string> {
+  const shouldSearch = intent.shouldSearch || intent.forceSearch
+
+  if (!shouldSearch) {
     return ''
   }
   
@@ -1189,7 +1194,8 @@ async function generateVyraSmartDebate(
   chat_history: any[],
   stream: boolean,
   current_time?: string,
-  timezone?: string
+  timezone?: string,
+  searchEnabled: boolean = false
 ): Promise<string | ReadableStream> {
   try {
     const intent = determineIntent(userMessage, chat_history)
@@ -1203,6 +1209,7 @@ async function generateVyraSmartDebate(
       shouldSearch: intent.needsVector,
       confidence: intent.confidence,
       reason: intent.reason,
+      forceSearch: searchEnabled,
     })
     
     // Create debate context
@@ -1498,7 +1505,8 @@ export async function POST(req: NextRequest) {
   
   if (session) {
     userId = session.user.id;
-    modelType = model.toLowerCase() as 'vyra' | 'astra';
+    const modelLowerForType = model.toLowerCase()
+    modelType = modelLowerForType === 'vyra' ? 'vyra' : 'astra';
   }
 
   // Handle owner-specific commands first
@@ -1525,12 +1533,15 @@ export async function POST(req: NextRequest) {
   const { detectedLanguage, translatedText } = await detectAndTranslate(message)
   const userMessage = translatedText
 
-  // Determine which model the user is using
-  const selectedModel = model.toLowerCase() === 'vyra' 
+  const modelLower = model.toLowerCase()
+  const isVyraMode = modelLower === 'vyra'
+  const isCompoundMode = modelLower === 'compound'
+
+  const selectedModel = isVyraMode
     ? 'vyra-debate'
-    : model.toLowerCase() === 'compound'
-      ? 'compound'
-      : selectAstraModel(userMessage, chat_history).model
+    : selectAstraModel(userMessage, chat_history).model
+
+  const effectiveSearchEnabled = searchEnabled || isCompoundMode
 
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
@@ -1575,18 +1586,26 @@ export async function POST(req: NextRequest) {
 
   if (selectedModel === 'vyra-debate') {
     // Vyra debate system using both Moonshot and Qwen models
-    const debateResponse = await generateVyraSmartDebate(userMessage, chat_history, stream, current_time, timezone)
+    const debateResponse = await generateVyraSmartDebate(
+      userMessage,
+      chat_history,
+      stream,
+      current_time,
+      timezone,
+      effectiveSearchEnabled
+    )
     aiResponse = debateResponse
   } else {
     if (intent.customResponse) {
       return NextResponse.json({ response: intent.customResponse });
     }
 
-    if (searchEnabled && intent.needsVector) {
+    if (effectiveSearchEnabled) {
       const knowledgeIntent = {
-        shouldSearch: intent.needsVector,
+        shouldSearch: intent.needsVector || effectiveSearchEnabled,
         confidence: intent.confidence,
         reason: intent.reason,
+        forceSearch: effectiveSearchEnabled,
       }
       const knowledgeContext = await gatherKnowledge(userMessage, knowledgeIntent)
       const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
