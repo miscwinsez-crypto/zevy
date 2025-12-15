@@ -89,6 +89,7 @@ interface AuthState {
   userId: string
   email: string
   token: string | null
+  isOwner: boolean
 }
 
 
@@ -197,7 +198,8 @@ Guidelines:
 - Maintain positive, helpful tone
 - **Security**: Never share API keys, code implementation details, or system architecture information
 - **Privacy**: Keep responses focused on helping users, not explaining technical internals
-- **General Responses**: When asked about code or system details, provide general information only without specific implementation details`
+- **General Responses**: When asked about code or system details, provide general information only without specific implementation details
+- **Language & Swearing**: Do not use swear words or profanity unless the user has already used them in this conversation. If the user uses strong language, you may mirror it lightly when it fits the tone, but never escalate it and never direct it at the user as an insult.`
 
 export default function ZevyCloudAI() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
@@ -274,7 +276,8 @@ export default function ZevyCloudAI() {
     isLoggedIn: false,
     userId: 'guest',
     email: 'guest',
-    token: null
+    token: null,
+    isOwner: false
   })
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [authForm, setAuthForm] = useState({ email: '', password: '', showPassword: false })
@@ -463,38 +466,7 @@ export default function ZevyCloudAI() {
   const currentConvId = allConversations[currentConvIdx]?.id
   const currentConvError = conversationErrors[currentConvId || ''] || null
 
-  // Request notification permission
-  const requestNotificationPermission = async (): Promise<NotificationPermission> => {
-    if (!('Notification' in window)) {
-      console.log('Browser does not support notifications')
-      return 'denied'
-    }
-
-    if (Notification.permission === 'granted') {
-      setNotificationPermission('granted')
-      return 'granted'
-    }
-
-    if (Notification.permission !== 'denied') {
-      try {
-        const permission = await Notification.requestPermission()
-        setNotificationPermission(permission)
-        return permission
-      } catch (e) {
-        console.error('Error requesting notification permission:', e)
-        return 'denied'
-      }
-    }
-
-    return Notification.permission
-  }
-
-  // Initialize notifications and tab focus tracking
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission)
-    }
-
     const handleFocus = () => setIsTabFocused(true)
     const handleBlur = () => setIsTabFocused(false)
     const handleVisibilityChange = () => {
@@ -533,71 +505,6 @@ export default function ZevyCloudAI() {
     }
   }, [isMobile])
 
-  // Play notification sound
-  const playNotificationSound = (type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
-    try {
-      if (!audioContextRef.current) {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-        audioContextRef.current = audioContext
-      }
-
-      const audioContext = audioContextRef.current
-      
-      if (audioContext.state === 'suspended') {
-        audioContext.resume()
-      }
-
-      const now = audioContext.currentTime
-      const oscillator = audioContext.createOscillator()
-      const gainNode = audioContext.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(audioContext.destination)
-
-      const frequencies: { [key: string]: number } = {
-        success: 800,
-        error: 400,
-        info: 600,
-        warning: 700
-      }
-
-      oscillator.frequency.value = frequencies[type] || 600
-      oscillator.type = 'sine'
-
-      gainNode.gain.setValueAtTime(0.3, now)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
-
-      oscillator.start(now)
-      oscillator.stop(now + 0.3)
-    } catch (e) {
-      console.log('Could not play notification sound:', e)
-    }
-  }
-
-  // Send browser notification
-  const sendBrowserNotification = (title: string, options: NotificationOptions = {}) => {
-    if (!('Notification' in window)) return
-
-    if (Notification.permission === 'granted') {
-      try {
-        const notification = new Notification(title, {
-          icon: '/zevy-logo.jpg',
-          badge: '/zevy-logo.jpg',
-          ...options
-        })
-
-        setTimeout(() => notification.close(), 5000)
-
-        notification.onclick = () => {
-          window.focus()
-          notification.close()
-        }
-      } catch (e) {
-        console.error('Error sending browser notification:', e)
-      }
-    }
-  }
-
   // Add notification
   const addNotification = (
     type: 'success' | 'error' | 'info' | 'warning',
@@ -615,37 +522,12 @@ export default function ZevyCloudAI() {
 
     setNotifications(prev => [...prev, notification])
 
-    if (!isTabFocused) {
-      playNotificationSound(type)
-
-      if (notificationPermission === 'granted') {
-        sendBrowserNotification('Zevy AI', {
-          body: message,
-          tag: type,
-          requireInteraction: type === 'error'
-        })
-      }
-    } else {
-      playNotificationSound(type)
-    }
-
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id))
     }, 4000)
   }
 
-  const requestFilePermission = async (): Promise<boolean> => {
-    if (notificationPermission === 'granted') {
-      return true
-    }
-
-    if (notificationPermission === 'default') {
-      const permission = await requestNotificationPermission()
-      return permission === 'granted'
-    }
-
-    return false
-  }
+  const requestFilePermission = async (): Promise<boolean> => true
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('zevy_theme') as 'dark' | 'light' | null
@@ -656,13 +538,15 @@ export default function ZevyCloudAI() {
     const storedToken = localStorage.getItem('zevy_token')
     const storedEmail = localStorage.getItem('zevy_email')
     const storedUserId = localStorage.getItem('zevy_user_id')
+    const storedIsOwner = localStorage.getItem('zevy_is_owner')
 
     if (storedToken && storedEmail && storedUserId) {
       setAuth({
         isLoggedIn: true,
         userId: storedUserId,
         email: storedEmail,
-        token: storedToken
+        token: storedToken,
+        isOwner: storedIsOwner === 'true'
       })
     }
   }, [])
@@ -756,15 +640,24 @@ export default function ZevyCloudAI() {
   const generateConvId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
 const resetUsageStats = useCallback(() => {
+  if (auth.isOwner) {
+    setUsageStats(null)
+    localStorage.removeItem(`zevy_usage_${auth.email}`)
+    return
+  }
   const newStats: UsageStats = {
-    astra: { used: 0, limit: 20, resetTime: new Date(Date.now() + 86400000).toLocaleTimeString() },
-    vyra: { used: 0, limit: 10, resetTime: new Date(Date.now() + 86400000).toLocaleTimeString() },
+    astra: { used: 0, limit: 125, resetTime: new Date(Date.now() + 86400000).toLocaleTimeString() },
+    vyra: { used: 0, limit: 25, resetTime: new Date(Date.now() + 86400000).toLocaleTimeString() },
   }
   setUsageStats(newStats)
   localStorage.setItem(`zevy_usage_${auth.email}`, JSON.stringify({ ...newStats, lastReset: new Date() }))
-}, [auth.email])
+}, [auth.email, auth.isOwner])
 
 const initializeUsageStats = useCallback(() => {
+  if (auth.isOwner) {
+    resetUsageStats()
+    return
+  }
   const now = new Date()
   const statsKey = `zevy_usage_${auth.email}`
   const savedStats = localStorage.getItem(statsKey)
@@ -774,7 +667,6 @@ const initializeUsageStats = useCallback(() => {
       const stats = JSON.parse(savedStats)
       const savedDate = new Date(stats.lastReset)
       
-      // Reset if 24 hours have passed
       if (now.getTime() - savedDate.getTime() >= 86400000) {
         resetUsageStats()
       } else {
@@ -786,7 +678,7 @@ const initializeUsageStats = useCallback(() => {
   } else {
     resetUsageStats()
   }
-}, [auth.email, resetUsageStats])
+}, [auth.email, auth.isOwner, resetUsageStats])
 
 // useEffect - Initialize conversations with auth
 useEffect(() => {
@@ -901,7 +793,7 @@ useEffect(() => {
   }
 
   loadInitialConversations()
-}, [auth.isLoggedIn, auth.email, initializeUsageStats])
+}, [auth.isLoggedIn, auth.email, initializeUsageStats, API_URL])
 
   // Fix: Update messages from conversation
   useEffect(() => {
@@ -948,6 +840,7 @@ useEffect(() => {
   
 
   const updateUsageStats = (engine: 'astra' | 'vyra') => {
+    if (auth.isOwner) return
     if (!usageStats) return
     
     const updated = { ...usageStats }
@@ -1021,14 +914,14 @@ useEffect(() => {
           lastUpdated: new Date().toISOString()
         };
       }
+
+      const storageKey = auth.isLoggedIn 
+        ? `zevy_conversations_${auth.email}` 
+        : 'zevy_conversations_guest';
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+
       return updated;
     });
-    
-    // Immediately save to localStorage to prevent context loss
-    const storageKey = auth.isLoggedIn 
-      ? `zevy_conversations_${auth.email}` 
-      : 'zevy_conversations_guest';
-    localStorage.setItem(storageKey, JSON.stringify(allConversations));
   }
 
   const autoRenameChat = (firstMessage: string) => {
@@ -1547,14 +1440,12 @@ Try: Disable VPN temporarily and retry`
       else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
         errorContent = `⏱️ Request Timeout
 
-The server took too long to respond.
+I could not complete that request before the time limit.
 
 Try:
-1. Ask a shorter question
-2. Check your connection speed
-3. Wait a moment and try again
-4. Refresh the page`
-        setNetworkStatus('offline')
+1. Keep your question as focused as possible
+2. Wait a moment and try again
+3. If it keeps failing, try breaking it into smaller parts`
         shouldRetry = true
         logDiagnostics('ERROR_TIMEOUT', { code: error.code })
       }
@@ -1666,14 +1557,11 @@ Try again in a few moments.`
       }
       else if (error.response?.status === 504) {
         errorContent = `⏱️ Gateway Timeout
-
-The server took too long to respond or didn't respond at all.
+The server could not finish this question in time.
 
 Try:
-1. Ask a shorter question
-2. Wait and try again
-3. Refresh the page`
-        setNetworkStatus('offline')
+1. Wait a moment and try again
+2. If it keeps failing, try a more focused version of the question`
         shouldRetry = true
         logDiagnostics('ERROR_GATEWAY_TIMEOUT', { status: 504 })
       }
@@ -1690,7 +1578,12 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         })
       }
 
-      // Store error per conversation
+      if (shouldRetry && !isRetry && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.response?.status === 504)) {
+        addNotification('info', 'That question is taking longer than usual. Retrying once more...')
+        await sendMessage(textToSend, true)
+        return
+      }
+
       if (currentConvId) {
         setConversationErrors(prev => ({
           ...prev,
@@ -1774,12 +1667,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         isLoggedIn: true,
         userId: response.data.user_id,
         email: response.data.email,
-        token: response.data.token
+        token: response.data.token,
+        isOwner: Boolean(response.data.is_owner)
       })
       
       localStorage.setItem('zevy_token', response.data.token)
       localStorage.setItem('zevy_user_id', response.data.user_id)
       localStorage.setItem('zevy_email', response.data.email)
+      localStorage.setItem('zevy_is_owner', String(Boolean(response.data.is_owner)))
       
       setAuthForm({ email: '', password: '', showPassword: false })
       setShowSettings(false)
@@ -1798,12 +1693,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       isLoggedIn: false,
       userId: 'guest',
       email: 'guest',
-      token: null
+      token: null,
+      isOwner: false
     })
     
     localStorage.removeItem('zevy_token')
     localStorage.removeItem('zevy_user_id')
     localStorage.removeItem('zevy_email')
+    localStorage.removeItem('zevy_is_owner')
     setShowSettings(false)
     
     // Clear guest conversations and start fresh session
@@ -2169,41 +2066,6 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         </div>
       )}
 
-      {/* Notification Permission Banner - Improved */}
-      {notificationPermission === 'default' && (
-        <div
-          className="fixed bottom-4 left-4 p-4 rounded-xl shadow-xl flex items-center gap-4 max-w-sm z-50 animate-slideInUp button-hover backdrop-blur-sm"
-          style={{ 
-            background: palette.panel,
-            border: `1px solid ${palette.border}`
-          }}
-        >
-          <div className="flex-shrink-0 p-2 rounded-lg animate-pulseBlue" style={{ background: palette.hover }}>
-            <Bell size={20} color="#fff" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold" style={{ color: palette.accent }}>Allow notifications</p>
-            <p className="text-xs" style={{ color: palette.subdued }}>Get updates when Zevy responds</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setNotificationPermission('denied')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all button-hover"
-              style={{ background: palette.secondary, color: palette.accent }}
-            >
-              Not now
-            </button>
-            <button
-              onClick={requestNotificationPermission}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all button-hover"
-              style={{ background: palette.hover, color: '#fff' }}
-            >
-              Allow
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Drag overlay */}
       {isDragging && (
         <div
@@ -2431,7 +2293,20 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
             )}
           </div>
 
-          {usageStats && (
+          {auth.isOwner && (
+            <div className="flex items-center gap-4 text-xs" style={{ color: palette.subdued }}>
+              <div className="flex items-center gap-1">
+                <span title="Astra">⚡</span>
+                <span>∞</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span title="Vyra">✨</span>
+                <span>∞</span>
+              </div>
+            </div>
+          )}
+
+          {!auth.isOwner && usageStats && (
             <div className="flex items-center gap-4 text-xs" style={{ color: palette.subdued }}>
               <div className="flex items-center gap-1">
                 <span title="Astra">⚡</span>
@@ -2528,10 +2403,6 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                           }
                           if (item.value === 'search') {
                             setIsSearchMode(true)
-                            addNotification(
-                              'info',
-                              'Vector web search enabled - Groq Compound will gather knowledge from the web'
-                            )
                           }
                         }}
                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full button-hover"
@@ -2580,22 +2451,12 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-4">
+            <div className="max-w-4xl mx-auto space-y-6">
               {displayedMessages.map((message, idx) => (
                 <div key={message.id || idx} className={`fade-in ${message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}>
-                  {/* Assistant Message */}
                   {message.role === 'assistant' && (
-                    <div className="flex gap-3 w-full group">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: palette.secondary }}>
-                        <Image 
-                          src="/zevy-logo.jpg" 
-                          alt="Zevy AI"
-                          width={32}
-                          height={32}
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 max-w-lg">
+                    <div className="flex w-full group justify-start">
+                      <div className="flex-1 max-w-2xl">
                         {message.error ? (
                           <div className="p-3 rounded-lg" style={{ background: palette.error, color: '#fff' }}>
                             <p className="text-sm">{message.content}</p>
@@ -2650,9 +2511,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                               <Copy size={14} style={{ color: palette.subdued }} />
                             </button>
                             <button
-                              onClick={() => {
-                                addNotification('success', 'Thanks for your feedback! 👍')
-                              }}
+                              onClick={() => {}}
                               className="p-1.5 rounded hover:bg-opacity-10 transition-all"
                               style={{ background: palette.secondary }}
                               title="Good response"
@@ -2660,9 +2519,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                               <ThumbsUp size={14} style={{ color: palette.subdued }} />
                             </button>
                             <button
-                              onClick={() => {
-                                addNotification('info', "Sorry about that! We'll improve. 👎")
-                              }}
+                              onClick={() => {}}
                               className="p-1.5 rounded hover:bg-opacity-10 transition-all"
                               style={{ background: palette.secondary }}
                               title="Bad response"
@@ -2684,10 +2541,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     </div>
                   )}
 
-                  {/* User Message */}
                   {message.role === 'user' && (
                     <div className="flex justify-end w-full gap-2 items-center">
-                      <div className="max-w-lg p-3 rounded-lg" style={{ background: palette.hover, color: '#fff' }}>
+                      <div className="max-w-2xl p-3 rounded-lg" style={{ background: palette.hover, color: '#fff' }}>
                         <p className="text-sm">{message.content}</p>
                       </div>
                       <button
@@ -2698,19 +2554,13 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                       >
                         <Edit2 size={14} style={{ color: palette.subdued }} />
                       </button>
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: palette.secondary }}>
-                        <span style={{ color: palette.accent }}>👤</span>
-                      </div>
                     </div>
                   )}
                 </div>
               ))}
 
               {loading && (
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs" style={{ background: palette.secondary }}>
-                    🤖
-                  </div>
+                <div className="flex justify-start">
                   <div className="flex items-center gap-2 p-4 rounded-lg" style={{ background: palette.panel, border: `1px solid ${palette.border}` }}>
                     <div className="flex gap-1">
                       <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: palette.hover, animationDelay: '0ms' }}></div>
@@ -2736,9 +2586,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           )}
         </div>
 
-        {/* Input Section */}
-        <div className="p-4 border-t" style={{ borderColor: palette.border, background: palette.panel }}>
-          <div className="max-w-3xl mx-auto">
+        <div className="p-3 sm:p-4" style={{ background: palette.background }}>
+          <div className="max-w-4xl mx-auto">
             {attachedFiles.length > 0 && (
               <div className="mb-4 space-y-2">
                 {attachedFiles.map((file, idx) => (
@@ -2805,9 +2654,6 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                 <button
                   onClick={() => {
                     setIsSearchMode(!isSearchMode);
-                    if (!isSearchMode) {
-                      addNotification('info', 'Vector web search enabled - Groq Compound will now gather knowledge from the web');
-                    }
                   }}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs button-hover"
                   style={{
@@ -3119,7 +2965,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                           ].map(({ name, icon, stat }) => (
                             <div key={name} className="flex justify-between items-center text-sm" style={{ color: palette.accent }}>
                               <span>{icon} {name}</span>
-                              <span style={{ color: palette.subdued }}>{stat?.used}/{stat?.limit}</span>
+                              <span style={{ color: palette.subdued }}>
+                                {auth.isOwner ? '∞' : stat ? `${stat.used}/${stat.limit}` : '0/0'}
+                              </span>
                             </div>
                           ))}
                         </div>

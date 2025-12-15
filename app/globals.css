@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
 :root {
   --bg-main: #050505;
@@ -194,11 +194,7 @@ pre code {
   text-decoration: underline;
 }
 
-/* Selection highlight */
-::selection {
-  background: var(--accent-teal, #14b8a6);
-  color: #fff;
-}
+/* Selection highlight - use browser default (no custom color) */
 
 /* Fade-in animation for messages */
 @keyframes fadeIn {

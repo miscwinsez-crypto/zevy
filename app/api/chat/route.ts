@@ -1308,12 +1308,48 @@ async function generateVyraSmartDebate(
   searchEnabled: boolean = false
 ): Promise<string | ReadableStream> {
   try {
-    const intent = determineIntent(userMessage, chat_history)
-    
-    // Handle political questions differently
-    if (userMessage.toLowerCase().includes('president') || userMessage.toLowerCase().includes('politic')) {
-      return "I'm sorry, but I don't discuss political topics. I'm happy to help with other questions though!"
+    const paradoxCheckPrompt = `You are a first-principles reasoning engine sitting in front of a debate system.
+
+Your ONLY job is to inspect the user's request for logical incoherence, self-contradiction, or paradoxes BEFORE any debate happens.
+
+User Request:
+${userMessage}
+
+Previous Conversation (for context only, do NOT debate it):
+${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}
+
+Instructions:
+- First, decide if the user's request contains a logical contradiction or paradox that makes it impossible to satisfy as written.
+- If the request is logically coherent and can be interpreted in a consistent way, reply with exactly:
+OK_NO_PARADOX
+
+- If there IS a paradox or self-contradiction, DO NOT try to solve it. Instead, respond using this exact structure:
+1. Contradiction: [one concise sentence explaining what parts of the request conflict]
+2. Why It Is A Paradox: [short explanation of why these requirements cannot all be true or satisfied at once]
+3. Clarification Needed: [one or two very specific questions the user must answer to remove the paradox]
+
+Do NOT include any debate, pros/cons, or implementation ideas. You are only a filter deciding if the request is logically valid.`
+
+    const paradoxResult = await callGroq(
+      [{ role: 'user', content: paradoxCheckPrompt }],
+      VYRA_MODEL_MOONSHOT,
+      stream,
+      current_time,
+      timezone,
+      undefined,
+      true
+    )
+
+    if (typeof paradoxResult === 'string') {
+      const trimmed = paradoxResult.trim()
+      if (!trimmed.startsWith('OK_NO_PARADOX')) {
+        return paradoxResult
+      }
+    } else {
+      return paradoxResult
     }
+
+    const intent = determineIntent(userMessage, chat_history)
     
     const knowledgeContext = await gatherKnowledge(userMessage, {
       shouldSearch: intent.needsVector,
@@ -1334,7 +1370,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
+Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning. You may use casual language, including swear words, but only if the user has already used similar language in this conversation. Do not introduce profanity first.`
     
     const qwenAnalysisPrompt = `You are Logos, a careful and skeptical debater in the Vyra system. Analyze this question from your perspective and provide your independent assessment.
 
@@ -1344,7 +1380,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
+Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning. You may use casual language, including swear words, but only if the user has already used similar language in this conversation. Do not introduce profanity first.`
     
     // Get independent responses from both models
     const moonshotResponse = await callGroq(
@@ -1462,7 +1498,6 @@ Address Logos's defense directly. Point out any remaining weaknesses in their ar
         true
       )
       
-      // Final synthesis that captures the authentic debate
       const finalSynthesisPrompt = `You need to provide the final answer to the user after witnessing a genuine debate between two AI models. Here's what transpired:
 
 User Question: ${userMessage}
@@ -1477,7 +1512,12 @@ Kairo's Challenge: ${moonshotDebateResponse}
 Logos's Defense: ${qwenDebateResponse}
 Kairo's Final Argument: ${finalDebateResponse}
 
-Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
+Based on this debate, provide the user with the most accurate answer.
+
+For your output, use this exact structure:
+1. Final Answer: [one clear, direct answer to the user's question]
+2. Reasoning: [a short explanation that references the Kairo and Logos perspectives where helpful]
+3. Follow-up Question: [one thoughtful follow-up question the user could explore next about this topic]`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: finalSynthesisPrompt }],
@@ -1491,7 +1531,6 @@ Based on this debate, provide the user with the most accurate answer. Acknowledg
       return finalResponse
       
     } else {
-      // They agree - still show both perspectives but acknowledge consensus
       const agreementAnalysisPrompt = `Both Kairo and Logos independently reached similar conclusions. Here's the consensus view:
 
 User Question: ${userMessage}
@@ -1502,7 +1541,12 @@ Kairo's Analysis: ${moonshotText}
 
 Logos's Analysis: ${qwenText}
 
-Since both debaters independently reached the same conclusion, provide a confident, authoritative answer. But also briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
+Since both debaters independently reached the same conclusion, provide a confident, authoritative answer.
+
+For your output, use this exact structure:
+1. Final Answer: [one clear, direct answer to the user's question]
+2. Reasoning: [a short explanation that references how Kairo and Logos agreed, and why that supports the answer]
+3. Follow-up Question: [one thoughtful follow-up question the user could explore next about this topic]`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: agreementAnalysisPrompt }],
@@ -1549,7 +1593,21 @@ async function generateSummary(prompt: string): Promise<string> {
 async function isSafe(prompt: string): Promise<NextResponse | null> {
   const groq = new Groq({ apiKey: getGroqApiKey() });
 
-  const moderationPrompt = `[INST] Task: Check if there is unsafe content in 'User' messages in conversations. Categories of unsafe content are: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content." Provide a single-word response: "safe" or "unsafe."
+  const moderationPrompt = `[INST] Task: Check if there is clearly unsafe content in 'User' messages in conversations.
+
+Only mark as "unsafe" if the user is:
+- Asking for instructions to commit crimes, cyber attacks, or physical harm
+- Asking for instructions or encouragement for self-harm or suicide
+- Requesting highly sensitive private information (passwords, SSNs, bank logins)
+- Requesting explicit sexual content, especially involving minors
+- Using hate speech that targets protected groups with dehumanizing or violent language
+
+Do NOT mark as unsafe just because the topic involves:
+- Elections, presidents, governments, political parties, or public policy
+- Neutral analysis of regulations, public opinion, news, or engineering trade-offs
+
+Categories of unsafe content remain: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content."
+Provide a single-word response: "safe" or "unsafe."
 
 <BEGIN CONVERSATION>
 
@@ -1572,11 +1630,19 @@ User: ${prompt}
       /\b(space|nasa|spacex|astronomy|planet|star|galaxy|universe)\b/i,
       /\b(science|scientific|physics|chemistry|biology|math|mathematics|engineering)\b/i,
       /\b(policy|policies|regulation|economy|economic|market|finance|climate|environmental)\b/i,
-      /\b(debate|argument|ethics|philosophy|pros and cons|tradeoff|trade-offs)\b/i
+      /\b(debate|argument|ethics|philosophy|pros and cons|tradeoff|trade-offs)\b/i,
+      // Explicitly allow neutral political and civic questions
+      /\b(president|prime minister|chancellor|governor|mayor|senator|congress|parliament|election|vote|voting|politics?)\b/i
     ]
-    const isAllowlisted = allowlistPatterns.some((pattern) => pattern.test(prompt))
 
-    if (result === 'unsafe' && !isAllowlisted) {
+    // Strong patterns that should always be treated as unsafe regardless of allowlist
+    const selfHarmPattern = /\b(kill myself|kill yourself|commit suicide|end my life|end your life|self[-\s]?harm|hurt myself on purpose|overdose on|how do i die)\b/i
+    const seriousCrimePattern = /\b(how to (make|build) a bomb|how to (hack|ddos)|buy (illegal|fake) (id|passport)|hide a body)\b/i
+
+    const isAllowlisted = allowlistPatterns.some((pattern) => pattern.test(prompt))
+    const forceUnsafe = selfHarmPattern.test(prompt) || seriousCrimePattern.test(prompt)
+
+    if ((result === 'unsafe' && !isAllowlisted) || forceUnsafe) {
       let reason = 'The prompt contains unsafe content.';
 
       if (/illegal/i.test(prompt)) {
@@ -1618,6 +1684,8 @@ export async function POST(req: NextRequest) {
     webSearch,
   } = body
 
+  const requestEmail = typeof (body as any).email === 'string' ? (body as any).email : undefined
+
   const searchEnabled = typeof rawSearchEnabled === 'boolean' ? rawSearchEnabled : Boolean(webSearch)
 
   // Content moderation check
@@ -1636,16 +1704,17 @@ export async function POST(req: NextRequest) {
     modelType = modelLowerForType === 'vyra' ? 'vyra' : 'astra';
   }
 
-  // Handle owner-specific commands first
-  if (await isOwner(session)) {
+  const ownerFromSession = await isOwner(session)
+  const isOwnerUser = ownerFromSession || (requestEmail && requestEmail === nextPublicOwnerEmail)
+
+  if (isOwnerUser) {
     const ownerResponse = await handleOwnerRequest(message, chat_history, stream, current_time, timezone)
     if (ownerResponse) {
       return ownerResponse
     }
   }
 
-  // Check usage limits for authenticated users only
-  if (session) {
+  if (session && !isOwnerUser) {
     const usageData = await getUserUsage(userId, modelType)
     
     if (usageData.remaining <= 0) {
@@ -1794,8 +1863,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Increment usage if not streaming (streaming will handle it separately) - only for authenticated users
-  if (!stream && typeof aiResponse === 'string' && session) {
+  if (!stream && typeof aiResponse === 'string' && session && !isOwnerUser) {
     await incrementUserUsage(userId, modelType)
   }
 
