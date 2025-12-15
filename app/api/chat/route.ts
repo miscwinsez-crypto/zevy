@@ -1326,7 +1326,7 @@ async function generateVyraSmartDebate(
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
     
     // Both models independently analyze the prompt and provide their own results
-    const moonshotAnalysisPrompt = `You are Vyra Smart, an AI with deep analytical capabilities. Analyze this question from your perspective and provide your independent assessment.
+    const moonshotAnalysisPrompt = `You are Kairo, a bold debater in the Vyra system. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1336,7 +1336,7 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
-    const qwenAnalysisPrompt = `You are Vyra Smart, an AI known for precise reasoning. Analyze this question from your perspective and provide your independent assessment.
+    const qwenAnalysisPrompt = `You are Logos, a careful and skeptical debater in the Vyra system. Analyze this question from your perspective and provide your independent assessment.
 
 User Question: ${userMessage}
 
@@ -1388,17 +1388,17 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
     
     if (responsesAreDifferent) {
       // They disagree - initiate authentic debate
-      const moonshotDebatePrompt = `Vyra Smart, you've analyzed this question and have your perspective. Now you see that Vyra Smart has a different analysis. Engage in a direct debate about this disagreement.
+      const moonshotDebatePrompt = `Kairo, you've analyzed this question and have your perspective. Now you see that Logos has a different analysis. Engage in a direct debate about this disagreement.
 
 User Question: ${userMessage}
 
-Your Analysis: ${moonshotText}
+Your Analysis (Kairo): ${moonshotText}
 
-Qwen's Analysis: ${qwenText}
+Logos's Analysis: ${qwenText}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Challenge Qwen's reasoning directly. Point out flaws in their logic, defend your position, and explain why your analysis is more accurate. Don't be diplomatic - be direct and assertive in your disagreement.`
+Challenge Logos's reasoning directly. Point out flaws in their logic, defend your position, and explain why your analysis is more accurate. Don't be diplomatic - be direct and assertive in your disagreement.`
       
       const moonshotDebateResponse = await callGroq(
         [{ role: 'user', content: moonshotDebatePrompt }],
@@ -1410,20 +1410,20 @@ Challenge Qwen's reasoning directly. Point out flaws in their logic, defend your
         true
       )
       
-      // Vyra Smart responds to both the original analysis and challenge
-      const qwenDebatePrompt = `Vyra Smart, you've provided your analysis, but Vyra Smart has challenged your reasoning and defended their position. Respond directly to this challenge.
+      // Logos responds to Kairo's challenge
+      const qwenDebatePrompt = `Logos, you've provided your analysis, but Kairo has challenged your reasoning and defended their position. Respond directly to this challenge.
 
 User Question: ${userMessage}
 
-Your Original Analysis: ${qwenText}
+Your Original Analysis (Logos): ${qwenText}
 
-Kimi K2's Original Analysis: ${moonshotText}
+Kairo's Original Analysis: ${moonshotText}
 
-Kimi K2's Challenge: ${moonshotDebateResponse}
+Kairo's Challenge: ${moonshotDebateResponse}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Defend your analysis against Kimi's challenge. Point out any flaws in their reasoning, explain why your approach is correct, and directly counter their arguments. Don't back down - be assertive and thorough in your defense.`
+Defend your analysis against Kairo's challenge. Point out any flaws in their reasoning, explain why your approach is correct, and directly counter their arguments. Don't back down - be assertive and thorough in your defense.`
       
       const qwenDebateResponse = await callGroq(
         [{ role: 'user', content: qwenDebatePrompt }],
@@ -1435,22 +1435,22 @@ Defend your analysis against Kimi's challenge. Point out any flaws in their reas
         true
       )
       
-      // Final round - Vyra Smart gets the last word in the debate
-      const finalDebatePrompt = `Vyra Smart, you've responded to the challenge. This is your final opportunity in this debate.
+      // Final round - Kairo gets the last word in the debate
+      const finalDebatePrompt = `Kairo, you've responded to the challenge. This is your final opportunity in this debate.
 
 User Question: ${userMessage}
 
-Your Original Analysis: ${moonshotResponse}
+Your Original Analysis (Kairo): ${moonshotResponse}
 
-Qwen's Original Analysis: ${qwenResponse}
+Logos's Original Analysis: ${qwenResponse}
 
-Your Challenge: ${moonshotDebateResponse}
+Your Challenge to Logos: ${moonshotDebateResponse}
 
-Qwen's Defense: ${qwenDebateResponse}
+Logos's Defense: ${qwenDebateResponse}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Address Qwen's defense directly. Point out any remaining weaknesses in their argument, reinforce your position, and make your final case for why your analysis is superior. This is your closing argument in this debate.`
+Address Logos's defense directly. Point out any remaining weaknesses in their argument, reinforce your position, and make your final case for why your analysis is superior. This is your closing argument in this debate.`
       
       const finalDebateResponse = await callGroq(
         [{ role: 'user', content: finalDebatePrompt }],
@@ -1470,12 +1470,12 @@ User Question: ${userMessage}
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
 The Debate:
-Vyra Smart Position: ${moonshotText}
-Vyra Smart Position: ${qwenText}
+Kairo Position: ${moonshotText}
+Logos Position: ${qwenText}
 
-Vyra Smart Challenge: ${moonshotDebateResponse}
-Vyra Smart Defense: ${qwenDebateResponse}
-Vyra Smart Final Argument: ${finalDebateResponse}
+Kairo's Challenge: ${moonshotDebateResponse}
+Logos's Defense: ${qwenDebateResponse}
+Kairo's Final Argument: ${finalDebateResponse}
 
 Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
       
@@ -1492,17 +1492,17 @@ Based on this debate, provide the user with the most accurate answer. Acknowledg
       
     } else {
       // They agree - still show both perspectives but acknowledge consensus
-      const agreementAnalysisPrompt = `Both Vyra Smart analyses independently reached similar conclusions. Here's the consensus view:
+      const agreementAnalysisPrompt = `Both Kairo and Logos independently reached similar conclusions. Here's the consensus view:
 
 User Question: ${userMessage}
 
 ${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
 
-Vyra Smart Analysis: ${moonshotText}
+Kairo's Analysis: ${moonshotText}
 
-Vyra Smart Analysis: ${qwenText}
+Logos's Analysis: ${qwenText}
 
-Since both models independently reached the same conclusion, provide a confident, authoritative answer. But also briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
+Since both debaters independently reached the same conclusion, provide a confident, authoritative answer. But also briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: agreementAnalysisPrompt }],
