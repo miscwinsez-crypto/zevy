@@ -1,6 +1,5 @@
 'use client'
 import Image from 'next/image';
-import SearchResults from './components/SearchResults';
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
@@ -1386,8 +1385,6 @@ useEffect(() => {
         isSearch: isSearchMode,
       });
 
-      // In search mode, we still show the AI answer, but we also keep any returned search results
-      // so the UI can display them (e.g. in a modal).
       if (isSearchMode && response.data.searchResults) {
         setSearchResults(response.data.searchResults);
       }
@@ -2336,7 +2333,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         {/* Conversations List */}
         {!sidebarCollapsed && (
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {(searchQuery ? searchResults : allConversations).map((conv, idx) => {
+            {(searchQuery ? filteredConversations : allConversations).map((conv, idx) => {
               const convIdx = searchQuery ? (conv as any).idx : idx
               return (
                 <div key={convIdx} className="group">
@@ -2847,9 +2844,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   <Globe size={14} />
                   <span>{isSearchMode ? 'Vector Search On' : 'Vector'}</span>
                 </button>
-                {isSearchMode && (
-                  <span className="text-[10px]" style={{ color: palette.subdued }}>
-                    {searchLoading ? 'Searching sources…' : searchResults.length > 0 ? 'Sources found' : 'Using live web search'}
+                {isSearchMode && searchLoading && (
+                  <span className="ml-1 text-[10px] flex items-center gap-1" style={{ color: palette.subdued }}>
+                    <span>Vector is finding sources</span>
+                    <span className="flex gap-0.5">
+                      <span className="vector-dot" />
+                      <span className="vector-dot" />
+                      <span className="vector-dot" />
+                    </span>
                   </span>
                 )}
                 <div className="relative">
@@ -3302,10 +3304,6 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   </div>
 
                   <div className="p-3 rounded-lg" style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}>
-      {searchResults.length > 0 && (
-        <SearchResults results={searchResults} onClose={() => setSearchResults([])} />
-      )}
-
                     <p className="text-xs" style={{ color: palette.subdued }}>v1.0.0 • Made with 💙 by Adam Zein Ziqry</p>
                   </div>
                 </div>
