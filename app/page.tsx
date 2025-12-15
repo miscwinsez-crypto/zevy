@@ -2053,7 +2053,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
   return (
     <div 
-      className="flex w-full min-h-screen"
+      className="flex w-full h-screen"
       style={{ background: palette.background, color: palette.accent }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
