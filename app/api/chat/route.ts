@@ -1946,7 +1946,8 @@ async function handleOwnerRequest(message: string, chat_history: any[], stream: 
     return NextResponse.json({ response: articles });
   }
 
-  if (IMAGE_KEYWORDS.some(keyword => lowerCaseMessage.includes(keyword))) {
+  const isExplicitImageRequest = IMAGE_PATTERNS.some(pattern => pattern.test(message));
+  if (isExplicitImageRequest) {
     return NextResponse.json({ response: 'Image generation is not available, may be coming in future updates' });
   }
 

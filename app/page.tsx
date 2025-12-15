@@ -505,26 +505,11 @@ export default function ZevyCloudAI() {
     }
   }, [isMobile])
 
-  // Add notification
   const addNotification = (
     type: 'success' | 'error' | 'info' | 'warning',
     message: string,
     action?: { label: string; onClick: () => void }
   ) => {
-    const id = Math.random().toString(36)
-    const notification: Notification = {
-      id,
-      type,
-      message,
-      timestamp: Date.now(),
-      action
-    }
-
-    setNotifications(prev => [...prev, notification])
-
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id))
-    }, 4000)
   }
 
   const requestFilePermission = async (): Promise<boolean> => true
@@ -787,13 +772,24 @@ useEffect(() => {
     const savedMode = localStorage.getItem('zevy_mode')
     
     if (savedTrait) setTrait(savedTrait)
-    if (savedMode) setMode(savedMode as 'auto' | 'astra' | 'vyra')
+    if (savedMode === 'astra' || savedMode === 'auto') {
+      setMode(savedMode as 'auto' | 'astra')
+    }
     
     initializeUsageStats()
   }
 
   loadInitialConversations()
 }, [auth.isLoggedIn, auth.email, initializeUsageStats, API_URL])
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('zevy_mode', mode)
+      }
+    } catch {
+    }
+  }, [mode])
 
   // Fix: Update messages from conversation
   useEffect(() => {
@@ -882,7 +878,9 @@ useEffect(() => {
     }
     
     if (savedTrait) setTrait(savedTrait)
-    if (savedMode) setMode(savedMode as 'auto' | 'astra' | 'vyra')
+    if (savedMode === 'astra' || savedMode === 'auto') {
+      setMode(savedMode as 'auto' | 'astra')
+    }
     
     initializeUsageStats()
     
@@ -1158,8 +1156,10 @@ useEffect(() => {
       timestamp: new Date().toISOString()
     }
 
+    const baseMessages = isRetry ? messages : [...messages, userMessage]
+
     if (!isRetry) {
-      updateMessages([...messages, userMessage])
+      updateMessages(baseMessages)
       setInput('')
       if (inputRef.current) inputRef.current.style.height = '44px'
 
@@ -1190,10 +1190,11 @@ useEffect(() => {
         setTypingIndex(null)
         setTypingContent('')
       }
+      const calcMessages = [...baseMessages, assistantMessage]
       setDisplayedMessages(prev => [...prev, userMessage, { ...assistantMessage, content: '' }])
-      setTypingIndex(messages.length + 1)
+      setTypingIndex(baseMessages.length)
       setTypingContent(assistantMessage.content)
-      updateMessages([...messages, userMessage, assistantMessage])
+      updateMessages(calcMessages)
       setLastCalcResult(calcResult.value)
       setApiError(null)
       setLoading(false)
@@ -1282,14 +1283,14 @@ useEffect(() => {
             // Backend expects `model`, `chat_history`, `searchEnabled`.
             // Keep legacy fields too (`mode`, `conversation_history`, `webSearch`) for compatibility.
             model: actualMode,
-            chat_history: messages.map(m => ({
+            chat_history: baseMessages.map(m => ({
               role: m.role,
               content: m.content
             })),
             searchEnabled: isWebSearch,
 
             mode: actualMode,
-            conversation_history: messages.map(m => ({
+            conversation_history: baseMessages.map(m => ({
               role: m.role,
               content: m.content
             })),
@@ -1304,7 +1305,7 @@ useEffect(() => {
 
           logDiagnostics('REQUEST_PAYLOAD', { 
             messageLength: textToSend.length,
-            historyLength: messages.length,
+            historyLength: baseMessages.length,
             mode: actualMode
           })
 
@@ -1345,10 +1346,11 @@ useEffect(() => {
         setTypingIndex(null)
         setTypingContent('')
       }
+      const fullMessages = [...baseMessages, assistantMessage]
       setDisplayedMessages(prev => [...prev, userMessage, { ...assistantMessage, content: '' }])
-      setTypingIndex(messages.length + 1)
+      setTypingIndex(baseMessages.length)
       setTypingContent(assistantMessage.content || '')
-      updateMessages([...messages, userMessage, assistantMessage]);
+      updateMessages(fullMessages);
       setApiError(null)
       addNotification('success', '✅ Response received!')
     } catch (error: any) {

@@ -43,8 +43,6 @@ export function determineIntent(message: string, chatHistory: any[] = []): Deter
       needsVector: false,
       confidence: 'high',
       reason: 'Image generation request detected',
-      customResponse:
-        'Sorry, image generation is currently unavailable. This feature may be coming in future updates!',
     }
   }
 
@@ -271,4 +269,3 @@ export function determineIntent(message: string, chatHistory: any[] = []): Deter
     reason: 'Defaulting to offline reasoning; no clear need for live data',
   }
 }
-
