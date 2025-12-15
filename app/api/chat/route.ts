@@ -1125,8 +1125,13 @@ async function callGroqCompoundKnowledge(
     messages: [
       {
         role: 'system',
-        content:
-          'You are a research engine for Zevy AI. Use your tools to fetch current, real-world information and return a concise knowledge brief with key facts, dates, and sources. Do not speak as Zevy AI. Focus on summarizing evidence.',
+        content: `You are a research engine for Zevy AI. Use your tools to fetch current, real-world information and return a concise knowledge brief with key facts and dates.
+
+At the end of your answer, add a section titled "Sources" with one URL per line in the exact format:
+Source: https://example.com
+Source: https://another-site.com
+
+Do not speak as Zevy AI. Focus on summarizing evidence.`,
       },
       {
         role: 'user',
@@ -1366,16 +1371,17 @@ Previous Conversation (for context only, do NOT debate it):
 ${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}
 
 Instructions:
-- First, decide if the user's request contains a logical contradiction or paradox that makes it impossible to satisfy as written.
-- If the request is logically coherent and can be interpreted in a consistent way, reply with exactly:
+- First, decide if the user's request contains a logical contradiction, demands physically impossible outcomes (for example, backward time travel with current physics), or asks you to ignore reality.
+- If the request is logically coherent and physically possible within current scientific understanding, reply with exactly:
 OK_NO_PARADOX
 
-- If there IS a paradox or self-contradiction, DO NOT try to solve it. Instead, respond using this exact structure:
-1. Contradiction: [one concise sentence explaining what parts of the request conflict]
-2. Why It Is A Paradox: [short explanation of why these requirements cannot all be true or satisfied at once]
-3. Clarification Needed: [one or two very specific questions the user must answer to remove the paradox]
+- If there IS a paradox, self-contradiction, or a physically impossible demand, DO NOT try to satisfy it or soften the truth. Instead, respond using this exact structure:
+1. Contradiction: [one concise sentence explaining what parts of the request conflict with logic or reality]
+2. Why It Is Impossible Or A Paradox: [short explanation of why these requirements cannot all be true or satisfied at once, based on current science and logic]
+3. Blunt Conclusion: [one or two sentences stating the hard truth as directly as possible, for example "With current physics, backward time travel is impossible."]
+4. Clarification Needed: [one or two very specific questions the user must answer to remove the paradox or reframe the request in a realistic way]
 
-Do NOT include any debate, pros/cons, or implementation ideas. You are only a filter deciding if the request is logically valid.`
+Do NOT include any debate, pros/cons, or implementation ideas. You are only a filter deciding if the request is logically and physically valid, and you must always favor blunt, factual honesty over optimism.`
 
     const paradoxResult = await callGroq(
       [{ role: 'user', content: paradoxCheckPrompt }],
@@ -1415,7 +1421,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning. You may use casual language, including swear words, but only if the user has already used similar language in this conversation. Do not introduce profanity first.`
+Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning. Always favor the blunt truth over comforting answers. If the user asks for something that is impossible with current science or technology (for example, backward time travel, breaking the laws of physics, or guaranteed predictions of random events), say clearly that it is impossible right now and explain why. You may use casual language, including swear words, but only if the user has already used similar language in this conversation. Do not introduce profanity first.`
     
     const qwenAnalysisPrompt = `You are Logos, a careful and skeptical debater in the Vyra system. Analyze this question from your perspective and provide your independent assessment.
 
@@ -1425,7 +1431,7 @@ Previous Chat Context: ${debateContext}
 
 ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
-Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning. You may use casual language, including swear words, but only if the user has already used similar language in this conversation. Do not introduce profanity first.`
+Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning. Always favor the blunt truth over comforting answers. If the user asks for something that is impossible with current science or technology (for example, backward time travel, breaking the laws of physics, or guaranteed predictions of random events), say clearly that it is impossible right now and explain why. You may use casual language, including swear words, but only if the user has already used similar language in this conversation. Do not introduce profanity first.`
     
     // Get independent responses from both models
     const moonshotResponse = await callGroq(
@@ -1845,13 +1851,24 @@ export async function POST(req: NextRequest) {
       }
       const knowledgeContext = await gatherKnowledge(userMessage, knowledgeIntent)
       const sourceMatches = Array.from(
-        knowledgeContext.matchAll(/Source:\s*(https?:\/\/\S+)/gi)
+        knowledgeContext.matchAll(/(?:Source:\s*)?(https?:\/\/\S+)/gi)
       )
       if (sourceMatches.length > 0) {
-        aiSources = sourceMatches.map(match => ({
-          title: 'Source',
-          url: match[1]
-        }))
+        const seen = new Set<string>()
+        const urls = sourceMatches
+          .map(match => match[1])
+          .filter(url => {
+            if (!url) return false
+            if (seen.has(url)) return false
+            seen.add(url)
+            return true
+          })
+        if (urls.length > 0) {
+          aiSources = urls.map(url => ({
+            title: 'Source',
+            url
+          }))
+        }
       }
       const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
       const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history
