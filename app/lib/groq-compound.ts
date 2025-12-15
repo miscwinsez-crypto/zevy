@@ -398,7 +398,7 @@ export class GroqCompound {
 
       return analysis;
     } catch (error) {
-      console.error('Groq Compound browsing error:', error);
+      console.error('Vector browsing error:', error);
       return '';
     }
   }

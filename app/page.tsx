@@ -66,7 +66,6 @@ interface Message {
   content: string
   mode?: string
   timestamp?: string
-  reasoning?: string
   error?: boolean
   id?: string
   feedback?: 'positive' | 'negative'
@@ -113,7 +112,11 @@ interface AttachedFile {
   preview?: string
 }
 
-const OWNER_EMAIL = 'miscwinsez@gmail.com'
+const OWNER_EMAILS = [
+  'miscwinsez@gmail.com',
+  'noor.laily@gmail.com',
+  'azrulhadi@gmail.com'
+]
 
 const darkPalette = {
   background: '#121212', // Dark charcoal
@@ -546,7 +549,9 @@ export default function ZevyCloudAI() {
     const storedIsOwner = localStorage.getItem('zevy_is_owner')
 
     if (storedToken && storedEmail && storedUserId) {
-      const isOwner = storedIsOwner === 'true' || storedEmail === OWNER_EMAIL
+      const isOwner =
+        storedIsOwner === 'true' ||
+        (storedEmail ? OWNER_EMAILS.includes(storedEmail) : false)
       setAuth({
         isLoggedIn: true,
         userId: storedUserId,
@@ -1358,8 +1363,7 @@ useEffect(() => {
         role: 'assistant',
         content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
         mode: response.data.mode_used || actualMode,
-        timestamp: new Date().toISOString(),
-        reasoning: response.data.reasoning
+        timestamp: new Date().toISOString()
       };
       if (typingIndex !== null) {
         setTypingIndex(null)
@@ -1684,7 +1688,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         { timeout: 10000 }
       )
       
-      const isOwner = Boolean(response.data.is_owner) || response.data.email === OWNER_EMAIL
+      const isOwner =
+        Boolean(response.data.is_owner) ||
+        (response.data.email ? OWNER_EMAILS.includes(response.data.email) : false)
       setAuth({
         isLoggedIn: true,
         userId: response.data.user_id,

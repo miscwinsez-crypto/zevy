@@ -35,7 +35,11 @@ const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 const GROQ_COMPOUND_MODEL = 'groq/compound'
 const GROQ_COMPOUND_MINI_MODEL = 'groq/compound-mini'
 
-const OWNER_EMAIL = 'miscwinsez@gmail.com'
+const OWNER_EMAILS = [
+  'miscwinsez@gmail.com',
+  'noor.laily@gmail.com',
+  'azrulhadi@gmail.com'
+]
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
   const searchStatus = searchEnabled
@@ -49,7 +53,7 @@ Current time: ${currentTime} (${timezone}).
 ${searchStatus}
 
 YOUR SYSTEMS:
-1. Astra: research and factual intelligence. Uses Vector, the live knowledge core, which aggregates Groq Compound, Wikipedia, news, RSS feeds, and open data sources such as World Bank, NASA, and other free APIs.
+1. Astra: research and factual intelligence. Uses Vector, the live knowledge core, which aggregates web search, Wikipedia, news, RSS feeds, and open data sources such as World Bank, NASA, and other free APIs.
 2. Vyra: debate and multi-perspective reasoning. Uses two internal experts with access to the same knowledge context when available.
 
 HOW YOU WORK:
@@ -77,6 +81,7 @@ CONVERSATION STYLE:
 - If you do not know something, say you do not know instead of guessing.
 - Keep responses detailed but easy to understand: prefer simple language, avoid unnecessary jargon, and explain any symbols or equations briefly.
 - Always refer to yourself as Zevy AI. Do not call yourself ChatGPT or any other product name.
+- Do not add explicit sections labelled "Reasoning", "Thought Process", or similar unless the user clearly asks to see your reasoning.
 - After every response, end with a short follow-up question that invites the user to continue, such as "Would you like me to go deeper into any part of this?" or a question tailored to what they asked.
 `;
 }
@@ -900,7 +905,7 @@ Image generation is currently unavailable but may be added in future updates.`
       try {
         const compoundKnowledge = await callGroqCompoundKnowledge(userMessage, GROQ_COMPOUND_MODEL)
         if (compoundKnowledge && !isBackendFailureMessage(compoundKnowledge) && compoundKnowledge.length > 50) {
-          knowledgeParts.push(`Groq Compound:\n${compoundKnowledge}`)
+          knowledgeParts.push(`Vector Research:\n${compoundKnowledge}`)
         }
       } catch (error) {
       }
@@ -908,7 +913,7 @@ Image generation is currently unavailable but may be added in future updates.`
       try {
         const miniKnowledge = await callGroqCompoundKnowledge(userMessage, GROQ_COMPOUND_MINI_MODEL)
         if (miniKnowledge && !isBackendFailureMessage(miniKnowledge) && miniKnowledge.length > 50) {
-          knowledgeParts.push(`Groq Compound Mini:\n${miniKnowledge}`)
+          knowledgeParts.push(`Vector Research (Compact):\n${miniKnowledge}`)
         }
       } catch (error) {
       }
@@ -1547,10 +1552,7 @@ Kairo's Final Argument: ${finalDebateResponse}
 
 Based on this debate, provide the user with the most accurate answer.
 
-For your output, use this exact structure:
-1. Final Answer: [one clear, direct answer to the user's question]
-2. Reasoning: [a short explanation that references the Kairo and Logos perspectives where helpful]
-3. Follow-up Question: [one thoughtful follow-up question the user could explore next about this topic]`
+For your output, respond as a single, polished answer for the user. Integrate any useful points from the Kairo and Logos debate into one continuous response. Do not include explicit section labels like "Final Answer", "Reasoning", or "Follow-up Question" unless the user specifically requests that structure.`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: finalSynthesisPrompt }],
@@ -1574,12 +1576,7 @@ Kairo's Analysis: ${moonshotText}
 
 Logos's Analysis: ${qwenText}
 
-Since both debaters independently reached the same conclusion, provide a confident, authoritative answer.
-
-For your output, use this exact structure:
-1. Final Answer: [one clear, direct answer to the user's question]
-2. Reasoning: [a short explanation that references how Kairo and Logos agreed, and why that supports the answer]
-3. Follow-up Question: [one thoughtful follow-up question the user could explore next about this topic]`
+Since both debaters independently reached the same conclusion, provide a confident, authoritative answer in a single, well-structured response. Do not include explicit section labels like "Final Answer", "Reasoning", or "Follow-up Question" unless the user specifically asks for them.`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: agreementAnalysisPrompt }],
@@ -1738,7 +1735,9 @@ export async function POST(req: NextRequest) {
   }
 
   const ownerFromSession = await isOwner(session)
-  const isOwnerUser = ownerFromSession || (requestEmail && requestEmail === OWNER_EMAIL)
+  const isOwnerUser =
+    ownerFromSession ||
+    (requestEmail !== undefined && OWNER_EMAILS.includes(requestEmail))
 
   if (isOwnerUser) {
     const ownerResponse = await handleOwnerRequest(message, chat_history, stream, current_time, timezone)
@@ -1949,7 +1948,8 @@ export async function POST(req: NextRequest) {
 }
 
 async function isOwner(session: any): Promise<boolean> {
-  return session?.user?.email === OWNER_EMAIL;
+  const email = session?.user?.email as string | undefined
+  return !!email && OWNER_EMAILS.includes(email)
 }
 
 async function handleOwnerRequest(message: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<NextResponse | null> {

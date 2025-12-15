@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const OWNER_EMAIL = 'miscwinsez@gmail.com'
+const OWNER_EMAILS = [
+  'miscwinsez@gmail.com',
+  'noor.laily@gmail.com',
+  'azrulhadi@gmail.com'
+]
 
 // Simple rate limiting (in production, use Redis)
 const loginAttempts = new Map<string, { count: number; resetTime: number }>()
@@ -62,7 +66,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const isOwner = email === OWNER_EMAIL;
+    const isOwner = OWNER_EMAILS.includes(email);
     
     // Demo response - Replace with actual Supabase auth when configured
     const userId = `user_${Buffer.from(email).toString('base64').slice(0, 16)}`
