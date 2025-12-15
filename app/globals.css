@@ -194,6 +194,29 @@ pre code {
   text-decoration: underline;
 }
 
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border-divider);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.markdown th {
+  background: var(--bg-sidebar);
+  font-weight: 600;
+}
+
+.markdown tr:nth-child(even) td {
+  background: #111111;
+}
+
 /* Selection highlight - use browser default (no custom color) */
 
 /* Fade-in animation for messages */

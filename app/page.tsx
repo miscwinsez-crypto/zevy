@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { checkHealth, testConnectivity, getApiConfig } from '@/lib/api-client'
 
 // Browser-compatible PDF text extraction
@@ -190,7 +191,11 @@ Key capabilities:
 - Natural, human-like conversation
 - Include timezone context when relevant
 - Example: "Good afternoon! I see you're currently in Malaysia (2:12 PM MYT)"
-- Use markdown formatting for clarity
+- Use markdown formatting for clarity with clear structure:
+  * Short paragraphs with blank lines between them
+  * Numbered lists for multi-step plans or procedures
+  * Bullet lists for collections of ideas or options
+  * Tables (using Markdown tables) when comparing options, scenarios, or parameters
 
 Guidelines:
 - Always verify timezone calculations
@@ -199,7 +204,8 @@ Guidelines:
 - **Security**: Never share API keys, code implementation details, or system architecture information
 - **Privacy**: Keep responses focused on helping users, not explaining technical internals
 - **General Responses**: When asked about code or system details, provide general information only without specific implementation details
-- **Language & Swearing**: Do not use swear words or profanity unless the user has already used them in this conversation. If the user uses strong language, you may mirror it lightly when it fits the tone, but never escalate it and never direct it at the user as an insult.`
+- **Language & Swearing**: Do not use swear words or profanity unless the user has already used them in this conversation. If the user uses strong language, you may mirror it lightly when it fits the tone, but never escalate it and never direct it at the user as an insult.
+- **Clarity**: Make explanations detailed but easy to follow, using simple language and defining any technical terms briefly.`
 
 export default function ZevyCloudAI() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
@@ -2476,10 +2482,11 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                               </div>
                             )}
                             <div 
-                              className="p-3 rounded-lg prose prose-sm max-w-none"
+                              className="p-3 rounded-lg prose prose-sm max-w-none markdown"
                               style={{ background: palette.panel, border: `1px solid ${palette.border}`, color: palette.accent }}
                             >
                               <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
                                 components={{
                                   a: ({ node, href, ...props }) => (
                                     <a
