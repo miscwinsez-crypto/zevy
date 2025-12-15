@@ -113,6 +113,8 @@ interface AttachedFile {
   preview?: string
 }
 
+const OWNER_EMAIL = 'miscwinsez@gmail.com'
+
 const darkPalette = {
   background: '#121212', // Dark charcoal
   sidebar: '#1e1e1e', // Slightly lighter than background
@@ -544,12 +546,13 @@ export default function ZevyCloudAI() {
     const storedIsOwner = localStorage.getItem('zevy_is_owner')
 
     if (storedToken && storedEmail && storedUserId) {
+      const isOwner = storedIsOwner === 'true' || storedEmail === OWNER_EMAIL
       setAuth({
         isLoggedIn: true,
         userId: storedUserId,
         email: storedEmail,
         token: storedToken,
-        isOwner: storedIsOwner === 'true'
+        isOwner
       })
     }
   }, [])
@@ -885,7 +888,14 @@ useEffect(() => {
 
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }
 
   const updateMessages = (newMessages: Message[]) => {
@@ -1674,18 +1684,19 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         { timeout: 10000 }
       )
       
+      const isOwner = Boolean(response.data.is_owner) || response.data.email === OWNER_EMAIL
       setAuth({
         isLoggedIn: true,
         userId: response.data.user_id,
         email: response.data.email,
         token: response.data.token,
-        isOwner: Boolean(response.data.is_owner)
+        isOwner
       })
       
       localStorage.setItem('zevy_token', response.data.token)
       localStorage.setItem('zevy_user_id', response.data.user_id)
       localStorage.setItem('zevy_email', response.data.email)
-      localStorage.setItem('zevy_is_owner', String(Boolean(response.data.is_owner)))
+      localStorage.setItem('zevy_is_owner', String(isOwner))
       
       setAuthForm({ email: '', password: '', showPassword: false })
       setShowSettings(false)

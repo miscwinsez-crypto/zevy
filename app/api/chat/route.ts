@@ -20,8 +20,7 @@ import {
   googleApiKey1,
   googleSearchEngineId,
   newsApiKey1,
-  newsApiKey2,
-  nextPublicOwnerEmail
+  newsApiKey2
 } from '@/app/lib/env';
 import { determineIntent } from '@/app/lib/intent-router'
 
@@ -36,7 +35,7 @@ const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 const GROQ_COMPOUND_MODEL = 'groq/compound'
 const GROQ_COMPOUND_MINI_MODEL = 'groq/compound-mini'
 
-const OWNER_EMAIL = nextPublicOwnerEmail || 'miscwinsez@gmail.com'
+const OWNER_EMAIL = 'miscwinsez@gmail.com'
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
   const searchStatus = searchEnabled

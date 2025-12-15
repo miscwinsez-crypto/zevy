@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { nextPublicOwnerEmail } from '@/app/lib/env'
+
+const OWNER_EMAIL = 'miscwinsez@gmail.com'
 
 // Simple rate limiting (in production, use Redis)
 const loginAttempts = new Map<string, { count: number; resetTime: number }>()
@@ -61,8 +62,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const ownerEmail = nextPublicOwnerEmail || 'miscwinsez@gmail.com'
-    const isOwner = email === ownerEmail;
+    const isOwner = email === OWNER_EMAIL;
     
     // Demo response - Replace with actual Supabase auth when configured
     const userId = `user_${Buffer.from(email).toString('base64').slice(0, 16)}`
