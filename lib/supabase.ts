@@ -24,10 +24,10 @@ if (supabaseUrl && supabaseAnonKey) {
 export const supabase = supabaseClient
 
 export interface Conversation {
-  id?: string;
-  user_email: string;
-  trait: string;
-  messages: string[];
-  created_at?: string;
-  updated_at: string;
+  id?: string
+  user_email: string
+  trait: string
+  messages: any[]
+  created_at?: string
+  updated_at: string
 }

@@ -790,39 +790,117 @@ const initializeUsageStats = useCallback(() => {
 
 // useEffect - Initialize conversations with auth
 useEffect(() => {
-  if (!auth.isLoggedIn) {
-    const newId = generateConvId()
-    setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
-    setMessages([])
-    return
-  }
-
-  const savedConversations = localStorage.getItem(`zevy_conversations_${auth.email}`)
-  const savedTrait = localStorage.getItem('zevy_trait')
-  const savedMode = localStorage.getItem('zevy_mode')
-  
-  if (savedConversations) {
-    try {
-      const parsed = JSON.parse(savedConversations)
-      setAllConversations(parsed)
-      if (parsed.length > 0) {
-        setMessages(parsed[0].messages)
-      }
-    } catch (e) {
+  const loadInitialConversations = async () => {
+    if (!auth.isLoggedIn) {
       const newId = generateConvId()
       setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
       setMessages([])
+      return
     }
-  } else {
-    const newId = generateConvId()
-    setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
-    setMessages([])
+
+    try {
+      const response = await fetch(normalizeUrl(API_URL, '/api/chat?history=1'), {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (Array.isArray(data.conversations) && data.conversations.length > 0) {
+          const mappedConversations: ConversationData[] = data.conversations.map((conv: any, index: number) => {
+            const messages = Array.isArray(conv.messages) ? conv.messages : []
+            let name = `Chat ${index + 1}`
+            const firstUserMessage = messages.find((m: any) => m.role === 'user')?.content
+            if (typeof firstUserMessage === 'string' && firstUserMessage.trim().length > 0) {
+              name = autoRenameChat(firstUserMessage)
+            }
+            return {
+              id: conv.id || generateConvId(),
+              name,
+              messages: messages.map((m: any) => ({
+                role: m.role,
+                content: m.content,
+                timestamp: m.timestamp || new Date().toISOString(),
+              })),
+              lastUpdated: conv.updated_at || new Date().toISOString(),
+            }
+          })
+
+          setAllConversations(mappedConversations)
+          if (mappedConversations.length > 0) {
+            setMessages(mappedConversations[0].messages)
+          }
+        } else {
+          const savedConversations = localStorage.getItem(`zevy_conversations_${auth.email}`)
+          if (savedConversations) {
+            try {
+              const parsed = JSON.parse(savedConversations)
+              setAllConversations(parsed)
+              if (parsed.length > 0) {
+                setMessages(parsed[0].messages)
+              }
+            } catch {
+              const newId = generateConvId()
+              setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
+              setMessages([])
+            }
+          } else {
+            const newId = generateConvId()
+            setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
+            setMessages([])
+          }
+        }
+      } else {
+        const savedConversations = localStorage.getItem(`zevy_conversations_${auth.email}`)
+        if (savedConversations) {
+          try {
+            const parsed = JSON.parse(savedConversations)
+            setAllConversations(parsed)
+            if (parsed.length > 0) {
+              setMessages(parsed[0].messages)
+            }
+          } catch {
+            const newId = generateConvId()
+            setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
+            setMessages([])
+          }
+        } else {
+          const newId = generateConvId()
+          setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
+          setMessages([])
+        }
+      }
+    } catch {
+      const savedConversations = localStorage.getItem(`zevy_conversations_${auth.email}`)
+      if (savedConversations) {
+        try {
+          const parsed = JSON.parse(savedConversations)
+          setAllConversations(parsed)
+          if (parsed.length > 0) {
+            setMessages(parsed[0].messages)
+          }
+        } catch {
+          const newId = generateConvId()
+          setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
+          setMessages([])
+        }
+      } else {
+        const newId = generateConvId()
+        setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
+        setMessages([])
+      }
+    }
+
+    const savedTrait = localStorage.getItem('zevy_trait')
+    const savedMode = localStorage.getItem('zevy_mode')
+    
+    if (savedTrait) setTrait(savedTrait)
+    if (savedMode) setMode(savedMode as 'auto' | 'astra' | 'vyra')
+    
+    initializeUsageStats()
   }
-  
-  if (savedTrait) setTrait(savedTrait)
-  if (savedMode) setMode(savedMode as 'auto' | 'astra' | 'vyra')
-  
-  initializeUsageStats()
+
+  loadInitialConversations()
 }, [auth.isLoggedIn, auth.email, initializeUsageStats])
 
   // Fix: Update messages from conversation

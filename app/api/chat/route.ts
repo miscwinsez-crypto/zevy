@@ -926,6 +926,49 @@ Image generation is currently unavailable but may be added in future updates.`
 
 // Health check endpoint
 export async function GET(request: NextRequest) {
+  const url = new URL(request.url)
+  const history = url.searchParams.get('history')
+  const chatId = url.searchParams.get('chat_id')
+
+  if (history === '1' || history === 'true') {
+    try {
+      const supabase = await createSupabaseClient()
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        return NextResponse.json({ conversations: [] }, { status: 200 })
+      }
+
+      const userEmail = session.user.email as string | undefined
+      if (!userEmail) {
+        return NextResponse.json({ conversations: [] }, { status: 200 })
+      }
+
+      let query = supabase
+        .from('conversations')
+        .select('*')
+        .eq('user_email', userEmail)
+        .order('updated_at', { ascending: false })
+
+      if (chatId) {
+        query = query.eq('id', chatId)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        console.error('Error fetching conversation history:', error.message)
+        return NextResponse.json({ conversations: [] }, { status: 500 })
+      }
+
+      return NextResponse.json({ conversations: data || [] }, { status: 200 })
+    } catch (error: any) {
+      console.error('Unexpected error in chat history GET:', error.message || error)
+      return NextResponse.json({ conversations: [] }, { status: 500 })
+    }
+  }
+
   try {
     if (process.env.NODE_ENV !== 'development') {
       assertVercelOnly()
@@ -939,7 +982,6 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Test all API connections
     const testResults = {
       groq: await testGroqConnection(),
       flux: await testFluxConnection(),
@@ -1567,6 +1609,7 @@ export async function POST(req: NextRequest) {
   const {
     message,
     chat_history = [],
+    trait,
     model = 'astra',
     stream = false,
     current_time,
@@ -1754,6 +1797,39 @@ export async function POST(req: NextRequest) {
   // Increment usage if not streaming (streaming will handle it separately) - only for authenticated users
   if (!stream && typeof aiResponse === 'string' && session) {
     await incrementUserUsage(userId, modelType)
+  }
+
+  if (!stream && typeof aiResponse === 'string' && session && chat_id) {
+    try {
+      const userEmail = session.user.email as string | undefined
+      if (userEmail) {
+        const messagesToSave = [
+          ...chat_history,
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: aiResponse }
+        ]
+        const traitValue = typeof trait === 'string' && trait.trim().length > 0 ? trait : null
+        const { error: saveError } = await (supabase as any)
+          .from('conversations')
+          .upsert(
+            {
+              id: chat_id,
+              user_email: userEmail,
+              trait: traitValue,
+              messages: messagesToSave,
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict: 'id',
+            }
+          )
+        if (saveError) {
+          console.error('Failed to save conversation history:', saveError.message)
+        }
+      }
+    } catch (error: any) {
+      console.error('Error while saving conversation history:', error.message || error)
+    }
   }
 
   if (stream) {
