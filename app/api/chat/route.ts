@@ -36,6 +36,8 @@ const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 const GROQ_COMPOUND_MODEL = 'groq/compound'
 const GROQ_COMPOUND_MINI_MODEL = 'groq/compound-mini'
 
+const OWNER_EMAIL = nextPublicOwnerEmail || 'miscwinsez@gmail.com'
+
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
   const searchStatus = searchEnabled
     ? 'Search is currently ON. You can access real-time information from the web through Vector and other open data sources.'
@@ -1314,6 +1316,34 @@ async function generateVyraSmartDebate(
   searchEnabled: boolean = false
 ): Promise<string | ReadableStream> {
   try {
+    const intent = determineIntent(userMessage, chat_history)
+
+    if (intent.customResponse) {
+      return intent.customResponse
+    }
+
+    const normalizedMessage = userMessage.toLowerCase().trim()
+    const isShortConversational =
+      intent.isConversational &&
+      !intent.needsVector &&
+      normalizedMessage.length < 80
+
+    if (isShortConversational) {
+      const quickChatPrompt = `You are Vyra, a debate-style assistant, but the user is just making a short, casual or simple request.\n\nUser Message: ${userMessage}\n\nPrevious Conversation:\n${chat_history
+        .map(m => `${m.role}: ${m.content}`)
+        .join('\n')}\n\nRespond briefly and naturally in 1–3 short sentences. Do not start a full debate or over-explain; keep it light and fast while still being helpful.`
+
+      return await callGroq(
+        [{ role: 'user', content: quickChatPrompt }],
+        VYRA_MODEL_MOONSHOT,
+        stream,
+        current_time || new Date().toLocaleString(),
+        timezone || 'UTC',
+        undefined,
+        true
+      )
+    }
+
     const paradoxCheckPrompt = `You are a first-principles reasoning engine sitting in front of a debate system.
 
 Your ONLY job is to inspect the user's request for logical incoherence, self-contradiction, or paradoxes BEFORE any debate happens.
@@ -1355,8 +1385,6 @@ Do NOT include any debate, pros/cons, or implementation ideas. You are only a fi
       return paradoxResult
     }
 
-    const intent = determineIntent(userMessage, chat_history)
-    
     const knowledgeContext = await gatherKnowledge(userMessage, {
       shouldSearch: intent.needsVector,
       confidence: intent.confidence,
@@ -1711,7 +1739,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ownerFromSession = await isOwner(session)
-  const isOwnerUser = ownerFromSession || (requestEmail && requestEmail === nextPublicOwnerEmail)
+  const isOwnerUser = ownerFromSession || (requestEmail && requestEmail === OWNER_EMAIL)
 
   if (isOwnerUser) {
     const ownerResponse = await handleOwnerRequest(message, chat_history, stream, current_time, timezone)
@@ -1922,7 +1950,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function isOwner(session: any): Promise<boolean> {
-  return session?.user?.email === nextPublicOwnerEmail;
+  return session?.user?.email === OWNER_EMAIL;
 }
 
 async function handleOwnerRequest(message: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<NextResponse | null> {

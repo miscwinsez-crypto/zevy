@@ -516,6 +516,18 @@ export default function ZevyCloudAI() {
     message: string,
     action?: { label: string; onClick: () => void }
   ) => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const notification: Notification = {
+      id,
+      type,
+      message,
+      timestamp: Date.now(),
+      action
+    }
+    setNotifications(prev => [...prev, notification])
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id))
+    }, 5000)
   }
 
   const requestFilePermission = async (): Promise<boolean> => true
@@ -655,11 +667,32 @@ const initializeUsageStats = useCallback(() => {
   
   if (savedStats) {
     try {
-      const stats = JSON.parse(savedStats)
+      const stats = JSON.parse(savedStats) as any
       const savedDate = new Date(stats.lastReset)
+      const desiredLimits = { astra: 125, vyra: 25 }
+      const needsLimitUpdate =
+        !stats.astra ||
+        !stats.vyra ||
+        stats.astra.limit !== desiredLimits.astra ||
+        stats.vyra.limit !== desiredLimits.vyra
       
       if (now.getTime() - savedDate.getTime() >= 86400000) {
         resetUsageStats()
+      } else if (needsLimitUpdate) {
+        const updatedStats: UsageStats = {
+          astra: {
+            used: Math.min(stats.astra?.used ?? 0, desiredLimits.astra),
+            limit: desiredLimits.astra,
+            resetTime: stats.astra?.resetTime ?? new Date(now.getTime() + 86400000).toLocaleTimeString(),
+          },
+          vyra: {
+            used: Math.min(stats.vyra?.used ?? 0, desiredLimits.vyra),
+            limit: desiredLimits.vyra,
+            resetTime: stats.vyra?.resetTime ?? new Date(now.getTime() + 86400000).toLocaleTimeString(),
+          },
+        }
+        setUsageStats(updatedStats)
+        localStorage.setItem(statsKey, JSON.stringify({ ...updatedStats, lastReset: savedDate }))
       } else {
         setUsageStats(stats)
       }
@@ -671,7 +704,6 @@ const initializeUsageStats = useCallback(() => {
   }
 }, [auth.email, auth.isOwner, resetUsageStats])
 
-// useEffect - Initialize conversations with auth
 useEffect(() => {
   const loadInitialConversations = async () => {
     if (!auth.isLoggedIn) {
@@ -783,6 +815,7 @@ useEffect(() => {
     }
     
     initializeUsageStats()
+    localStorage.removeItem('zevy_conversations_guest')
   }
 
   loadInitialConversations()
@@ -810,8 +843,7 @@ useEffect(() => {
   useEffect(() => {
     setDisplayedMessages(messages)
   }, [messages])
-
-  // Save conversations to localStorage when they change (for both logged-in and guest users)
+ 
   useEffect(() => {
     if (allConversations.length > 0) {
       const storageKey = auth.isLoggedIn 
@@ -820,8 +852,7 @@ useEffect(() => {
       localStorage.setItem(storageKey, JSON.stringify(allConversations))
     }
   }, [allConversations, auth.isLoggedIn, auth.email])
-
-  // Load guest conversations on mount
+ 
   useEffect(() => {
     if (!auth.isLoggedIn) {
       const savedGuestConversations = localStorage.getItem('zevy_conversations_guest')
@@ -838,9 +869,7 @@ useEffect(() => {
       }
     }
   }, [auth.isLoggedIn])
-
-  
-
+ 
   const updateUsageStats = (engine: 'astra' | 'vyra') => {
     if (auth.isOwner) return
     if (!usageStats) return
@@ -852,47 +881,6 @@ useEffect(() => {
     setUsageStats(updated)
     localStorage.setItem(`zevy_usage_${auth.email}`, JSON.stringify({ ...updated, lastReset: new Date() }))
   }
-
-  useEffect(() => {
-    if (!auth.isLoggedIn) {
-      const newId = generateConvId()
-      setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
-      setMessages([])
-      return
-    }
-
-    const savedConversations = localStorage.getItem(`zevy_conversations_${auth.email}`)
-    const savedTrait = localStorage.getItem('zevy_trait')
-    const savedMode = localStorage.getItem('zevy_mode')
-    
-    if (savedConversations) {
-      try {
-        const parsed = JSON.parse(savedConversations)
-        setAllConversations(parsed)
-        if (parsed.length > 0) {
-          setMessages(parsed[0].messages)
-        }
-      } catch (e) {
-        const newId = generateConvId()
-        setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
-        setMessages([])
-      }
-    } else {
-      const newId = generateConvId()
-      setAllConversations([{ id: newId, name: 'Chat 1', messages: [] }])
-      setMessages([])
-    }
-    
-    if (savedTrait) setTrait(savedTrait)
-    if (savedMode === 'astra' || savedMode === 'auto') {
-      setMode(savedMode as 'auto' | 'astra')
-    }
-    
-    initializeUsageStats()
-    
-    // Clear guest conversations when user logs in
-    localStorage.removeItem('zevy_conversations_guest')
-  }, [auth.isLoggedIn, auth.email, initializeUsageStats])
 
 
 
@@ -1145,6 +1133,30 @@ useEffect(() => {
     if (!hasText && !hasFiles) return
     if (loading) return
 
+    const hasComplexFiles = attachedFiles.some(file => 
+      file.name.endsWith('.csv') || 
+      file.name.endsWith('.rtf') || 
+      file.name.endsWith('.md') || 
+      file.name.endsWith('.docx') || 
+      file.name.endsWith('.pdf')
+    )
+
+    const actualMode = hasComplexFiles ? 'astra' : mode
+
+    if (!auth.isOwner && usageStats) {
+      const engine = (actualMode === 'vyra' ? 'vyra' : 'astra') as 'astra' | 'vyra'
+      const statsForEngine = usageStats[engine]
+      if (statsForEngine.used >= statsForEngine.limit) {
+        const engineName = engine === 'vyra' ? 'Vyra' : 'Astra'
+        addNotification(
+          'error',
+          `You have reached your daily limit of ${statsForEngine.limit} uses for ${engineName}. Please come back in 24 hours.`
+        )
+        setNetworkStatus('online')
+        return
+      }
+    }
+
     const textToSend = hasText
       ? baseText
       : 'Please analyze the attached document(s) and answer based on them.'
@@ -1251,15 +1263,6 @@ useEffect(() => {
       setNetworkStatus('online')
 
       // Force Maverick model when processing complex file types (CSV, RTF, Markdown, DOCX, PDF)
-      const hasComplexFiles = attachedFiles.some(file => 
-        file.name.endsWith('.csv') || 
-        file.name.endsWith('.rtf') || 
-        file.name.endsWith('.md') || 
-        file.name.endsWith('.docx') || 
-        file.name.endsWith('.pdf')
-      )
-      
-      const actualMode = hasComplexFiles ? 'astra' : mode
       updateUsageStats(actualMode as 'astra' | 'vyra')
 
       logDiagnostics('SENDING_REQUEST', { mode: actualMode, messageLength: textToSend.length, isRetry })
@@ -2039,7 +2042,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
   return (
     <div 
-      className="flex h-screen w-full"
+      className="flex w-full min-h-screen"
       style={{ background: palette.background, color: palette.accent }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -2339,7 +2342,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         >
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <div className="w-full max-w-2xl lg:max-w-3xl mx-auto px-3 sm:px-0">
+              <div className="w-full max-w-3xl lg:max-w-4xl mx-auto px-3 sm:px-0">
                 <div
                   className="rounded-2xl sm:rounded-3xl px-4 sm:px-8 lg:px-10 py-6 sm:py-8 lg:py-10 shadow-[0_18px_60px_rgba(0,0,0,0.7)] border space-y-6 sm:space-y-8"
                   style={{

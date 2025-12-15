@@ -1,0 +1,82 @@
+Zevy AI - Feature List
+
+1. Core Chat Experience
+- Natural, human-like chat interface similar to ChatGPT / Kimi.
+- Dual engine intelligence: Astra (fast research/answers) and Vyra (deep, debate-style reasoning).
+- Supports detailed, structured responses with headings, bullet lists, numbered lists, and tables.
+- Timezone-aware replies: references your local time and can reason about time differences between locations.
+
+2. Conversation Management
+- Multiple conversation threads with names and a sidebar for switching between chats.
+- Conversation search in the sidebar to quickly find previous chats.
+- Persistent conversation history stored in Supabase for logged-in users.
+- LocalStorage-based history for guest users (no login required).
+- Per-conversation error tracking and inline error banner with a "Retry" button.
+- Ability to start a fresh chat at any time with "New Chat".
+
+3. Web Search and Knowledge
+- Optional vector/web search mode for live information when enabled.
+- Integrates with Groq Compound and open data sources (Wikipedia, news RSS, NASA, etc.) via the backend.
+- Intent routing detects when live data is needed vs. when offline reasoning is enough.
+
+4. Document and File Support
+- Drag-and-drop and file picker support for text-based documents.
+- Handles plain text (.txt), PDF, DOCX, Markdown (.md), CSV, and RTF files.
+- Extracts and truncates text to a safe length for analysis on the server.
+- Shows upload progress and notifications for accepted/rejected files.
+- Image files are detected and rejected with a user-facing notification (currently text-focused).
+
+5. Answer Formatting and Tables
+- Renders assistant messages using Markdown with spacing and typography styles.
+- GitHub-flavored Markdown (GFM) support for:
+  - Tables
+  - Task lists
+  - Strikethrough
+- Custom CSS styling for tables: bordered grid layout, header background, and row striping.
+- Superscript support and inline code / code block styling.
+
+6. Usage Limits and Analytics
+- Per-user daily usage tracking for Astra and Vyra, stored in Supabase.
+- Different limits for Astra (higher) and Vyra (lower, deeper reasoning).
+- Local usage display showing used/remaining counts per engine in the UI.
+- Optional analytics dashboard component to show feature usage per user.
+
+7. Authentication and Ownership
+- Demo email/password login with basic validation and rate limiting.
+- Owner detection based on a specific email address, unlocking higher limits or special behavior.
+- Logout flow that clears auth state and resets conversations appropriately.
+- Supabase OAuth callback route wired for future real authentication.
+
+8. Personalization and Settings
+- Dedicated Settings page accessible from the main chat UI.
+- Theme customization: switch between dark and light palettes and tweak look and feel.
+- Trait / personality customization so Zevy can adapt its style (e.g., more technical or more casual).
+- About section describing Zevy, its creator, and core values.
+- Social links for Zevy and the creator (Instagram, X/Twitter, Reddit, etc.).
+- In-app settings drawer on the main page with tabs (Account, Appearance, About).
+
+9. Notifications and UX Details
+- In-app notification system for success, error, info, and warning messages (top-right toasts).
+- Drag-and-drop overlay when files are being dragged over the window.
+- Scroll-to-bottom button when the chat is scrolled up.
+- Typing effect for streaming assistant responses.
+- Copy-to-clipboard action for each assistant message.
+- Like/dislike and regenerate buttons on assistant messages (UI hooks ready).
+
+10. Safety and Moderation
+- Backend moderation check using a guard model before processing user messages.
+- Content filtering for disallowed or unsafe queries, returning friendly safety messages.
+- Strict environment variable handling to avoid accidental secret leaks.
+
+11. Health and Infrastructure
+- `/api/health` endpoint that checks Vercel environment and Supabase connectivity.
+- Additional health checks in `/api/chat` for Groq and other backends.
+- Integration with Vercel Analytics and Speed Insights for performance and usage monitoring.
+
+12. Extra Pages and Features
+- Quiz page (`/quiz`) that can generate simple quizzes based on topic/grade/difficulty selections.
+- Settings page (`/settings`) with independent layout and design.
+- Support for mobile and desktop layouts with responsive Tailwind + custom CSS.
+
+These features are based on the current codebase under `app/` and `lib/` as of this snapshot. Future changes to the code may add or modify capabilities.
+
