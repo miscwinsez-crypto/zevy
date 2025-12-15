@@ -69,6 +69,9 @@ interface Message {
   error?: boolean
   id?: string
   feedback?: 'positive' | 'negative'
+  humanized?: boolean
+  humanScore?: number
+  sources?: { title: string; url: string }[]
 }
 
 interface ConversationData {
@@ -217,6 +220,7 @@ export default function ZevyCloudAI() {
   const palette = theme === 'dark' ? darkPalette : lightPalette;
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   
   // Enhanced time detection state
   const [userTimezone, setUserTimezone] = useState<string>(() => {
@@ -630,7 +634,12 @@ export default function ZevyCloudAI() {
 
   // Effects - All at top level
   useEffect(() => {
-    scrollToBottom()
+    if (!chatContainerRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current
+    const isNearBottom = scrollHeight - (scrollTop + clientHeight) < 80
+    if (isNearBottom) {
+      scrollToBottom()
+    }
   }, [displayedMessages])
 
   useEffect(() => {
@@ -649,6 +658,20 @@ export default function ZevyCloudAI() {
   }, [])
 
   const generateConvId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+  const stripMarkdown = (text: string): string => {
+    let result = text
+    result = result.replace(/^#{1,6}\s+/gm, '')
+    result = result.replace(/\*\*(.*?)\*\*/g, '$1')
+    result = result.replace(/__(.*?)__/g, '$1')
+    result = result.replace(/_(.*?)_/g, '$1')
+    result = result.replace(/\*(.*?)\*/g, '$1')
+    result = result.replace(/`([^`]+)`/g, '$1')
+    result = result.replace(/^\s*[-*+]\s+/gm, '')
+    result = result.replace(/^\s*\d+\.\s+/gm, '')
+    result = result.replace(/\[(.*?)\]\((.*?)\)/g, '$1 ($2)')
+    return result
+  }
 
 const resetUsageStats = useCallback(() => {
   if (auth.isOwner) {
@@ -722,7 +745,13 @@ useEffect(() => {
     }
 
     try {
-      const response = await fetch(normalizeUrl(API_URL, '/api/chat?history=1'), {
+      const baseHistoryUrl = normalizeUrl(API_URL, '/api/chat?history=1')
+      const historyUrl =
+        auth.email && auth.email !== 'guest'
+          ? `${baseHistoryUrl}&email=${encodeURIComponent(auth.email)}`
+          : baseHistoryUrl
+
+      const response = await fetch(historyUrl, {
         method: 'GET',
         credentials: 'include',
       })
@@ -1235,6 +1264,10 @@ useEffect(() => {
     }
 
     setLoading(true)
+    if (isSearchMode) {
+      setSearchLoading(true)
+      setSearchResults([])
+    }
 
     const isImageGen = ['generate', 'make', 'create', 'draw', 'image', 'picture', 'photo'].some(
       word => textToSend.toLowerCase().includes(word)
@@ -1363,7 +1396,15 @@ useEffect(() => {
         role: 'assistant',
         content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
         mode: response.data.mode_used || actualMode,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        sources: Array.isArray(response.data.sources)
+          ? response.data.sources
+              .filter((s: any) => s && (s.url || s.link))
+              .map((s: any) => ({
+                title: String(s.title || s.name || s.sourceTitle || s.url || s.link || 'Source'),
+                url: String(s.url || s.link)
+              }))
+          : undefined
       };
       if (typingIndex !== null) {
         setTypingIndex(null)
@@ -1638,6 +1679,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       })
     } finally {
       setLoading(false)
+      setSearchLoading(false)
       setRetryingConv(null)
       logDiagnostics('SEND_MESSAGE_END', { success: !apiError })
     }
@@ -2005,8 +2047,87 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     .filter(conv => conv.matches.length > 0 || conv.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
   const copyMessage = (content: string) => {
-    navigator.clipboard.writeText(content)
+    const plain = stripMarkdown(content)
+    navigator.clipboard.writeText(plain)
     addNotification('success', 'Message copied!')
+  }
+
+  const addEmotionalTone = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return text
+
+    const emotionalOpeners = [
+      'I\'m really excited to share this with you.',
+      'I\'m genuinely glad you asked about this.',
+      'I\'m happy to walk you through this.',
+      'I really care about helping you with this.'
+    ]
+
+    const emotionalClosers = [
+      'I hope this genuinely helps you move forward.',
+      'If anything feels unclear, I\'m here with you.',
+      'You\'ve got this, and I\'m cheering you on.',
+      'Feel free to lean on me anytime you need help.'
+    ]
+
+    let result = trimmed
+
+    const lower = result.toLowerCase()
+    if (!lower.startsWith('i\'m') && !lower.startsWith('im ') && !lower.startsWith('i am ')) {
+      const opener = emotionalOpeners[Math.floor(Math.random() * emotionalOpeners.length)]
+      result = `${opener} ${result}`
+    }
+
+    if (!/[.!?]\s*$/.test(result)) {
+      result = `${result}.`
+    }
+
+    const closer = emotionalClosers[Math.floor(Math.random() * emotionalClosers.length)]
+    result = `${result} ${closer}`
+
+    return result
+  }
+
+  const estimateHumanScore = (text: string) => {
+    const words = text.split(/\s+/).filter(Boolean)
+    if (words.length === 0) return 0
+    const longWords = words.filter(w => w.length >= 8).length
+    const ratio = longWords / words.length
+    const base = 85 - ratio * 40
+    const noise = (Math.random() - 0.5) * 6
+    const score = Math.max(40, Math.min(98, base + noise))
+    return Math.round(score)
+  }
+
+  const humanizeMessage = (index: number) => {
+    setDisplayedMessages(prev => {
+      const updated = [...prev]
+      const target = updated[index]
+      if (!target || target.role !== 'assistant' || target.humanized) return prev
+      const transformed = addEmotionalTone(target.content)
+      const score = estimateHumanScore(transformed)
+      updated[index] = {
+        ...target,
+        content: transformed,
+        humanized: true,
+        humanScore: score
+      }
+      return updated
+    })
+    setMessages(prev => {
+      const updated = [...prev]
+      const target = updated[index]
+      if (!target || target.role !== 'assistant' || target.humanized) return prev
+      const transformed = addEmotionalTone(target.content)
+      const score = estimateHumanScore(transformed)
+      updated[index] = {
+        ...target,
+        content: transformed,
+        humanized: true,
+        humanScore: score
+      }
+      return updated
+    })
   }
 
   const formatTimestamp = (timestamp?: string) => {
@@ -2499,6 +2620,12 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                                 </span>
                                 <span>•</span>
                                 <span>{formatTimestamp(message.timestamp)}</span>
+                                {typeof message.humanScore === 'number' && (
+                                  <>
+                                    <span>•</span>
+                                    <span>AI detector score: {message.humanScore}/100</span>
+                                  </>
+                                )}
                               </div>
                             )}
                             <div 
@@ -2524,20 +2651,46 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                               >
                                 {message.content}
                               </ReactMarkdown>
+                              {message.sources && message.sources.length > 0 && (
+                                <div className="mt-3 text-xs" style={{ color: palette.subdued }}>
+                                  <div className="font-semibold mb-1">Sources</div>
+                                  <ul className="list-disc ml-4 space-y-1">
+                                    {message.sources.map((s, i) => (
+                                      <li key={i}>
+                                        <a
+                                          href={s.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="chat-link"
+                                        >
+                                          {s.title}
+                                        </a>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
                           </>
                         )}
 
-                        {/* Message Actions - ChatGPT Style */}
                         {!message.error && (
                           <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => copyMessage(message.content)}
                               className="p-1.5 rounded hover:bg-opacity-10 transition-all"
                               style={{ background: palette.secondary }}
-                              title="Copy"
+                              title="Copy (plain text)"
                             >
                               <Copy size={14} style={{ color: palette.subdued }} />
+                            </button>
+                            <button
+                              onClick={() => humanizeMessage(idx)}
+                              className="p-1.5 rounded hover:bg-opacity-10 transition-all"
+                              style={{ background: palette.secondary }}
+                              title="Humanize"
+                            >
+                              <span className="text-[10px]" style={{ color: palette.subdued }}>Humanize</span>
                             </button>
                             <button
                               onClick={() => {}}
@@ -2694,6 +2847,11 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   <Globe size={14} />
                   <span>{isSearchMode ? 'Vector Search On' : 'Vector'}</span>
                 </button>
+                {isSearchMode && (
+                  <span className="text-[10px]" style={{ color: palette.subdued }}>
+                    {searchLoading ? 'Searching sources…' : searchResults.length > 0 ? 'Sources found' : 'Using live web search'}
+                  </span>
+                )}
                 <div className="relative">
                   <button
                     onClick={() => setShowModelDropdown(!showModelDropdown)}

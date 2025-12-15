@@ -941,19 +941,26 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const history = url.searchParams.get('history')
   const chatId = url.searchParams.get('chat_id')
+  const emailParam = url.searchParams.get('email')
 
   if (history === '1' || history === 'true') {
     try {
       const supabase = await createSupabaseClient()
-      const {
-        data: { session }
-      } = await supabase.auth.getSession()
+      let userEmail: string | undefined
 
-      if (!session) {
-        return NextResponse.json({ conversations: [] }, { status: 200 })
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession()
+        userEmail = session?.user?.email as string | undefined
+      } catch {
+        userEmail = undefined
       }
 
-      const userEmail = session.user.email as string | undefined
+      if (!userEmail && emailParam) {
+        userEmail = emailParam
+      }
+
       if (!userEmail) {
         return NextResponse.json({ conversations: [] }, { status: 200 })
       }
@@ -1809,6 +1816,7 @@ export async function POST(req: NextRequest) {
   }
 
   let aiResponse: string | ReadableStream
+  let aiSources: { title: string; url: string }[] | undefined
 
   const intent = determineIntent(userMessage, chat_history)
 
@@ -1836,6 +1844,15 @@ export async function POST(req: NextRequest) {
         forceSearch: effectiveSearchEnabled,
       }
       const knowledgeContext = await gatherKnowledge(userMessage, knowledgeIntent)
+      const sourceMatches = Array.from(
+        knowledgeContext.matchAll(/Source:\s*(https?:\/\/\S+)/gi)
+      )
+      if (sourceMatches.length > 0) {
+        aiSources = sourceMatches.map(match => ({
+          title: 'Source',
+          url: match[1]
+        }))
+      }
       const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
       const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history
         .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
@@ -1899,9 +1916,12 @@ export async function POST(req: NextRequest) {
     await incrementUserUsage(userId, modelType)
   }
 
-  if (!stream && typeof aiResponse === 'string' && session && chat_id) {
+  if (!stream && typeof aiResponse === 'string' && chat_id) {
     try {
-      const userEmail = session.user.email as string | undefined
+      let userEmail = session?.user?.email as string | undefined
+      if (!userEmail && requestEmail) {
+        userEmail = requestEmail
+      }
       if (userEmail) {
         const messagesToSave = [
           ...chat_history,
@@ -1909,6 +1929,7 @@ export async function POST(req: NextRequest) {
           { role: 'assistant', content: aiResponse }
         ]
         const traitValue = typeof trait === 'string' && trait.trim().length > 0 ? trait : null
+        const nowIso = new Date().toISOString()
         const { error: saveError } = await (supabase as any)
           .from('conversations')
           .upsert(
@@ -1917,7 +1938,8 @@ export async function POST(req: NextRequest) {
               user_email: userEmail,
               trait: traitValue,
               messages: messagesToSave,
-              updated_at: new Date().toISOString(),
+              updated_at: nowIso,
+              created_at: nowIso,
             },
             {
               onConflict: 'id',
@@ -1941,10 +1963,10 @@ export async function POST(req: NextRequest) {
   // Translate back to the original language if needed
   if (detectedLanguage !== 'en' && typeof aiResponse === 'string') {
     const { translatedText: translatedResponse } = await detectAndTranslate(aiResponse, detectedLanguage)
-    return NextResponse.json({ response: translatedResponse })
+    return NextResponse.json({ response: translatedResponse, sources: aiSources })
   }
 
-  return NextResponse.json({ response: aiResponse })
+  return NextResponse.json({ response: aiResponse, sources: aiSources })
 }
 
 async function isOwner(session: any): Promise<boolean> {
