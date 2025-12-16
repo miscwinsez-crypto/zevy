@@ -2051,6 +2051,17 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     const trimmed = text.trim()
     if (!trimmed) return text
 
+    const normalizedLines = trimmed
+      .split('\n')
+      .map(line => {
+        const t = line.trim()
+        if (!t) return ''
+        let withoutHeading = t.replace(/^#{1,6}\s+/, '')
+        withoutHeading = withoutHeading.replace(/^[-*]\s+/, '')
+        return withoutHeading
+      })
+      .filter(l => l.length > 0)
+
     const emotionalOpeners = [
       'I\'m really excited to share this with you.',
       'I\'m genuinely glad you asked about this.',
@@ -2088,7 +2099,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       'I\'m keeping both the facts and the emotional weight of this in view.'
     ]
 
-    let result = trimmed
+    let result = normalizedLines.join('\n\n')
 
     const lower = result.toLowerCase()
     const hasExistingOpener = emotionalOpeners.some(op =>
@@ -2149,21 +2160,28 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       result = result.replace(pattern, replacement)
     })
 
-    const sentenceMatches = result.match(/[^.!?]+[.!?]?/g)
-    if (sentenceMatches && sentenceMatches.length > 2) {
-      const jittered = sentenceMatches.map((s, index) => {
-        const trimmedSentence = s.trim()
-        if (!trimmedSentence) return ''
-        const wordCount = trimmedSentence.split(/\s+/).filter(Boolean).length
-        if (wordCount > 28 && !/[()]/.test(trimmedSentence) && index % 2 === 1) {
-          const parts = trimmedSentence.split(/, (?=[a-z])/i)
-          if (parts.length > 1) {
-            return parts.join('. ')
-          }
+    const paragraphs = result.split(/\n{2,}/)
+    if (paragraphs.length > 0) {
+      const processedParagraphs = paragraphs.map(paragraph => {
+        const sentenceMatches = paragraph.match(/[^.!?]+[.!?]?/g)
+        if (!sentenceMatches || sentenceMatches.length <= 2) {
+          return paragraph.trim()
         }
-        return trimmedSentence
-      }).filter(Boolean)
-      result = jittered.join(' ')
+        const jittered = sentenceMatches.map((s, index) => {
+          const trimmedSentence = s.trim()
+          if (!trimmedSentence) return ''
+          const wordCount = trimmedSentence.split(/\s+/).filter(Boolean).length
+          if (wordCount > 28 && !/[()]/.test(trimmedSentence) && index % 2 === 1) {
+            const parts = trimmedSentence.split(/, (?=[a-z])/i)
+            if (parts.length > 1) {
+              return parts.join('. ')
+            }
+          }
+          return trimmedSentence
+        }).filter(Boolean)
+        return jittered.join(' ')
+      })
+      result = processedParagraphs.join('\n\n')
     }
 
     result = result
