@@ -220,6 +220,7 @@ export default function ZevyCloudAI() {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [showBetaNotice, setShowBetaNotice] = useState(false);
   
   // Enhanced time detection state
   const [userTimezone, setUserTimezone] = useState<string>(() => {
@@ -2334,6 +2335,25 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     checkConnection()
   }, [])
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('zevy_beta_notice_dismissed')
+      if (stored !== 'true') {
+        setShowBetaNotice(true)
+      }
+    } catch {
+      setShowBetaNotice(true)
+    }
+  }, [])
+
+  const dismissBetaNotice = () => {
+    setShowBetaNotice(false)
+    try {
+      localStorage.setItem('zevy_beta_notice_dismissed', 'true')
+    } catch {
+    }
+  }
+
   return (
     <div 
       className="flex w-full h-screen"
@@ -2344,6 +2364,79 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       role="application"
       aria-label="Zevy AI Chat"
     >
+      {showBetaNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div
+            className="w-full max-w-md rounded-2xl p-6 relative"
+            style={{
+              background: palette.panel,
+              border: `1px solid ${palette.border}`,
+              boxShadow: '0 24px 60px rgba(0,0,0,0.8)'
+            }}
+          >
+            <button
+              onClick={dismissBetaNotice}
+              className="absolute top-3 right-3 p-1.5 rounded-lg"
+              style={{ color: palette.subdued, background: palette.sidebar }}
+            >
+              <X size={16} />
+            </button>
+            <div className="flex items-center gap-2 mb-3">
+              <span
+                className="text-[11px] px-2 py-1 rounded-full font-semibold tracking-wide"
+                style={{ background: palette.warning, color: '#000' }}
+              >
+                BETA
+              </span>
+              <span className="text-xs" style={{ color: palette.subdued }}>
+                Zevy Cloud early preview
+              </span>
+            </div>
+            <h2 className="text-lg font-semibold mb-2" style={{ color: palette.accent }}>
+              Zevy Cloud Beta
+            </h2>
+            <p className="text-xs mb-3" style={{ color: palette.subdued }}>
+              This is an early beta build, meant for testing and feedback.
+            </p>
+            <div className="space-y-2 text-xs" style={{ color: palette.subdued }}>
+              <div>
+                <p className="font-semibold mb-1" style={{ color: palette.accent }}>
+                  What is not stable yet
+                </p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Chat history can reset; refreshing may clear the current conversation.</li>
+                  <li>File attach and document handling are unfinished and may not work as expected.</li>
+                  <li>Humanizer and other experimental tools are still being tuned.</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold mb-1" style={{ color: palette.accent }}>
+                  Feedback
+                </p>
+                <p>
+                  If you hit any bugs, weird answers, or UI glitches, DM me on Instagram
+                  {' '}(<a
+                    href="https://instagram.com/abbdamdam"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                    style={{ color: palette.accent }}
+                  >
+                    @abbdamdam
+                  </a>) with a screenshot and short description.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={dismissBetaNotice}
+              className="mt-5 w-full py-2.5 rounded-lg text-sm font-semibold"
+              style={{ background: palette.accent, color: palette.background }}
+            >
+              Start chatting
+            </button>
+          </div>
+        </div>
+      )}
       {/* Error Banner - Per Conversation */}
       {currentConvError && (
         <div className="fixed top-0 left-0 right-0 z-40 p-4 flex items-center justify-between" style={{ background: palette.error }}>

@@ -47,6 +47,7 @@ export default function Settings() {
   const [copied, setCopied] = useState(false)
   const [email, setEmail] = useState('guest')
   const [trait, setTrait] = useState('Straightforward')
+  const [activeInfoTab, setActiveInfoTab] = useState<'about' | 'beta'>('about')
 
   const currentPalette = theme === 'dark' ? DEFAULT_DARK_PALETTE : DEFAULT_LIGHT_PALETTE
 
@@ -192,50 +193,124 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* About */}
         <div
           className="p-6 rounded-2xl mb-6 shadow-lg"
           style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
         >
-          <h2 className="text-xl font-semibold mb-4">◆ About Zevy AI</h2>
-          
-          <div className="space-y-3 text-sm">
-            <div>
-              <p className="font-semibold mb-2">What is Zevy AI?</p>
-              <p style={{ color: currentPalette.subdued }}>
-                Zevy is an advanced AI assistant with dual-engine intelligence (Astra for speed, Vyra for depth), real-time web access, document analysis capabilities, and adaptive personality traits.
-              </p>
-            </div>
-
-            <div>
-              <p className="font-semibold mb-2">Creator</p>
-              <p style={{ color: currentPalette.subdued }}>
-                Built by Adam Zein Ziqry, a 15-year-old self-taught developer and future founder of Zevy Cloud.
-              </p>
-            </div>
-
-            <div>
-              <p className="font-semibold mb-2">Core Values</p>
-              <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
-                <li>Obedient and user-focused</li>
-                <li>Real-time information access</li>
-                <li>Ethical and respectful</li>
-                <li>Defensive of user interests</li>
-                <li>Kind and professional</li>
-              </ul>
-            </div>
-
-            <div>
-              <p className="font-semibold mb-2">Features</p>
-              <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
-                <li>✦ Astra - 1 LLM</li>
-                <li>✧ Vyra - 2 LLM</li>
-                <li>◎ Web search integration</li>
-                <li>◇ Customizable themes</li>
-                <li>▣ Persistent conversations</li>
-              </ul>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">◆ Zevy AI</h2>
+            <div className="inline-flex rounded-full border text-[11px]" style={{ borderColor: currentPalette.border }}>
+              <button
+                onClick={() => setActiveInfoTab('about')}
+                className="px-3 py-1 rounded-full"
+                style={{
+                  background: activeInfoTab === 'about' ? currentPalette.accent : 'transparent',
+                  color: activeInfoTab === 'about' ? currentPalette.background : currentPalette.subdued
+                }}
+              >
+                About
+              </button>
+              <button
+                onClick={() => setActiveInfoTab('beta')}
+                className="px-3 py-1 rounded-full"
+                style={{
+                  background: activeInfoTab === 'beta' ? currentPalette.accent : 'transparent',
+                  color: activeInfoTab === 'beta' ? currentPalette.background : currentPalette.subdued
+                }}
+              >
+                Beta
+              </button>
             </div>
           </div>
+          
+          {activeInfoTab === 'about' && (
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="font-semibold mb-2">What is Zevy AI?</p>
+                <p style={{ color: currentPalette.subdued }}>
+                  Zevy is an advanced AI assistant with dual-engine intelligence (Astra for speed, Vyra for depth), real-time web access, document analysis capabilities, and adaptive personality traits.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold mb-2">Creator</p>
+                <p style={{ color: currentPalette.subdued }}>
+                  Built by Adam Zein Ziqry, a 15-year-old self-taught developer and future founder of Zevy Cloud.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold mb-2">Core Values</p>
+                <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
+                  <li>Obedient and user-focused</li>
+                  <li>Real-time information access</li>
+                  <li>Ethical and respectful</li>
+                  <li>Defensive of user interests</li>
+                  <li>Kind and professional</li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="font-semibold mb-2">Features</p>
+                <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
+                  <li>✦ Astra – Fast, intelligent responses</li>
+                  <li>✧ Vyra – Deep multi-perspective thinking</li>
+                  <li>◎ Vector – Web and real‑world data</li>
+                  <li>♥ Humanizer – Emotional rewriting</li>
+                  <li>◇ Customizable themes</li>
+                  <li>▣ Persistent conversations</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {activeInfoTab === 'beta' && (
+            <div className="space-y-3 text-sm max-h-64 overflow-y-auto">
+              <div>
+                <p className="font-semibold mb-2">Beta status</p>
+                <p style={{ color: currentPalette.subdued }}>
+                  Zevy Cloud is currently in public beta. Features are evolving quickly and some parts of the experience are not fully stable yet.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold mb-2">Working well</p>
+                <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
+                  <li>Astra and Vyra chat engines</li>
+                  <li>Vector web search toggle</li>
+                  <li>Humanizer button for richer rewrites</li>
+                  <li>Theme switching (dark and light)</li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="font-semibold mb-2">Known limitations</p>
+                <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
+                  <li>Chat history can reset; refreshing may clear the active conversation.</li>
+                  <li>File attach and document analysis are unfinished and can fail or be disabled.</li>
+                  <li>Some responses may feel experimental while tuning obedience and depth.</li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="font-semibold mb-2">Feedback</p>
+                <p style={{ color: currentPalette.subdued }}>
+                  If you run into errors or strange behavior, DM Adam on Instagram
+                  {' '}
+                  <a
+                    href="https://instagram.com/abbdamdam"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                    style={{ color: currentPalette.accent }}
+                  >
+                    @abbdamdam
+                  </a>
+                  {' '}with a short description or screenshot.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Support */}
