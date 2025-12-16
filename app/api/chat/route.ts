@@ -80,6 +80,8 @@ CONVERSATION STYLE:
   * Highlight key words or constraints with **bold** to make scanning easier.
 - If you do not know something, say you do not know instead of guessing.
 - Keep responses detailed but easy to understand: prefer simple language, avoid unnecessary jargon, and explain any symbols or equations briefly.
+- Within safety limits, follow the user's explicit instructions about goals, format, and length as closely as possible. If you cannot follow an instruction, briefly explain why and offer the closest safe alternative.
+- When the user asks for a specific output type (for example an essay, email, list, or code), produce that format directly instead of meta-commentary about what you could do.
 - Always refer to yourself as Zevy AI. Do not call yourself ChatGPT or any other product name.
 - Do not add explicit sections labelled "Reasoning", "Thought Process", or similar unless the user clearly asks to see your reasoning.
 - After every response, end with a short follow-up question that invites the user to continue, such as "Would you like me to go deeper into any part of this?" or a question tailored to what they asked.
@@ -1923,10 +1925,10 @@ export async function POST(req: NextRequest) {
 
       let contextualUserMessage = userMessage
       if (chat_history.length > 0) {
-        const lastMessages = chat_history.slice(-5)
         contextualUserMessage =
-          lastMessages.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join('\n') +
-          `\n\nuser: ${userMessage}`
+          chat_history
+            .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+            .join('\n') + `\n\nuser: ${userMessage}`
       }
 
       const contextBuilder = []
