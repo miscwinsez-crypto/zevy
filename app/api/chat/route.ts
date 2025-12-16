@@ -1384,6 +1384,7 @@ ${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}
 Instructions:
 - First, decide if the user's request contains a logical contradiction, demands physically impossible outcomes (for example, backward time travel with current physics), or asks you to ignore reality.
 - If the user casually says things like "use real-time data", "use live data", or "use up-to-date data" about topics like astronomy, physics, finance, or news, interpret that as "use the latest available measurements and observations" rather than literally streaming impossible real-time quantities. That is NOT a paradox by itself.
+- If the user asks for a recap or summary of the current year or a date range that includes the present year (for example, "a 2025 recap" while the year is still in progress), interpret this as a "so-far" recap up to the current date. That is not a paradox and does not require future knowledge.
 - If the request is logically coherent and physically possible within current scientific understanding (including requests to use the latest available data), reply with exactly:
 OK_NO_PARADOX
 
@@ -1755,6 +1756,11 @@ export async function POST(req: NextRequest) {
     webSearch,
   } = body
 
+  const serverNow = new Date()
+  const effectiveCurrentTime = current_time || serverNow.toISOString()
+  const effectiveTimezone =
+    timezone || (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC'
+
   const requestEmail = typeof (body as any).email === 'string' ? (body as any).email : undefined
 
   const searchEnabled = typeof rawSearchEnabled === 'boolean' ? rawSearchEnabled : Boolean(webSearch)
@@ -1781,7 +1787,13 @@ export async function POST(req: NextRequest) {
     (requestEmail !== undefined && OWNER_EMAILS.includes(requestEmail))
 
   if (isOwnerUser) {
-    const ownerResponse = await handleOwnerRequest(message, chat_history, stream, current_time, timezone)
+    const ownerResponse = await handleOwnerRequest(
+      message,
+      chat_history,
+      stream,
+      effectiveCurrentTime,
+      effectiveTimezone
+    )
     if (ownerResponse) {
       return ownerResponse
     }
@@ -1802,6 +1814,8 @@ export async function POST(req: NextRequest) {
   const { detectedLanguage, translatedText } = await detectAndTranslate(message)
   const userMessage = translatedText
 
+  const intent = determineIntent(userMessage, chat_history)
+
   const modelLower = model.toLowerCase()
   const isVyraMode = modelLower === 'vyra'
   const isCompoundMode = modelLower === 'compound'
@@ -1810,7 +1824,8 @@ export async function POST(req: NextRequest) {
     ? 'vyra-debate'
     : selectAstraModel(userMessage, chat_history).model
 
-  const effectiveSearchEnabled = searchEnabled || isCompoundMode
+  const autoSearchNeeded = intent.needsVector
+  const effectiveSearchEnabled = searchEnabled || isCompoundMode || autoSearchNeeded
 
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
@@ -1824,8 +1839,8 @@ export async function POST(req: NextRequest) {
         [{ role: 'user', content: harmfulResponsePrompt }],
         selectedModel,
         false,
-        current_time,
-        timezone
+        effectiveCurrentTime,
+        effectiveTimezone
       )
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
@@ -1852,16 +1867,14 @@ export async function POST(req: NextRequest) {
   let aiResponse: string | ReadableStream
   let aiSources: { title: string; url: string }[] | undefined
 
-  const intent = determineIntent(userMessage, chat_history)
-
   if (selectedModel === 'vyra-debate') {
     // Vyra debate system using both Moonshot and Qwen models
     const debateResponse = await generateVyraSmartDebate(
       userMessage,
       chat_history,
       stream,
-      current_time,
-      timezone,
+      effectiveCurrentTime,
+      effectiveTimezone,
       effectiveSearchEnabled
     )
     aiResponse = debateResponse
@@ -1906,8 +1919,8 @@ export async function POST(req: NextRequest) {
         [{ role: 'user', content: contextualizedMessage }],
         researchModel,
         stream,
-        current_time,
-        timezone,
+        effectiveCurrentTime,
+        effectiveTimezone,
         undefined,
         true
       )
@@ -1949,8 +1962,8 @@ export async function POST(req: NextRequest) {
         ],
         selectedModel,
         stream,
-        current_time,
-        timezone,
+        effectiveCurrentTime,
+        effectiveTimezone,
         contextualUserMessage,
         false
       )
