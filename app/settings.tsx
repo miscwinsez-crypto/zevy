@@ -108,7 +108,7 @@ export default function Settings() {
           className="p-6 rounded-2xl mb-6 shadow-lg"
           style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
         >
-          <h2 className="text-xl font-semibold mb-4">🎨 Theme Customization</h2>
+          <h2 className="text-xl font-semibold mb-4">◇ Theme Customization</h2>
           
           <div className="mb-6">
             <p className="text-sm mb-3" style={{ color: currentPalette.subdued }}>Select Theme:</p>
@@ -121,7 +121,7 @@ export default function Settings() {
                   color: theme === 'dark' ? currentPalette.background : currentPalette.accent
                 }}
               >
-                🌙 Dark
+                ● Dark
               </button>
               <button
                 onClick={() => setTheme('light')}
@@ -131,7 +131,7 @@ export default function Settings() {
                   color: theme === 'light' ? currentPalette.background : currentPalette.accent
                 }}
               >
-                ☀️ Light
+                ○ Light
               </button>
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function Settings() {
           className="p-6 rounded-2xl mb-6 shadow-lg"
           style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
         >
-          <h2 className="text-xl font-semibold mb-4">👤 Account</h2>
+          <h2 className="text-xl font-semibold mb-4">◆ Account</h2>
           
           <div className="space-y-3">
             <div>
@@ -197,7 +197,7 @@ export default function Settings() {
           className="p-6 rounded-2xl mb-6 shadow-lg"
           style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
         >
-          <h2 className="text-xl font-semibold mb-4">ℹ️ About Zevy AI</h2>
+          <h2 className="text-xl font-semibold mb-4">◆ About Zevy AI</h2>
           
           <div className="space-y-3 text-sm">
             <div>
@@ -210,7 +210,7 @@ export default function Settings() {
             <div>
               <p className="font-semibold mb-2">Creator</p>
               <p style={{ color: currentPalette.subdued }}>
-                Built by Adam Zein Ziqry, a 15-year-old self-taught developer and future founder of Zevy Technologies.
+                Built by Adam Zein Ziqry, a 15-year-old self-taught developer and future founder of Zevy Cloud.
               </p>
             </div>
 
@@ -228,11 +228,11 @@ export default function Settings() {
             <div>
               <p className="font-semibold mb-2">Features</p>
               <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
-                <li>⚡ Astra - 1 LLM</li>
-                <li>✨ Vyra - 2 LLM</li>
-                <li>🌐 Web search integration</li>
-                <li>🎨 Customizable themes</li>
-                <li>📱 Persistent conversations</li>
+                <li>✦ Astra - 1 LLM</li>
+                <li>✧ Vyra - 2 LLM</li>
+                <li>◎ Web search integration</li>
+                <li>◇ Customizable themes</li>
+                <li>▣ Persistent conversations</li>
               </ul>
             </div>
           </div>
@@ -243,7 +243,7 @@ export default function Settings() {
           className="p-6 rounded-2xl shadow-lg"
           style={{ background: currentPalette.panel, border: `1px solid ${currentPalette.border}` }}
         >
-          <h2 className="text-xl font-semibold mb-4">📧 Support</h2>
+          <h2 className="text-xl font-semibold mb-4">✉ Support</h2>
           
           <button
             onClick={copyEmail}
@@ -265,7 +265,7 @@ export default function Settings() {
                 className="flex-1 p-2 rounded text-xs text-center transition-smooth"
                 style={{ background: currentPalette.sidebar, color: currentPalette.accent }}
               >
-                📷 Instagram
+                ✧ Instagram
               </a>
               <a
                 href="https://x.com/abdamzrock"
@@ -283,7 +283,7 @@ export default function Settings() {
         {/* Version */}
         <div className="text-center mt-8">
           <p style={{ color: currentPalette.subdued }} className="text-xs">
-            Zevy AI v1.0.0 • Created with ❤️ by Adam
+            Zevy AI v1.0.0 • Created with ♥ by Adam
           </p>
         </div>
       </div>

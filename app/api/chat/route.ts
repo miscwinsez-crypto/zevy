@@ -1381,10 +1381,11 @@ ${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}
 
 Instructions:
 - First, decide if the user's request contains a logical contradiction, demands physically impossible outcomes (for example, backward time travel with current physics), or asks you to ignore reality.
-- If the request is logically coherent and physically possible within current scientific understanding, reply with exactly:
+- If the user casually says things like "use real-time data", "use live data", or "use up-to-date data" about topics like astronomy, physics, finance, or news, interpret that as "use the latest available measurements and observations" rather than literally streaming impossible real-time quantities. That is NOT a paradox by itself.
+- If the request is logically coherent and physically possible within current scientific understanding (including requests to use the latest available data), reply with exactly:
 OK_NO_PARADOX
 
-- If there IS a paradox, self-contradiction, or a physically impossible demand, DO NOT try to satisfy it or soften the truth. Instead, respond using this exact structure:
+- If there IS a genuine paradox, self-contradiction, or a physically impossible demand (for example, guaranteed predictions of random events, faster-than-light communication, backward time travel, or directly seeing inside a black-hole singularity), DO NOT try to satisfy it or soften the truth. Instead, respond using this exact structure:
 1. Contradiction: [one concise sentence explaining what parts of the request conflict with logic or reality]
 2. Why It Is Impossible Or A Paradox: [short explanation of why these requirements cannot all be true or satisfied at once, based on current science and logic]
 3. Blunt Conclusion: [one or two sentences stating the hard truth as directly as possible, for example "With current physics, backward time travel is impossible."]

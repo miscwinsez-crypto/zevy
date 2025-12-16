@@ -1411,7 +1411,7 @@ useEffect(() => {
       setTypingContent(assistantMessage.content || '')
       updateMessages(fullMessages);
       setApiError(null)
-      addNotification('success', '✅ Response received!')
+      addNotification('success', '✓ Response received!')
     } catch (error: any) {
       logDiagnostics('ERROR_CAUGHT', {
         errorType: error.code || error.message,
@@ -1425,7 +1425,7 @@ useEffect(() => {
 
       // Categorize and handle specific errors
       if (error.message === 'ERR_NO_INTERNET') {
-        errorContent = `📡 No Internet Connection
+        errorContent = `[NET] No Internet Connection
 
 Please check:
 1. Your WiFi/Mobile connection
@@ -1437,7 +1437,7 @@ Please check:
         logDiagnostics('ERROR_NO_INTERNET', {})
       }
       else if (error.message === 'SERVER_UNREACHABLE') {
-        errorContent = `🚨 API Server is Unreachable
+        errorContent = `[API] API Server is Unreachable
 
 The server at ${API_URL} is not responding.
 
@@ -1462,14 +1462,14 @@ Status: We're investigating if this is a widespread issue`
         logDiagnostics('ERROR_SERVER_UNREACHABLE', { url: API_URL })
       }
       else if (error.message?.includes('API_UNHEALTHY') && error.message.includes('Redirect loop')) {
-        errorContent = `🔄 Redirect Loop Detected - Server Configuration Error
+        errorContent = `[LOOP] Redirect Loop Detected - Server Configuration Error
 
 The API is stuck in a redirect loop. This is a SERVER-SIDE issue.
-
-URL: ${API_URL}
-Endpoint: /api/chat
-
-⚠️ This requires server-side fixes`
+          
+          URL: ${API_URL}
+          Endpoint: /api/chat
+          
+          [!] This requires server-side fixes`
         setNetworkStatus('offline')
         setApiError('Redirect loop - server configuration error')
         shouldRetry = false
@@ -1480,7 +1480,7 @@ Endpoint: /api/chat
         console.error('🔴 CRITICAL: Redirect loop detected')
       }
       else if (error.code === 'ERR_NETWORK') {
-        errorContent = `🔌 Network Connection Error
+        errorContent = `[NET] Network Connection Error
 
 The request to the API failed due to a network issue.
 
@@ -1499,7 +1499,7 @@ Try: Disable VPN temporarily and retry`
         logDiagnostics('ERROR_NETWORK', { code: error.code })
       } 
       else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-        errorContent = `⏱️ Request Timeout
+        errorContent = `[TIME] Request Timeout
 
 I could not complete that request before the time limit.
 
@@ -1525,7 +1525,7 @@ Status: Reported to development team`
         })
       }
       else if (!error.response) {
-        errorContent = `🌐 Connection Failed
+        errorContent = `[NET] Connection Failed
 
 Request to: ${normalizeUrl(API_URL, '/api/chat')}
 Error: ${error.message || 'Unknown network error'}
@@ -1547,7 +1547,7 @@ Troubleshooting:
       }
       else if (error.response?.status === 0) {
         // Status 0 - Network error at browser level
-        errorContent = `📡 Status 0: Browser Network Error
+        errorContent = `[BROWSER] Status 0: Browser Network Error
 
 The browser couldn't complete the request to the API server.
 
@@ -1570,7 +1570,7 @@ Try:
         logDiagnostics('ERROR_STATUS_0', { url: normalizeUrl(API_URL, '/api/chat') })
       }
       else if (error.response?.status === 401) {
-        errorContent = `🔐 Authentication Error
+        errorContent = `[AUTH] Authentication Error
 
 Your API credentials are invalid or expired.
 
@@ -1583,7 +1583,7 @@ Check:
       }
       else if (error.response?.status === 429) {
         const waitTime = Math.ceil(Math.random() * 30 + 30)
-        errorContent = `⚠️ Rate Limit Exceeded
+        errorContent = `[LIMIT] Rate Limit Exceeded
 
 Too many requests in a short time.
 
@@ -1593,7 +1593,7 @@ Please wait ${waitTime} seconds before trying again.`
         logDiagnostics('ERROR_RATE_LIMIT', { status: 429, waitTime })
       }
       else if (error.response?.status === 500) {
-        errorContent = `🤖 Internal Server Error
+        errorContent = `[SERVER] Internal Server Error
 
 The API encountered an unexpected error.
 
@@ -1605,7 +1605,7 @@ The error has been logged. Please try again in a moment.`
         logDiagnostics('ERROR_SERVER_500', { status: 500 })
       }
       else if (error.response?.status === 502 || error.response?.status === 503) {
-        errorContent = `🚧 Service Unavailable
+        errorContent = `[MAINT] Service Unavailable
 
 The API is temporarily down for maintenance or overloaded.
 
@@ -1617,7 +1617,7 @@ Try again in a few moments.`
         logDiagnostics('ERROR_SERVICE_UNAVAILABLE', { status: error.response.status })
       }
       else if (error.response?.status === 504) {
-        errorContent = `⏱️ Gateway Timeout
+        errorContent = `[TIME] Gateway Timeout
 The server could not finish this question in time.
 
 Try:
@@ -1627,7 +1627,7 @@ Try:
         logDiagnostics('ERROR_GATEWAY_TIMEOUT', { status: 504 })
       }
       else {
-        errorContent = `❌ Unexpected Error
+        errorContent = `[ERROR] Unexpected Error
 
 Status: ${error.response?.status || 'Unknown'}
 Error: ${error.response?.data?.detail || error.message || 'Something went wrong'}`
@@ -1743,7 +1743,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       
       setAuthForm({ email: '', password: '', showPassword: false })
       setShowSettings(false)
-      addNotification('success', `Welcome back, ${response.data.name || 'user'}! 👋`)
+      addNotification('success', `Welcome back, ${response.data.name || 'user'}!`)
     } catch (error: any) {
       const message = error.response?.data?.detail || 'Login failed. Check your credentials.'
       setAuthError(message)
@@ -2601,11 +2601,11 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           {auth.isOwner && (
             <div className="flex items-center gap-4 text-xs" style={{ color: palette.subdued }}>
               <div className="flex items-center gap-1">
-                <span title="Astra">⚡</span>
+                <span title="Astra">✦</span>
                 <span>∞</span>
               </div>
               <div className="flex items-center gap-1">
-                <span title="Vyra">✨</span>
+                <span title="Vyra">✧</span>
                 <span>∞</span>
               </div>
             </div>
@@ -2614,11 +2614,11 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           {!auth.isOwner && usageStats && (
             <div className="flex items-center gap-4 text-xs" style={{ color: palette.subdued }}>
               <div className="flex items-center gap-1">
-                <span title="Astra">⚡</span>
+                <span title="Astra">✦</span>
                 <span>{usageStats.astra.used}/{usageStats.astra.limit}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span title="Vyra">✨</span>
+                <span title="Vyra">✧</span>
                 <span>{usageStats.vyra.used}/{usageStats.vyra.limit}</span>
               </div>
 
@@ -2696,9 +2696,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                   <div className="flex flex-wrap gap-2 text-[11px] sm:text-xs">
                     {[
-                      { label: '✨ Vyra Deep Reasoning', value: 'vyra' },
-                      { label: '⚡ Astra Fast', value: 'astra' },
-                      { label: '🌐 Vector Web Search', value: 'search' }
+                      { label: '✧ Vyra Deep Reasoning', value: 'vyra' },
+                      { label: '✦ Astra Fast', value: 'astra' },
+                      { label: '◎ Vector Web Search', value: 'search' }
                     ].map(item => (
                       <button
                         key={item.label}
@@ -2729,10 +2729,10 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-1">
                     {[
-                      { icon: '🔍', title: 'Research', desc: 'Find latest info' },
-                      { icon: '💡', title: 'Brainstorm', desc: 'Generate ideas' },
-                      { icon: '🧠', title: 'Explain', desc: 'Simplify topics' },
-                      { icon: '📄', title: 'Scan Document', desc: 'Check document' }
+                      { icon: '⌕', title: 'Research', desc: 'Find latest info' },
+                      { icon: '✦', title: 'Brainstorm', desc: 'Generate ideas' },
+                      { icon: '✺', title: 'Explain', desc: 'Simplify topics' },
+                      { icon: '▤', title: 'Scan Document', desc: 'Check document' }
                     ].map((item) => (
                       <button
                         key={item.title}
@@ -2771,8 +2771,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                             {message.mode && (
                               <div className="text-xs mb-2 flex items-center gap-2" style={{ color: palette.subdued }}>
                                 <span>
-                                  {message.mode === 'astra' && '⚡ Fast'}
-                                  {message.mode === 'vyra' && '✨ Deep'}
+                                  {message.mode === 'astra' && '✦ Fast'}
+                                  {message.mode === 'vyra' && '✧ Deep'}
                                 </span>
                                 <span>•</span>
                                 <span>{formatTimestamp(message.timestamp)}</span>
@@ -3287,8 +3287,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                         <p className="text-lg font-semibold mt-1" style={{ color: palette.accent }}>{auth.email}</p>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-semibold mb-2" style={{ color: palette.accent }}>✨ AI Personality</label>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: palette.accent }}>✧ AI Personality</label>
                         <input
                           type="text"
                           value={trait}
@@ -3302,13 +3302,13 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                       <div className="p-4 rounded-lg" style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}>
                         <p className="font-semibold text-sm mb-3 flex items-center gap-2" style={{ color: palette.accent }}>
-                          <span>📊</span> Usage This Period
+                          <span>◆</span> Usage This Period
                         </p>
                         <div className="space-y-2.5">
                           {[
 
-                            { name: 'Astra', icon: '⚡', stat: usageStats?.astra },
-                            { name: 'Vyra', icon: '✨', stat: usageStats?.vyra },
+                            { name: 'Astra', icon: '✦', stat: usageStats?.astra },
+                            { name: 'Vyra', icon: '✧', stat: usageStats?.vyra },
                             
                           ].map(({ name, icon, stat }) => (
                             <div key={name} className="flex justify-between items-center text-sm" style={{ color: palette.accent }}>
@@ -3338,7 +3338,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                 <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: palette.accent }}>
-                      🎨 Theme
+                      ◇ Theme
                     </label>
                     <div className="flex gap-2">
                       <button
@@ -3350,7 +3350,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                           border: `1px solid ${palette.border}`
                         }}
                       >
-                        🌙 Dark
+                        ● Dark
                       </button>
                       <button
                         onClick={() => setTheme('light')}
@@ -3361,7 +3361,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                           border: `1px solid ${palette.border}`
                         }}
                       >
-                        ☀️ Light
+                        ○ Light
                       </button>
                     </div>
                   </div>
@@ -3373,50 +3373,55 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-2 flex items-center gap-2" style={{ color: palette.accent }}>
-                      <span>🚀</span> About Zevy AI
+                      <span>◆</span> About Zevy AI
                     </h3>
                     <p className="text-sm" style={{ color: palette.subdued }}>
-                      Zevy is an advanced AI assistant with dual-engine intelligence, real-time web access, image generation, and adaptive personality traits. Built for natural, human-like conversations.
+                      Zevy is an advanced AI assistant with dual-engine intelligence (Astra for speed, Vyra for depth), real-time web access, document analysis, image generation, and vector-powered world data. Built for natural, human-like conversations.
                     </p>
                   </div>
 
                   <div>
                     <h3 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: palette.accent }}>
-                      <span>👨‍💻</span> Creator
+                      <span>◇</span> Creator
                     </h3>
                     <p className="text-sm" style={{ color: palette.subdued }}>
-                      Built by Adam Zein Ziqry, a 15-year-old self-taught developer and future founder of Zevy Technologies.
+                      Built by Adam Zein Ziqry, a 15-year-old self-taught developer and future founder of Zevy Cloud.
                     </p>
                   </div>
 
                   <div>
                     <h3 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: palette.accent }}>
-                      <span>⭐</span> Features
+                      <span>★</span> Features
                     </h3>
                     <ul className="text-sm space-y-1.5" style={{ color: palette.subdued }}>
                       <li className="flex items-center gap-2">
-                        <span style={{ color: palette.hover }}>✓</span> ⚡ Astra - Fast, intelligent responses
+                        <span style={{ color: palette.hover }}>✓</span> ✦ Astra - Fast, intelligent responses
                       </li>
                       <li className="flex items-center gap-2">
-                        <span style={{ color: palette.hover }}>✓</span> ✨ Vyra - Deep thinking & analysis
-                      </li>
-                      
-                      <li className="flex items-center gap-2">
-                        <span style={{ color: palette.hover }}>✓</span> 🌐 Real-time web search integration
+                        <span style={{ color: palette.hover }}>✓</span> ✧ Vyra - Deep thinking & analysis
                       </li>
                       <li className="flex items-center gap-2">
-                        <span style={{ color: palette.hover }}>✓</span> 📱 Persistent conversation history
+                        <span style={{ color: palette.hover }}>✓</span> ◎ Real-time web search integration
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span style={{ color: palette.hover }}>✓</span> ▣ Persistent conversation history
                      
                       </li>
                       <li className="flex items-center gap-2">
-                        <span style={{ color: palette.hover }}>✓</span> 💬 Natural, human-like conversations
+                        <span style={{ color: palette.hover }}>✓</span> ❝ Natural, human-like conversations
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span style={{ color: palette.hover }}>✓</span> ✺ Vector - Real-time world data
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span style={{ color: palette.hover }}>✓</span> ♥ Humanizer - Emotionally rich rewriting
                       </li>
                     </ul>
                   </div>
 
                   <div className="border-t pt-6" style={{ borderColor: palette.border }}>
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: palette.accent }}>
-                      <span>🌐</span> Zevy Official
+                      <span>◎</span> Zevy Official
                     </h3>
                     <div className="space-y-2">
                       {SOCIAL_HANDLES.zevy.map((handle) => (
@@ -3440,7 +3445,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                   <div className="border-t pt-6" style={{ borderColor: palette.border }}>
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: palette.accent }}>
-                      <span>👤</span> Adam&apos;s Links
+                      <span>◆</span> Adam&apos;s Links
                     </h3>
                     <div className="space-y-2">
                       {SOCIAL_HANDLES.adam.map((handle) => (
@@ -3463,7 +3468,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   </div>
 
                   <div className="p-3 rounded-lg" style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}>
-                    <p className="text-xs" style={{ color: palette.subdued }}>v1.0.0 • Made with 💙 by Adam Zein Ziqry</p>
+                    <p className="text-xs" style={{ color: palette.subdued }}>v1.0.0 • Made with ♥ by Adam Zein Ziqry</p>
                   </div>
                 </div>
               )}
