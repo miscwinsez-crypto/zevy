@@ -901,8 +901,14 @@ Image generation is currently unavailable but may be added in future updates.`
   if (freeKnowledge) {
     knowledgeParts.push(freeKnowledge)
   }
+
+  const requiresDeepResearch =
+    (intent.confidence === 'high' && userMessage.length > 30) ||
+    hasDatePattern ||
+    hasCurrentEventTerms ||
+    vectorSearchOn
   
-  if ((intent.confidence === 'high' && userMessage.length > 30) || hasDatePattern || hasCurrentEventTerms) {
+  if (requiresDeepResearch) {
     if (vectorSearchOn) {
       try {
         const compoundKnowledge = await callGroqCompoundKnowledge(userMessage, GROQ_COMPOUND_MODEL)
@@ -1382,10 +1388,11 @@ Previous Conversation (for context only, do NOT debate it):
 ${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}
 
 Instructions:
-- First, decide if the user's request contains a logical contradiction, demands physically impossible outcomes (for example, backward time travel with current physics), or asks you to ignore reality.
+- First, decide if the user's request contains a logical contradiction, demands physically impossible outcomes (for example, backward time travel with current physics), or asks you to ignore reality. Do not treat "we do not yet have data about this" as a paradox; lack of data is not a logical contradiction.
 - If the user casually says things like "use real-time data", "use live data", or "use up-to-date data" about topics like astronomy, physics, finance, or news, interpret that as "use the latest available measurements and observations" rather than literally streaming impossible real-time quantities. That is NOT a paradox by itself.
+- If the user asks about specific calendar dates (for example, "on 17 July 2025 what was X?"), treat this as a factual question that may or may not have data available. Even if you suspect the date might be in the future, you must not flag it as a paradox; data availability is handled later by the main system.
 - If the user asks for a recap or summary of the current year or a date range that includes the present year (for example, "a 2025 recap" while the year is still in progress), interpret this as a "so-far" recap up to the current date. That is not a paradox and does not require future knowledge.
-- If the request is logically coherent and physically possible within current scientific understanding (including requests to use the latest available data), reply with exactly:
+- If the request is logically coherent and physically possible within current scientific understanding (including requests to use the latest available data or dated factual questions), reply with exactly:
 OK_NO_PARADOX
 
 - If there IS a genuine paradox, self-contradiction, or a physically impossible demand (for example, guaranteed predictions of random events, faster-than-light communication, backward time travel, or directly seeing inside a black-hole singularity), DO NOT try to satisfy it or soften the truth. Instead, respond using this exact structure:
