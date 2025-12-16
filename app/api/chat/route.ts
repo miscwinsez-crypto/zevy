@@ -1339,6 +1339,15 @@ async function generateVyraSmartDebate(
     }
 
     const normalizedMessage = userMessage.toLowerCase().trim()
+    const wantsTranscript =
+      /\b(show|see|explain|display)\b.*\b(reasoning|debate|thinking|thought process|chain of thought)\b/i.test(
+        normalizedMessage
+      ) ||
+      /\b(show me how|show me why|step by step|walk me through)\b/i.test(normalizedMessage)
+    const wantsEssay =
+      /\bessay\b/i.test(normalizedMessage) ||
+      /\bpersonal statement\b/i.test(normalizedMessage) ||
+      /\bcollege application\b/i.test(normalizedMessage)
     const isShortConversational =
       intent.isConversational &&
       !intent.needsVector &&
@@ -1549,6 +1558,14 @@ Address Logos's defense directly. Point out any remaining weaknesses in their ar
         true
       )
       
+      const synthesisInstruction = wantsEssay
+        ? 'Based on this debate, write a single, fully polished essay-style answer for the user. The essay should be well-structured, coherent, and suitable for a serious reader. Silently cross-check all factual claims against the Knowledge Background and the strongest points from both Kairo and Logos, and remove or soften anything that is not well-supported. Do not describe this checking step; only present the final, fact-checked essay.'
+        : 'Based on this debate, provide the user with the most accurate and direct answer you can. Silently cross-check all factual claims against the Knowledge Background and the strongest points from both Kairo and Logos, and remove or soften anything that is not well-supported. Do not describe this checking step; only present the final, fact-checked answer.'
+      
+      const visibilityInstruction = wantsTranscript
+        ? 'First, speak only as Zevy AI and give the final answer. After that, in a clearly separated section titled "Debate Transcript (Kairo vs Logos)", briefly summarize (in a few short paragraphs) how Kairo and Logos disagreed, what evidence they leaned on, and how that led to the final answer.'
+        : 'Do not mention Kairo, Logos, debates, transcripts, internal thinking, or internal disagreement. Do not describe your reasoning steps or thought process. Only speak as a single assistant called Zevy AI giving the final answer.'
+      
       const finalSynthesisPrompt = `You need to provide the final answer to the user after witnessing a genuine debate between two AI models. Here's what transpired:
 
 User Question: ${userMessage}
@@ -1563,9 +1580,9 @@ Kairo's Challenge: ${moonshotDebateResponse}
 Logos's Defense: ${qwenDebateResponse}
 Kairo's Final Argument: ${finalDebateResponse}
 
-Based on this debate, provide the user with the most accurate answer.
+${synthesisInstruction}
 
-For your output, respond as a single, polished answer for the user. Integrate any useful points from the Kairo and Logos debate into one continuous response. Do not include explicit section labels like "Final Answer", "Reasoning", or "Follow-up Question" unless the user specifically requests that structure.`
+For your output, respond as a single, polished answer for the user. Integrate any useful points from the Kairo and Logos debate into one continuous response. ${visibilityInstruction} Do not include explicit section labels like "Final Answer", "Reasoning", or "Follow-up Question" unless the user specifically requests that structure.`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: finalSynthesisPrompt }],
@@ -1579,6 +1596,14 @@ For your output, respond as a single, polished answer for the user. Integrate an
       return finalResponse
       
     } else {
+      const synthesisInstruction = wantsEssay
+        ? 'Write a single, fully polished essay-style answer for the user. The essay should be well-structured, coherent, and suitable for a serious reader. Silently cross-check all factual claims against the Knowledge Background and the strongest shared points from both Kairo and Logos, and remove or soften anything that is not well-supported. Do not describe this checking step; only present the final, fact-checked essay.'
+        : 'Provide the user with the most accurate and direct answer you can. Silently cross-check all factual claims against the Knowledge Background and the strongest shared points from both Kairo and Logos, and remove or soften anything that is not well-supported. Do not describe this checking step; only present the final, fact-checked answer.'
+      
+      const visibilityInstruction = wantsTranscript
+        ? 'First, speak only as Zevy AI and give the final answer. After that, in a clearly separated section titled "Debate Transcript (Kairo vs Logos)", briefly summarize (in a few short paragraphs) how Kairo and Logos converged on the same conclusion and what evidence supported that consensus.'
+        : 'Do not mention Kairo, Logos, debates, transcripts, internal thinking, or internal disagreement. Do not describe your reasoning steps or thought process. Only speak as a single assistant called Zevy AI giving the final answer.'
+      
       const agreementAnalysisPrompt = `Both Kairo and Logos independently reached similar conclusions. Here's the consensus view:
 
 User Question: ${userMessage}
@@ -1589,7 +1614,7 @@ Kairo's Analysis: ${moonshotText}
 
 Logos's Analysis: ${qwenText}
 
-Since both debaters independently reached the same conclusion, provide a confident, authoritative answer in a single, well-structured response. Do not include explicit section labels like "Final Answer", "Reasoning", or "Follow-up Question" unless the user specifically asks for them.`
+Since both debaters independently reached the same conclusion, ${synthesisInstruction} ${visibilityInstruction} Do not include explicit section labels like "Final Answer", "Reasoning", or "Follow-up Question" unless the user specifically asks for them.`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: agreementAnalysisPrompt }],

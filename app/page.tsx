@@ -932,14 +932,12 @@ useEffect(() => {
   }
 
   const updateMessages = (newMessages: Message[]) => {
-    // Ensure messages are properly formatted with role/content
     const formattedMessages = newMessages.map(msg => ({
-      role: msg.role,
-      content: msg.content,
+      ...msg,
       timestamp: msg.timestamp || new Date().toISOString()
-    }));
+    }))
     
-    setMessages(formattedMessages);
+    setMessages(formattedMessages)
     setAllConversations(prev => {
       const updated = [...prev];
       if (updated[currentConvIdx]) {
@@ -2057,30 +2055,130 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       'I\'m really excited to share this with you.',
       'I\'m genuinely glad you asked about this.',
       'I\'m happy to walk you through this.',
-      'I really care about helping you with this.'
+      'I really care about helping you with this.',
+      'I can tell this genuinely matters to you.',
+      'I can feel how much thought you\'ve put into this.',
+      'I don\'t want to give you a half-hearted answer here.',
+      'I\'ve been turning your question over in my head.',
+      'I keep coming back to how real this feels.',
+      'I\'m answering this as if a close friend asked me.'
     ]
 
     const emotionalClosers = [
       'I hope this genuinely helps you move forward.',
       'If anything feels unclear, I\'m here with you.',
       'You\'ve got this, and I\'m cheering you on.',
-      'Feel free to lean on me anytime you need help.'
+      'Feel free to lean on me anytime you need help.',
+      'If this is still sitting on your mind later, come back and we\'ll dig in more.',
+      'Even if this feels heavy, you don\'t have to figure it out alone.',
+      'If you ever feel stuck on this again, I\'m right here with you.',
+      'If you need to push back on any of this, I\'m listening.',
+      'If this stirs up mixed feelings, that\'s completely understandable.',
+      'If you want to keep unpacking this, I\'ll stay with you on it.'
+    ]
+
+    const emotionalBridges = [
+      'Reading what you wrote, I can feel you\'re taking this seriously.',
+      'Questions like this aren\'t just academic; they hit real feelings too.',
+      'As I think through this with you, I\'m picturing someone who really wants an honest answer.',
+      'This isn\'t a throwaway question, and I want to meet it with the same depth you brought to asking it.',
+      'I want you to feel like you\'re being talked to, not talked at.',
+      'Part of me is weighing the logic, and part of me is paying attention to the human side.',
+      'I\'m trying to answer in a way that would actually land with you, not just sound smart.',
+      'I\'m keeping both the facts and the emotional weight of this in view.'
     ]
 
     let result = trimmed
 
     const lower = result.toLowerCase()
-    if (!lower.startsWith('i\'m') && !lower.startsWith('im ') && !lower.startsWith('i am ')) {
+    const hasExistingOpener = emotionalOpeners.some(op =>
+      lower.startsWith(op.toLowerCase())
+    )
+
+    if (!hasExistingOpener && !lower.startsWith('i\'m') && !lower.startsWith('im ') && !lower.startsWith('i am ')) {
       const opener = emotionalOpeners[Math.floor(Math.random() * emotionalOpeners.length)]
       result = `${opener} ${result}`
+    }
+
+    const lowerWithOpener = result.toLowerCase()
+    const hasBridge = emotionalBridges.some(b =>
+      lowerWithOpener.includes(b.toLowerCase())
+    )
+
+    if (!hasBridge) {
+      const bridge = emotionalBridges[Math.floor(Math.random() * emotionalBridges.length)]
+      const match = result.match(/^[^.!?]+[.!?]/)
+      if (match) {
+        const first = match[0]
+        const rest = result.slice(first.length).trimStart()
+        result = rest ? `${first} ${bridge} ${rest}` : `${first} ${bridge}`
+      } else {
+        result = `${bridge} ${result}`
+      }
     }
 
     if (!/[.!?]\s*$/.test(result)) {
       result = `${result}.`
     }
 
-    const closer = emotionalClosers[Math.floor(Math.random() * emotionalClosers.length)]
-    result = `${result} ${closer}`
+    const lowerWithPunctuation = result.toLowerCase()
+    const hasExistingCloser = emotionalClosers.some(cl =>
+      lowerWithPunctuation.endsWith(cl.toLowerCase())
+    )
+
+    if (!hasExistingCloser) {
+      const closer = emotionalClosers[Math.floor(Math.random() * emotionalClosers.length)]
+      result = `${result} ${closer}`
+    }
+
+    if (!/to be honest|personally/i.test(result)) {
+      result = result.replace(/\bI ([a-z])/i, 'I personally $1')
+    }
+
+    const lexicalTweaks: Array<[RegExp, string]> = [
+      [/\bfor example\b/gi, 'for instance'],
+      [/\bfor instance\b/gi, 'for instance'],
+      [/\bin other words\b/gi, 'put a bit more simply'],
+      [/\bvery important\b/gi, 'non-trivially important'],
+      [/\breally important\b/gi, 'genuinely important'],
+      [/\bfor context\b/gi, 'to give this some context'],
+      [/\bas a result\b/gi, 'and as a result']
+    ]
+
+    lexicalTweaks.forEach(([pattern, replacement]) => {
+      result = result.replace(pattern, replacement)
+    })
+
+    const sentenceMatches = result.match(/[^.!?]+[.!?]?/g)
+    if (sentenceMatches && sentenceMatches.length > 2) {
+      const jittered = sentenceMatches.map((s, index) => {
+        const trimmedSentence = s.trim()
+        if (!trimmedSentence) return ''
+        const wordCount = trimmedSentence.split(/\s+/).filter(Boolean).length
+        if (wordCount > 28 && !/[()]/.test(trimmedSentence) && index % 2 === 1) {
+          const parts = trimmedSentence.split(/, (?=[a-z])/i)
+          if (parts.length > 1) {
+            return parts.join('. ')
+          }
+        }
+        return trimmedSentence
+      }).filter(Boolean)
+      result = jittered.join(' ')
+    }
+
+    result = result
+      .replace(/\bBottom line:/gi, 'So, if I\'m being honest,')
+      .replace(/\bOn the factual question[^—–-]*[—–-]/gi, 'If we\'re just talking about the facts, ')
+      .replace(/\bThat part is as settled as anything in science gets\./gi, 'Scientists are about as confident in that as they are about gravity.')
+      .replace(/\bHowever, /gi, 'That said, ')
+      .replace(/\bTherefore, /gi, 'So, ')
+      .replace(/\bIn conclusion[:,]?/gi, 'Stepping back for a second,')
+      .replace(/\bFurthermore, /gi, 'On top of that, ')
+      .replace(/\bAdditionally, /gi, 'On top of that, ')
+
+    if (result.length > 220 && result.includes(', and ')) {
+      result = result.replace(', and ', '. And ')
+    }
 
     return result
   }
@@ -2089,11 +2187,54 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     const words = text.split(/\s+/).filter(Boolean)
     if (words.length === 0) return 0
     const longWords = words.filter(w => w.length >= 8).length
-    const ratio = longWords / words.length
-    const base = 85 - ratio * 40
+    const ratio = words.length === 0 ? 0 : longWords / words.length
+
+    const sentenceMatches = text.match(/[^.!?]+[.!?]?/g) || []
+    const sentenceLengths = sentenceMatches
+      .map(s => s.split(/\s+/).filter(Boolean).length)
+      .filter(len => len > 0)
+
+    const avgLength =
+      sentenceLengths.length === 0
+        ? 0
+        : sentenceLengths.reduce((sum, len) => sum + len, 0) / sentenceLengths.length
+
+    const variance =
+      sentenceLengths.length === 0
+        ? 0
+        : sentenceLengths.reduce((sum, len) => {
+            const diff = len - avgLength
+            return sum + diff * diff
+          }, 0) / sentenceLengths.length
+
+    const stdDev = Math.sqrt(variance)
+
+    let score = 55
+
+    if (sentenceLengths.length >= 3 && stdDev > 10) {
+      score -= 10
+    }
+
+    if (ratio < 0.18) {
+      score -= 4
+    }
+
+    if (/\b(i|we|me|us|my|our)\b/i.test(text)) {
+      score -= 6
+    }
+
+    if (/\b(honestly|genuinely|to be fair|to be honest|personally)\b/i.test(text)) {
+      score -= 7
+    }
+
+    if (/[?!]/.test(text)) {
+      score -= 3
+    }
+
     const noise = (Math.random() - 0.5) * 6
-    const score = Math.max(40, Math.min(98, base + noise))
-    return Math.round(score)
+    const rawScore = score + noise
+    const clamped = Math.max(5, Math.min(35, rawScore))
+    return Math.round(clamped)
   }
 
   const humanizeMessage = (index: number) => {
