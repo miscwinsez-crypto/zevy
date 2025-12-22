@@ -317,7 +317,7 @@ export default function ZevyCloudAI() {
   const dragOverRef = useRef<HTMLDivElement>(null)
   const chatAbortControllerRef = useRef<AbortController | null>(null)
   const manualAbortRef = useRef(false)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
+  const API_URL = ''
 
   // Add helper to normalize URLs and prevent double slashes
   const normalizeUrl = (baseUrl: string, path: string): string => {
