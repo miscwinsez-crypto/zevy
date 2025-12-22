@@ -75,7 +75,15 @@ export async function POST(request: NextRequest) {
       password: String(password),
     })
 
-    if (error || !data.session || !data.user) {
+    if (error) {
+      console.error('Supabase login error:', error.message)
+      return NextResponse.json(
+        { detail: error.message || 'Invalid email or password' },
+        { status: 401 }
+      )
+    }
+
+    if (!data.session || !data.user) {
       return NextResponse.json(
         { detail: 'Invalid email or password' },
         { status: 401 }

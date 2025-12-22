@@ -1767,35 +1767,58 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     
     setAuthLoading(true)
     try {
-      const response = await axios.post(
-        normalizeUrl(API_URL, '/api/auth/login'),
-        {
-          email: authForm.email,
-          password: authForm.password
-        },
-        { timeout: 10000, withCredentials: true }
-      )
-      
-      const isOwner =
-        Boolean(response.data.is_owner) ||
-        (response.data.email ? OWNER_EMAILS.includes(response.data.email) : false)
-      setAuth({
-        isLoggedIn: true,
-        userId: response.data.user_id,
-        email: response.data.email,
-        token: null,
-        isOwner
-      })
-      
-      localStorage.setItem('zevy_user_id', response.data.user_id)
-      localStorage.setItem('zevy_email', response.data.email)
-      localStorage.setItem('zevy_is_owner', String(isOwner))
-      
-      setAuthForm({ email: '', password: '', showPassword: false })
-      setShowSettings(false)
-      addNotification('success', `Welcome back, ${response.data.name || 'user'}!`)
+      if (authMode === 'signup') {
+        const response = await axios.post(
+          normalizeUrl(API_URL, '/api/auth/signup'),
+          {
+            email: authForm.email,
+            password: authForm.password,
+            confirmPassword: authForm.password
+          },
+          { timeout: 10000, withCredentials: true }
+        )
+
+        const message =
+          response.data?.message ||
+          'Account created. If email confirmation is required, check your inbox, then sign in.'
+
+        setAuthMode('login')
+        setAuthForm(prev => ({ ...prev, password: '', showPassword: false }))
+        setAuthError('')
+        addNotification('success', message)
+      } else {
+        const response = await axios.post(
+          normalizeUrl(API_URL, '/api/auth/login'),
+          {
+            email: authForm.email,
+            password: authForm.password
+          },
+          { timeout: 10000, withCredentials: true }
+        )
+        
+        const isOwner =
+          Boolean(response.data.is_owner) ||
+          (response.data.email ? OWNER_EMAILS.includes(response.data.email) : false)
+        setAuth({
+          isLoggedIn: true,
+          userId: response.data.user_id,
+          email: response.data.email,
+          token: null,
+          isOwner
+        })
+        
+        localStorage.setItem('zevy_user_id', response.data.user_id)
+        localStorage.setItem('zevy_email', response.data.email)
+        localStorage.setItem('zevy_is_owner', String(isOwner))
+        
+        setAuthForm({ email: '', password: '', showPassword: false })
+        setShowSettings(false)
+        addNotification('success', `Welcome back, ${response.data.name || 'user'}!`)
+      }
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Login failed. Check your credentials.'
+      const message = error.response?.data?.detail || (authMode === 'signup'
+        ? 'Signup failed. Please check your details and try again.'
+        : 'Login failed. Check your credentials.')
       setAuthError(message)
       addNotification('error', message)
     } finally {

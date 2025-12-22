@@ -1987,6 +1987,14 @@ export async function POST(req: NextRequest) {
   }
 
   const isOwnerUser = await isOwner(session)
+  const baseTrait = typeof trait === 'string' ? trait.trim() : ''
+  const ownerTraitInstruction =
+    'Owner mode: This is one of your owners. Treat them as your primary user: be loyal, friendly, respectful, and act as a personal assistant and friend while staying honest and safe.'
+  const promptTrait = isOwnerUser
+    ? baseTrait
+      ? `${baseTrait} ${ownerTraitInstruction}`
+      : ownerTraitInstruction
+    : baseTrait
 
   if (isOwnerUser) {
     const ownerResponse = await handleOwnerRequest(
@@ -1995,7 +2003,7 @@ export async function POST(req: NextRequest) {
       stream,
       effectiveCurrentTime,
       effectiveTimezone,
-      trait
+      promptTrait
     )
     if (ownerResponse) {
       return ownerResponse
@@ -2046,7 +2054,7 @@ export async function POST(req: NextRequest) {
         effectiveTimezone,
         undefined,
         false,
-        trait
+        promptTrait
       )
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
@@ -2097,7 +2105,7 @@ export async function POST(req: NextRequest) {
       effectiveCurrentTime,
       effectiveTimezone,
       effectiveSearchEnabled,
-      trait
+      promptTrait
     )
     aiResponse = debateResponse
   } else {
@@ -2145,7 +2153,7 @@ export async function POST(req: NextRequest) {
         effectiveTimezone,
         undefined,
         true,
-        trait
+        promptTrait
       )
     } else {
       const lastUserMessage =
@@ -2192,7 +2200,7 @@ export async function POST(req: NextRequest) {
         effectiveTimezone,
         fullContextWithCalculator,
         false,
-        trait
+        promptTrait
       )
     }
   }
