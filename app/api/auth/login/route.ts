@@ -78,9 +78,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Supabase login error:', error.message)
+      const isFetchFailed = error.message === 'fetch failed'
+      const status = isFetchFailed ? 503 : 401
+      const message = isFetchFailed
+        ? 'Login service is temporarily unavailable. Please try again in a little while.'
+        : error.message || 'Invalid email or password'
+
       return NextResponse.json(
-        { detail: error.message || 'Invalid email or password' },
-        { status: 401 }
+        { detail: message },
+        { status }
       )
     }
 

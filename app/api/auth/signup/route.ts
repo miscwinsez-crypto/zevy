@@ -95,7 +95,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      return NextResponse.json({ detail: error.message }, { status: 400 })
+      console.error('Supabase signup error:', error.message)
+      const isFetchFailed = error.message === 'fetch failed'
+      const status = isFetchFailed ? 503 : 400
+      const message = isFetchFailed
+        ? 'Signup service is temporarily unavailable. Please try again in a little while.'
+        : error.message || 'Signup failed. Please check your details and try again.'
+
+      return NextResponse.json({ detail: message }, { status })
     }
 
     return NextResponse.json(
