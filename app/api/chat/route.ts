@@ -1071,13 +1071,13 @@ export async function GET(request: NextRequest) {
       const { data, error } = await query
       if (error) {
         console.error('Error fetching conversation history:', error.message)
-        return NextResponse.json({ conversations: [] }, { status: 500 })
+        return NextResponse.json({ conversations: [] }, { status: 200 })
       }
 
       return NextResponse.json({ conversations: data || [] }, { status: 200 })
     } catch (error: any) {
       console.error('Unexpected error in chat history GET:', error.message || error)
-      return NextResponse.json({ conversations: [] }, { status: 500 })
+      return NextResponse.json({ conversations: [] }, { status: 200 })
     }
   }
 
@@ -1945,10 +1945,16 @@ User: ${prompt}
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createSupabaseClient()
-  const {
-    data: { session }
-  } = await supabase.auth.getSession()
+  let supabase: any = null
+  let session: any = null
+
+  try {
+    supabase = await createSupabaseClient()
+    const { data } = await supabase.auth.getSession()
+    session = data?.session
+  } catch (error: any) {
+    console.error('Chat POST Supabase session error:', error)
+  }
   const body = await req.json()
   let { chat_id } = body
 

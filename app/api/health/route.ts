@@ -19,19 +19,19 @@ export async function GET(request: NextRequest) {
       assertVercelOnly();
     }
     
-    // Check Supabase client
     if (!supabase) {
       return NextResponse.json(
         {
-          status: 'error',
+          status: 'degraded',
           message: 'Supabase client not initialized',
           debug: {
             clientInitialized: false,
             envVariablesPresent: !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
             timestamp: new Date().toISOString()
-          }
+          },
+          vercel: getVercelInfo()
         },
-        { status: 500 }
+        { status: 200 }
       );
     }
     

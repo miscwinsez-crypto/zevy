@@ -7,13 +7,11 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createSupabaseClient()
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession()
+    const { data, error } = await supabase.auth.getSession()
+    const session = data?.session
 
     if (error || !session?.user) {
-      return NextResponse.json({ authenticated: false }, { status: 401 })
+      return NextResponse.json({ authenticated: false }, { status: 200 })
     }
 
     return NextResponse.json({
@@ -24,8 +22,8 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Verify error:', error)
     return NextResponse.json(
-      { detail: 'Internal server error' },
-      { status: 500 }
+      { authenticated: false },
+      { status: 200 }
     )
   }
 }

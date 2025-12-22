@@ -1,6 +1,12 @@
-// Network and API utilities for connecting to Vercel deployment
+// Network and API utilities for connecting to the deployment
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const makeUrl = (path: string) => {
+  if (!API_URL) return path;
+  const base = API_URL.replace(/\/$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${cleanPath}`;
+};
 
 export interface ChatRequest {
   message: string
@@ -43,7 +49,7 @@ export interface HealthCheck {
  */
 export async function checkHealth(): Promise<HealthCheck> {
   try {
-    const response = await fetch(`${API_URL}/api/health`, {
+    const response = await fetch(makeUrl('/api/health'), {
       method: 'GET',
       headers: {
         'Accept': 'application/json'
@@ -66,7 +72,7 @@ export async function checkHealth(): Promise<HealthCheck> {
  */
 export async function testConnectivity(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/health`, {
+    const response = await fetch(makeUrl('/api/health'), {
       method: 'HEAD'
     })
     return response.ok
@@ -82,9 +88,9 @@ export function getApiConfig() {
   return {
     baseUrl: API_URL,
     endpoints: {
-      chat: `${API_URL}/api/chat`,
-      health: `${API_URL}/api/health`,
-      image: `${API_URL}/api/image`
+      chat: makeUrl('/api/chat'),
+      health: makeUrl('/api/health'),
+      image: makeUrl('/api/image')
     }
   }
 }
