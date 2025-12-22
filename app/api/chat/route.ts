@@ -25,7 +25,8 @@ import {
   googleApiKey1,
   googleSearchEngineId,
   newsApiKey1,
-  newsApiKey2
+  newsApiKey2,
+  nextPublicOwnerEmail
 } from '@/app/lib/env';
 import { determineIntent } from '@/app/lib/intent-router'
 
@@ -44,7 +45,7 @@ const OWNER_EMAILS = [
   'miscwinsez@gmail.com',
   'noor.laily@gmail.com',
   'azrulhadi@gmail.com'
-]
+].concat(nextPublicOwnerEmail ? [nextPublicOwnerEmail] : [])
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean, trait?: string) => {
   const searchStatus = searchEnabled

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseClient } from '@/app/lib/supabase'
+import { nextPublicOwnerEmail } from '@/app/lib/env'
 
 const OWNER_EMAILS = [
   'miscwinsez@gmail.com',
   'noor.laily@gmail.com',
   'azrulhadi@gmail.com'
-]
+].concat(nextPublicOwnerEmail ? [nextPublicOwnerEmail] : [])
 
 // Simple rate limiting (in production, use Redis)
 const loginAttempts = new Map<string, { count: number; resetTime: number }>()

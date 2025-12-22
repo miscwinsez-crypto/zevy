@@ -33,9 +33,15 @@ const ALLOWED_VERCEL_VARS = new Set([
   'NEWS_API_KEY_1',
   'NEWS_API_KEY_2',
   'OPENWEATHER_KEY',
-  'NEXT_PUBLIC_SUPABASE_URL', // Correctly used by Supabase client
-  'NEXT_PUBLIC_SUPABASE_ANON_KEY', // Changed to match the client's expectation
-  'SUPABASE_SERVICE_KEY'
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_KEY',
+  'SUPABASE_URL',
+  'OWNER_EMAIL',
+  'EDGE_CONFIG',
+  'KV_REST_API_URL',
+  'KV_REST_API_TOKEN',
+  'KV_URL'
 ])
 
 /**
