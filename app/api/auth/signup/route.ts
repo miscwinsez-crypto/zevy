@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createSupabaseClient } from '@/app/lib/supabase'
 
 // Simple signup rate limiting
 const signupAttempts = new Map<string, { count: number; resetTime: number }>()
@@ -87,22 +88,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Register email (in production, hash password and store in database)
-    const userId = `user_${Buffer.from(email).toString('base64').slice(0, 16)}`
-    const token = Buffer.from(`${email}:${Date.now()}`).toString('base64')
-
-    return NextResponse.json({
-      user_id: userId,
-      email: email,
-      token: token,
-      name: email.split('@')[0],
-      message: 'Account created successfully (Demo mode)'
-    }, {
-      status: 201,
-      headers: {
-        'Set-Cookie': `auth_token=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`
-      }
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase.auth.signUp({
+      email: String(email).trim(),
+      password: String(password),
     })
+
+    if (error) {
+      return NextResponse.json({ detail: error.message }, { status: 400 })
+    }
+
+    return NextResponse.json(
+      {
+        user_id: data.user?.id ?? null,
+        email: data.user?.email ?? String(email).trim(),
+        token: null,
+        name: String(email).split('@')[0],
+        message: data.session
+          ? 'Account created successfully'
+          : 'Account created. Check your email to confirm your account.',
+      },
+      { status: 201 }
+    )
   } catch (error: any) {
     console.error('Signup error:', error)
     return NextResponse.json(

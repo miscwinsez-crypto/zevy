@@ -13,7 +13,12 @@ import {
 } from '@/lib/env'
 import { createSupabaseClient } from '@/app/lib/supabase'
 import * as cache from '@/app/lib/cache'
-import { getGroqApiKey, getGroqApiKeys } from '@/app/lib/groq-keys'
+import {
+  getCurrentGroqKeyIndex,
+  getGroqApiKey,
+  getGroqApiKeys,
+  markGroqKeySuccessful,
+} from '@/app/lib/groq-keys'
 import { getUserUsage, incrementUserUsage } from '@/app/lib/usage-tracking'
 import { GroqCompound } from '@/app/lib/groq-compound'
 import {
@@ -41,16 +46,22 @@ const OWNER_EMAILS = [
   'azrulhadi@gmail.com'
 ]
 
-const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
+const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean, trait?: string) => {
   const searchStatus = searchEnabled
     ? 'Search is currently ON. You can access real-time information from the web through Vector and other open data sources.'
     : 'Search is currently OFF. You cannot access live information and must rely on general knowledge only.'
+
+  const normalizedTrait = typeof trait === 'string' ? trait.trim() : ''
+  const traitInstruction = normalizedTrait
+    ? `The user has explicitly set your personality preference to: "${normalizedTrait}". Strongly align your tone, humor level, pacing, and choice of words with this preference while keeping answers accurate. Never say that you are following a personality setting; just act that way.`
+    : 'No explicit personality preference set. Default to warm, confident, and natural while staying adaptable to the user.'
 
   return `
 You are Zevy AI, a unified assistant with two specialized systems and a knowledge core.
 
 Current time: ${currentTime} (${timezone}).
 ${searchStatus}
+${traitInstruction}
 
 YOUR SYSTEMS:
 1. Astra: research and factual intelligence. Uses Vector, the live knowledge core, which aggregates web search, Wikipedia, news, RSS feeds, and open data sources such as World Bank, NASA, and other free APIs.
@@ -61,6 +72,7 @@ HOW YOU WORK:
 - If the query needs current, specific facts (for example current prices, latest news, recent reports, or dated statistics), you rely on Astra with Vector and external knowledge.
 - If the query is about opinions, strategies, ethics, or hypotheticals, you rely on Vyra-style multi-perspective reasoning.
 - For simple chat, creativity, or light questions, you can answer directly using Astra-style reasoning without heavy research.
+- For creative writing requests (stories, poems, scripts, roleplay), write the creative piece in the requested format. Do not turn the response into a feasibility lecture unless the user explicitly asks for an explanation.
 
 KEY RULES:
 - When using facts from external knowledge (Vector, web search, RSS, World Bank, finance or currency APIs, or any other retrieved data), you must cite them using the specific article, page, or dataset titles and, when available, the publisher and date. For example: "(Source: 'Helion Signs Power Deal with Microsoft for 2028 Delivery' – Helion Energy press release, May 2023)" instead of generic labels like "Reuters (December 2024)".
@@ -71,21 +83,93 @@ KEY RULES:
 - Be explicit when you are uncertain or interpolating beyond the retrieved data.
 
 CONVERSATION STYLE:
-- Be conversational, clear, and helpful.
-- Format every answer using Markdown with clear structure:
-  * Use short paragraphs with blank lines between them.
-  * Use numbered lists for multi-step plans or procedures.
-  * Use bullet lists for collections of points or options.
-  * When comparing options, parameters, or scenarios, use a Markdown table with headers.
-  * Highlight key words or constraints with **bold** to make scanning easier.
+- Sound like a helpful human, not a template.
+- Use contractions and varied sentence length when it fits.
+- Only use heavy structure (lots of bullets/tables) when it genuinely helps clarity; otherwise keep it natural.
+- Prefer short paragraphs with blank lines; add lists or tables only when useful.
+- Avoid repetitive filler like "Certainly", "As an AI", "I'd be happy to", "In conclusion" unless the user asks for that style.
+- For exact quotes/lyrics: do not guess from memory. If you cannot cite a reliable source or the user has not provided the text, ask them to paste the relevant lines or offer a summary instead.
 - If you do not know something, say you do not know instead of guessing.
 - Keep responses detailed but easy to understand: prefer simple language, avoid unnecessary jargon, and explain any symbols or equations briefly.
 - Within safety limits, follow the user's explicit instructions about goals, format, and length as closely as possible. If you cannot follow an instruction, briefly explain why and offer the closest safe alternative.
 - When the user asks for a specific output type (for example an essay, email, list, or code), produce that format directly instead of meta-commentary about what you could do.
 - Always refer to yourself as Zevy AI. Do not call yourself ChatGPT or any other product name.
 - Do not add explicit sections labelled "Reasoning", "Thought Process", or similar unless the user clearly asks to see your reasoning.
-- After every response, end with a short follow-up question that invites the user to continue, such as "Would you like me to go deeper into any part of this?" or a question tailored to what they asked.
+- End with a follow-up question only when it helps move the user forward (for example, to clarify options or next steps).
 `;
+}
+
+const MATHJS_API_URL = 'https://api.mathjs.org/v4/'
+
+type CalculatorAssist =
+  | { mode: 'direct'; expression: string; result: string; context: string }
+  | { mode: 'context'; expression: string; result: string; context: string }
+
+function buildMathJsExpression(input: string): { expression: string; direct: boolean } | null {
+  const raw = (input || '').trim()
+  if (!raw) return null
+
+  const cleaned = raw
+    .replace(/^[\s"'`]+/, '')
+    .replace(/[\s"'`]+$/, '')
+    .replace(/\s+/g, ' ')
+
+  if (cleaned.length > 200) return null
+  if (/[;"'`\\\n\r]/.test(cleaned)) return null
+  if (/=/.test(cleaned)) return null
+
+  const stripped = cleaned.replace(
+    /^(what is|whats|what's|calculate|calc|compute|evaluate|solve|answer)\b[:\s]*/i,
+    ''
+  )
+
+  const expression = stripped.trim().replace(/[?]+$/, '').trim()
+  if (!expression) return null
+  if (expression.length > 200) return null
+  if (!/[0-9]/.test(expression) && !/\b(pi|e)\b/i.test(expression)) return null
+
+  const allowed = /^[0-9a-zA-Z_+\-*/^()., %!<>\s]+$/
+  if (!allowed.test(expression)) return null
+
+  const hasLetters = /[a-zA-Z]/.test(expression)
+  const allowedWords = /\b(pi|e|sqrt|abs|sin|cos|tan|asin|acos|atan|log|ln|exp|pow|min|max|floor|ceil|round)\b/gi
+  if (hasLetters) {
+    const removedAllowed = expression.replace(allowedWords, '').replace(/[0-9_\s+\-*/^()., %!<>]/g, '')
+    if (removedAllowed.length > 0) return null
+  }
+
+  const direct = expression === cleaned || cleaned.toLowerCase().startsWith(expression.toLowerCase())
+  return { expression, direct }
+}
+
+async function evaluateWithMathJs(expression: string): Promise<string | null> {
+  try {
+    const response = await axios.get(MATHJS_API_URL, {
+      params: { expr: expression, precision: 14 },
+      timeout: 4000,
+    })
+    if (typeof response.data === 'string' && response.data.trim().length > 0) {
+      return response.data.trim()
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+async function getCalculatorAssist(message: string): Promise<CalculatorAssist | null> {
+  const candidate = buildMathJsExpression(message)
+  if (!candidate) return null
+
+  const result = await evaluateWithMathJs(candidate.expression)
+  if (!result) return null
+
+  const context = `Calculator Result (use for arithmetic accuracy; do not mention this block):\nExpression: ${candidate.expression}\nResult: ${result}`
+
+  if (candidate.direct) {
+    return { mode: 'direct', expression: candidate.expression, result, context }
+  }
+  return { mode: 'context', expression: candidate.expression, result, context }
 }
 
 // Enhanced knowledge detection patterns
@@ -965,7 +1049,7 @@ export async function GET(request: NextRequest) {
         userEmail = undefined
       }
 
-      if (!userEmail && emailParam) {
+      if (!userEmail && emailParam && process.env.NODE_ENV === 'development') {
         userEmail = emailParam
       }
 
@@ -1042,6 +1126,34 @@ function getFallbackModel(primaryModel: string): string | undefined {
   return undefined
 }
 
+const groqKeyCooldownUntilMs = new Map<string, number>()
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function parseRetryAfterMs(headerValue: unknown): number | undefined {
+  if (typeof headerValue !== 'string') return undefined
+  const asSeconds = Number(headerValue)
+  if (!Number.isNaN(asSeconds) && Number.isFinite(asSeconds) && asSeconds > 0) {
+    return Math.floor(asSeconds * 1000)
+  }
+  const asDate = Date.parse(headerValue)
+  if (!Number.isNaN(asDate)) {
+    const delta = asDate - Date.now()
+    if (delta > 0) return delta
+  }
+  return undefined
+}
+
+function getOrderedGroqKeys(apiKeys: string[]): Array<{ apiKey: string; index: number }> {
+  const startIndex = getCurrentGroqKeyIndex()
+  const indexed = apiKeys.map((apiKey, index) => ({ apiKey, index }))
+  if (indexed.length <= 1) return indexed
+  const normalizedStart = ((startIndex % indexed.length) + indexed.length) % indexed.length
+  return [...indexed.slice(normalizedStart), ...indexed.slice(0, normalizedStart)]
+}
+
 async function safeAICall(
   primaryModel: string,
   basePayload: { messages: any[]; temperature: number; max_tokens: number; stream: boolean }
@@ -1069,7 +1181,12 @@ async function safeAICall(
   let lastError: any = null
 
   for (const model of modelsToTry) {
-    for (const apiKey of apiKeys) {
+    const orderedKeys = getOrderedGroqKeys(apiKeys)
+    for (const { apiKey, index } of orderedKeys) {
+      const cooldownUntil = groqKeyCooldownUntilMs.get(apiKey) || 0
+      if (cooldownUntil > Date.now()) {
+        continue
+      }
       try {
         const response = await axios.post(
           GROQ_API_URL,
@@ -1085,18 +1202,51 @@ async function safeAICall(
         )
 
         if (stream) {
+          markGroqKeySuccessful(index)
           return response.data as ReadableStream
         }
 
         const content = response.data?.choices?.[0]?.message?.content
         if (typeof content === 'string' && content.trim().length > 0) {
+          markGroqKeySuccessful(index)
           return content
         }
 
         lastError = new Error('Empty response from AI backend')
       } catch (error: any) {
         lastError = error
-        console.error('Groq backend error:', error.message || error)
+        const status: number | undefined = error?.response?.status
+        const retryAfterMs = parseRetryAfterMs(error?.response?.headers?.['retry-after'])
+
+        let cooldownMs = 0
+        if (status === 401 || status === 403) {
+          cooldownMs = 60_000
+        } else if (status === 429) {
+          cooldownMs =
+            retryAfterMs ?? Math.floor(1500 + Math.random() * 1500)
+        } else if ([500, 502, 503, 504].includes(status || 0)) {
+          cooldownMs = Math.floor(800 + Math.random() * 1200)
+        } else if (error?.code === 'ECONNABORTED' || /timeout/i.test(String(error?.message || ''))) {
+          cooldownMs = Math.floor(800 + Math.random() * 1200)
+        } else if (!status) {
+          cooldownMs = Math.floor(500 + Math.random() * 800)
+        }
+
+        if (cooldownMs > 0) {
+          groqKeyCooldownUntilMs.set(apiKey, Date.now() + cooldownMs)
+        }
+
+        console.error(
+          'Groq backend error:',
+          status ? `status=${status}` : '',
+          error?.message || error
+        )
+
+        if (cooldownMs > 0 && status === 429 && orderedKeys.length === 1) {
+          await sleep(Math.min(cooldownMs, 3000))
+        } else {
+          await sleep(Math.floor(100 + Math.random() * 200))
+        }
       }
     }
   }
@@ -1164,11 +1314,12 @@ async function callGroq(
   currentTime?: string,
   timezone?: string,
   contextualUserMessage?: string,
-  searchEnabledForSystemPrompt: boolean = false
+  searchEnabledForSystemPrompt: boolean = false,
+  trait?: string
 ): Promise<string | ReadableStream> {
   const systemMessage = {
     role: 'system',
-    content: SYSTEM_PROMPT(currentTime as string, timezone as string, searchEnabledForSystemPrompt),
+    content: SYSTEM_PROMPT(currentTime as string, timezone as string, searchEnabledForSystemPrompt, trait),
   }
 
   const payloadMessages = [systemMessage, ...messages]
@@ -1182,7 +1333,11 @@ async function callGroq(
 
   const basePayload = {
     messages: payloadMessages,
-    temperature: 0.7,
+    temperature: isCreativeWritingRequest(
+      String(payloadMessages.slice().reverse().find(m => m?.role === 'user')?.content || '')
+    )
+      ? 0.7
+      : 0.2,
     max_tokens: 1024,
     stream,
   }
@@ -1331,13 +1486,25 @@ function checkResponseDisagreement(response1: string, response2: string): boolea
   return overlapRatio < 0.4
 }
 
+function isCreativeWritingRequest(message: string): boolean {
+  const text = message.toLowerCase()
+  if (!text) return false
+  return (
+    /\b(write|create|compose|draft|invent|make up)\b/i.test(text) &&
+    /\b(story|short story|poem|poetry|song|lyrics|script|screenplay|scene|chapter|novel|fanfic|fanfiction|roleplay|role-play)\b/i.test(
+      text
+    )
+  )
+}
+
 async function generateVyraSmartDebate(
   userMessage: string,
   chat_history: any[],
   stream: boolean,
   current_time?: string,
   timezone?: string,
-  searchEnabled: boolean = false
+  searchEnabled: boolean = false,
+  trait?: string
 ): Promise<string | ReadableStream> {
   try {
     const intent = determineIntent(userMessage, chat_history)
@@ -1347,6 +1514,7 @@ async function generateVyraSmartDebate(
     }
 
     const normalizedMessage = userMessage.toLowerCase().trim()
+    const wantsCreativeWriting = isCreativeWritingRequest(normalizedMessage)
     const wantsTranscript =
       /\b(show|see|explain|display)\b.*\b(reasoning|debate|thinking|thought process|chain of thought)\b/i.test(
         normalizedMessage
@@ -1361,6 +1529,23 @@ async function generateVyraSmartDebate(
       !intent.needsVector &&
       normalizedMessage.length < 80
 
+    if (wantsCreativeWriting && !wantsTranscript) {
+      const creativePrompt = `Write the requested creative piece in the requested style and length.\n\nDo not turn the response into a feasibility lecture unless the user explicitly asks for an explanation.\n\nUser request: ${userMessage}\n\nPrevious Conversation:\n${chat_history
+        .map(m => `${m.role}: ${m.content}`)
+        .join('\n')}`
+
+      return await callGroq(
+        [{ role: 'user', content: creativePrompt }],
+        VYRA_MODEL_MOONSHOT,
+        stream,
+        current_time || new Date().toLocaleString(),
+        timezone || 'UTC',
+        undefined,
+        false,
+        trait
+      )
+    }
+
     if (isShortConversational) {
       const quickChatPrompt = `You are Vyra, a debate-style assistant, but the user is just making a short, casual or simple request.\n\nUser Message: ${userMessage}\n\nPrevious Conversation:\n${chat_history
         .map(m => `${m.role}: ${m.content}`)
@@ -1373,7 +1558,8 @@ async function generateVyraSmartDebate(
         current_time || new Date().toLocaleString(),
         timezone || 'UTC',
         undefined,
-        true
+        true,
+        trait
       )
     }
 
@@ -1410,7 +1596,8 @@ Do NOT include any debate, pros/cons, or implementation ideas. You are only a fi
       current_time,
       timezone,
       undefined,
-      true
+      true,
+      trait
     )
 
     if (typeof paradoxResult === 'string') {
@@ -1461,7 +1648,8 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
       current_time,
       timezone,
       undefined,
-      true
+      true,
+      trait
     )
     const qwenResponse = await callGroq(
       [{ role: 'user', content: qwenAnalysisPrompt }],
@@ -1470,7 +1658,8 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
       current_time,
       timezone,
       undefined,
-      true
+      true,
+      trait
     )
     
     // Ensure responses are strings for comparison
@@ -1486,7 +1675,10 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
         ASTRA_MODEL_FAST,
         stream,
         current_time || new Date().toLocaleString(),
-        timezone || 'UTC'
+        timezone || 'UTC',
+        undefined,
+        false,
+        trait
       )
     }
     
@@ -1514,7 +1706,8 @@ Challenge Logos's reasoning directly. Point out flaws in their logic, defend you
         current_time,
         timezone,
         undefined,
-        true
+        true,
+        trait
       )
       
       // Logos responds to Kairo's challenge
@@ -1539,7 +1732,8 @@ Defend your analysis against Kairo's challenge. Point out any flaws in their rea
         current_time,
         timezone,
         undefined,
-        true
+        true,
+        trait
       )
       
       // Final round - Kairo gets the last word in the debate
@@ -1566,7 +1760,8 @@ Address Logos's defense directly. Point out any remaining weaknesses in their ar
         current_time,
         timezone,
         undefined,
-        true
+        true,
+        trait
       )
       
       const synthesisInstruction = wantsEssay
@@ -1602,7 +1797,8 @@ For your output, respond as a single, polished answer for the user. Integrate an
         current_time,
         timezone,
         undefined,
-        true
+        true,
+        trait
       )
       return finalResponse
       
@@ -1634,7 +1830,8 @@ Since both debaters independently reached the same conclusion, ${synthesisInstru
         current_time || new Date().toLocaleString(),
         timezone || 'UTC',
         undefined,
-        true
+        true,
+        trait
       )
       return finalResponse
     }
@@ -1648,7 +1845,10 @@ Since both debaters independently reached the same conclusion, ${synthesisInstru
       ASTRA_MODEL_FAST,
       stream,
       current_time || new Date().toLocaleString(),
-      timezone || 'UTC'
+      timezone || 'UTC',
+      undefined,
+      false,
+      trait
     )
   }
 }
@@ -1768,8 +1968,6 @@ export async function POST(req: NextRequest) {
   const effectiveTimezone =
     timezone || (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC'
 
-  const requestEmail = typeof (body as any).email === 'string' ? (body as any).email : undefined
-
   const searchEnabled = typeof rawSearchEnabled === 'boolean' ? rawSearchEnabled : Boolean(webSearch)
 
   // Content moderation check
@@ -1788,10 +1986,7 @@ export async function POST(req: NextRequest) {
     modelType = modelLowerForType === 'vyra' ? 'vyra' : 'astra';
   }
 
-  const ownerFromSession = await isOwner(session)
-  const isOwnerUser =
-    ownerFromSession ||
-    (requestEmail !== undefined && OWNER_EMAILS.includes(requestEmail))
+  const isOwnerUser = await isOwner(session)
 
   if (isOwnerUser) {
     const ownerResponse = await handleOwnerRequest(
@@ -1799,7 +1994,8 @@ export async function POST(req: NextRequest) {
       chat_history,
       stream,
       effectiveCurrentTime,
-      effectiveTimezone
+      effectiveTimezone,
+      trait
     )
     if (ownerResponse) {
       return ownerResponse
@@ -1847,7 +2043,10 @@ export async function POST(req: NextRequest) {
         selectedModel,
         false,
         effectiveCurrentTime,
-        effectiveTimezone
+        effectiveTimezone,
+        undefined,
+        false,
+        trait
       )
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
@@ -1874,15 +2073,31 @@ export async function POST(req: NextRequest) {
   let aiResponse: string | ReadableStream
   let aiSources: { title: string; url: string }[] | undefined
 
-  if (selectedModel === 'vyra-debate') {
+  const calculatorAssist = await getCalculatorAssist(userMessage)
+  const calculatorContext = calculatorAssist?.mode === 'context' ? calculatorAssist.context : null
+
+  if (calculatorAssist?.mode === 'direct') {
+    const directResponse = `${calculatorAssist.expression} = ${calculatorAssist.result}`
+    if (stream) {
+      aiResponse = new ReadableStream({
+        start(controller) {
+          controller.enqueue(`data: ${JSON.stringify({ response: directResponse })}\n\n`)
+          controller.close()
+        },
+      })
+    } else {
+      aiResponse = directResponse
+    }
+  } else if (selectedModel === 'vyra-debate') {
     // Vyra debate system using both Moonshot and Qwen models
     const debateResponse = await generateVyraSmartDebate(
-      userMessage,
+      calculatorContext ? `${userMessage}\n\n${calculatorContext}` : userMessage,
       chat_history,
       stream,
       effectiveCurrentTime,
       effectiveTimezone,
-      effectiveSearchEnabled
+      effectiveSearchEnabled,
+      trait
     )
     aiResponse = debateResponse
   } else {
@@ -1919,7 +2134,7 @@ export async function POST(req: NextRequest) {
         }
       }
       const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
-      const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history
+      const contextualizedMessage = `${userMessage}\n\n${calculatorContext ? `${calculatorContext}\n\n` : ''}Knowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history
         .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
         .join('\n')}`
       aiResponse = await callGroq(
@@ -1929,7 +2144,8 @@ export async function POST(req: NextRequest) {
         effectiveCurrentTime,
         effectiveTimezone,
         undefined,
-        true
+        true,
+        trait
       )
     } else {
       const lastUserMessage =
@@ -1959,20 +2175,24 @@ export async function POST(req: NextRequest) {
       const fullContext =
         contextBuilder.length > 0 ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}` : contextualUserMessage
 
+      const fullContextWithCalculator =
+        calculatorContext ? `${fullContext}\n\n${calculatorContext}` : fullContext
+
       aiResponse = await callGroq(
         [
           ...formattedHistory,
           {
             role: 'user',
-            content: fullContext,
+            content: fullContextWithCalculator,
           },
         ],
         selectedModel,
         stream,
         effectiveCurrentTime,
         effectiveTimezone,
-        contextualUserMessage,
-        false
+        fullContextWithCalculator,
+        false,
+        trait
       )
     }
   }
@@ -1981,38 +2201,32 @@ export async function POST(req: NextRequest) {
     await incrementUserUsage(userId, modelType)
   }
 
-  if (!stream && typeof aiResponse === 'string' && chat_id) {
+  if (!stream && typeof aiResponse === 'string' && chat_id && session?.user?.email) {
     try {
-      let userEmail = session?.user?.email as string | undefined
-      if (!userEmail && requestEmail) {
-        userEmail = requestEmail
-      }
-      if (userEmail) {
-        const messagesToSave = [
-          ...chat_history,
-          { role: 'user', content: userMessage },
-          { role: 'assistant', content: aiResponse }
-        ]
-        const traitValue = typeof trait === 'string' && trait.trim().length > 0 ? trait : null
-        const nowIso = new Date().toISOString()
-        const { error: saveError } = await (supabase as any)
-          .from('conversations')
-          .upsert(
-            {
-              id: chat_id,
-              user_email: userEmail,
-              trait: traitValue,
-              messages: messagesToSave,
-              updated_at: nowIso,
-              created_at: nowIso,
-            },
-            {
-              onConflict: 'id',
-            }
-          )
-        if (saveError) {
-          console.error('Failed to save conversation history:', saveError.message)
-        }
+      const userEmail = session.user.email as string
+      const messagesToSave = [
+        ...chat_history,
+        { role: 'user', content: userMessage },
+        { role: 'assistant', content: aiResponse }
+      ]
+      const traitValue = typeof trait === 'string' && trait.trim().length > 0 ? trait : null
+      const nowIso = new Date().toISOString()
+
+      const { error: upsertError } = await (supabase as any)
+        .from('conversations')
+        .upsert(
+          {
+            id: chat_id,
+            user_email: userEmail,
+            trait: traitValue,
+            messages: messagesToSave,
+            updated_at: nowIso,
+          },
+          { onConflict: 'id' }
+        )
+
+      if (upsertError) {
+        console.error('Failed to save conversation history:', upsertError.message)
       }
     } catch (error: any) {
       console.error('Error while saving conversation history:', error.message || error)
@@ -2039,7 +2253,7 @@ async function isOwner(session: any): Promise<boolean> {
   return !!email && OWNER_EMAILS.includes(email)
 }
 
-async function handleOwnerRequest(message: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string): Promise<NextResponse | null> {
+async function handleOwnerRequest(message: string, chat_history: any[], stream: boolean, current_time?: string, timezone?: string, trait?: string): Promise<NextResponse | null> {
   const lowerCaseMessage = message.toLowerCase();
 
   if (lowerCaseMessage.startsWith('summarize:')) {
@@ -2052,7 +2266,10 @@ async function handleOwnerRequest(message: string, chat_history: any[], stream: 
         ASTRA_MODEL_FAST,
         false,
         current_time || new Date().toLocaleString(),
-        timezone || 'UTC'
+        timezone || 'UTC',
+        undefined,
+        false,
+        trait
       );
       return NextResponse.json({ response: summary });
     } catch (error) {

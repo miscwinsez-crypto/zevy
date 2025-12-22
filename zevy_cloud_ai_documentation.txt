@@ -656,9 +656,10 @@ NEWS_API_KEY_2=backup_key_2
 # Database
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+#
+# Supabase is required for sign-in/sign-up, usage tracking, and chat saving.
 
 # System Configuration
-NEXT_PUBLIC_OWNER_EMAIL=owner@example.com
 NEXT_PUBLIC_API_URL=https://your-domain.com
 ```
 
@@ -709,6 +710,16 @@ CREATE TRIGGER update_user_usage_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 ```
 
+### Conversation History
+Signed-in users can persist chat history to Supabase in a `conversations` table.
+
+Expected columns:
+- `id` (text/uuid): Conversation ID (`chat_id` from the client)
+- `user_email` (text): Owner of the conversation
+- `trait` (text, nullable): Selected personality/trait
+- `messages` (jsonb): Array of `{ role, content }`
+- `created_at`, `updated_at` (timestamps)
+
 ---
 
 ## 💻 Code Structure & Implementation
@@ -739,11 +750,11 @@ lib/
 
 **API Key Rotation System:**
 ```typescript
-const GROQ_API_KEYS = [
-  process.env.GROQ_API_KEY_1,
-  process.env.GROQ_API_KEY_2,
-  // ... 10 total keys
-].filter(Boolean) as string[]
+import { getVercelEnv } from '@/lib/env'
+
+const GROQ_API_KEYS = Array.from({ length: 10 }, (_, idx) =>
+  getVercelEnv(`GROQ_API_KEY_${idx + 1}`)
+).filter(Boolean) as string[]
 
 let currentKeyIndex = 0
 

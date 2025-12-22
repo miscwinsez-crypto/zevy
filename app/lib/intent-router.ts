@@ -61,6 +61,27 @@ export function determineIntent(message: string, chatHistory: any[] = []): Deter
   ]
   const isMusicRequest = musicKeywords.some(keyword => normalizedMessage.includes(keyword))
   if (isMusicRequest) {
+    const wantsLyrics = /\blyrics?\b/i.test(normalizedMessage)
+    const asksForLyricsDirectly =
+      wantsLyrics &&
+      (/\b(lyrics to|full lyrics|entire lyrics|all the lyrics|verbatim|word for word|exact lyrics)\b/i.test(
+        normalizedMessage
+      ) ||
+        /\b(show|write|send|give|tell|type|provide|paste)\b/i.test(normalizedMessage))
+
+    if (asksForLyricsDirectly) {
+      return {
+        isConversational: true,
+        needsVector: false,
+        confidence: 'high',
+        reason: 'Lyrics request detected',
+        customResponse:
+          `I can’t provide full song lyrics word-for-word. I also don’t want to guess them and get them wrong.\n\n` +
+          `If you paste a snippet (a few lines), I can explain it, summarize the meaning, or help you find the correct official lyrics source.\n\n` +
+          `If you want, I can also write original lyrics in a similar vibe instead.`,
+      }
+    }
+
     const wantsLatest =
       normalizedMessage.includes('latest') ||
       normalizedMessage.includes('new') ||

@@ -8,6 +8,7 @@ import {
   Sparkles,
   Menu,
   X,
+  Square,
   Plus,
   Settings as SettingsIcon,
   Copy,
@@ -314,6 +315,8 @@ export default function ZevyCloudAI() {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragOverRef = useRef<HTMLDivElement>(null)
+  const chatAbortControllerRef = useRef<AbortController | null>(null)
+  const manualAbortRef = useRef(false)
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zevy-phi.vercel.app'
 
   // Add helper to normalize URLs and prevent double slashes
@@ -357,6 +360,10 @@ export default function ZevyCloudAI() {
         return await requestFn()
       } catch (error: any) {
         lastError = error
+
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
+          throw error
+        }
         
         // Don't retry on certain errors
         if (error.response?.status === 401 || error.response?.status === 429) {
@@ -375,6 +382,21 @@ export default function ZevyCloudAI() {
     }
     
     throw lastError
+  }
+
+  const stopGenerating = () => {
+    manualAbortRef.current = true
+    try {
+      chatAbortControllerRef.current?.abort()
+    } catch {}
+    chatAbortControllerRef.current = null
+    if (typingIndex !== null) {
+      setTypingIndex(null)
+      setTypingContent('')
+    }
+    setLoading(false)
+    setSearchLoading(false)
+    addNotification('info', 'Stopped generating')
   }
 
   const isMathExpression = (text: string) => {
@@ -520,24 +542,27 @@ export default function ZevyCloudAI() {
     }
   }, [isMobile])
 
-  const addNotification = (
-    type: 'success' | 'error' | 'info' | 'warning',
-    message: string,
-    action?: { label: string; onClick: () => void }
-  ) => {
-    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    const notification: Notification = {
-      id,
-      type,
-      message,
-      timestamp: Date.now(),
-      action
-    }
-    setNotifications(prev => [...prev, notification])
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id))
-    }, 5000)
-  }
+  const addNotification = useCallback(
+    (
+      type: 'success' | 'error' | 'info' | 'warning',
+      message: string,
+      action?: { label: string; onClick: () => void }
+    ) => {
+      const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const notification: Notification = {
+        id,
+        type,
+        message,
+        timestamp: Date.now(),
+        action
+      }
+      setNotifications(prev => [...prev, notification])
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== id))
+      }, 5000)
+    },
+    []
+  )
 
   const requestFilePermission = async (): Promise<boolean> => true
 
@@ -547,24 +572,32 @@ export default function ZevyCloudAI() {
   }, [])
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('zevy_token')
-    const storedEmail = localStorage.getItem('zevy_email')
-    const storedUserId = localStorage.getItem('zevy_user_id')
-    const storedIsOwner = localStorage.getItem('zevy_is_owner')
-
-    if (storedToken && storedEmail && storedUserId) {
-      const isOwner =
-        storedIsOwner === 'true' ||
-        (storedEmail ? OWNER_EMAILS.includes(storedEmail) : false)
-      setAuth({
-        isLoggedIn: true,
-        userId: storedUserId,
-        email: storedEmail,
-        token: storedToken,
-        isOwner
-      })
+    const verify = async () => {
+      try {
+        const res = await fetch(normalizeUrl(API_URL, '/api/auth/verify'), {
+          method: 'GET',
+          credentials: 'include',
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!data?.authenticated || !data?.email || !data?.user_id) return
+        const isOwner =
+          localStorage.getItem('zevy_is_owner') === 'true' ||
+          (data.email ? OWNER_EMAILS.includes(data.email) : false)
+        setAuth({
+          isLoggedIn: true,
+          userId: data.user_id,
+          email: data.email,
+          token: null,
+          isOwner
+        })
+        localStorage.setItem('zevy_user_id', data.user_id)
+        localStorage.setItem('zevy_email', data.email)
+        localStorage.setItem('zevy_is_owner', String(isOwner))
+      } catch {}
     }
-  }, [])
+    verify()
+  }, [API_URL])
 
   // Cleanup function to handle tab closure and session management
   useEffect(() => {
@@ -657,7 +690,12 @@ export default function ZevyCloudAI() {
     }
   }, [])
 
-  const generateConvId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const generateConvId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }
 
   const stripMarkdown = (text: string): string => {
     let result = text
@@ -1273,6 +1311,10 @@ useEffect(() => {
 
     const isWebSearch = isSearchMode
 
+    manualAbortRef.current = false
+    const requestAbortController = new AbortController()
+    chatAbortControllerRef.current = requestAbortController
+
     try {
       logDiagnostics('VALIDATION_START', { isImageGen, isWebSearch })
 
@@ -1369,6 +1411,8 @@ useEffect(() => {
             requestData,
             { 
               timeout: 60000,
+              signal: requestAbortController.signal,
+              withCredentials: true,
               headers: {
                 'Content-Type': 'application/json'
               }
@@ -1414,6 +1458,10 @@ useEffect(() => {
       setApiError(null)
       addNotification('success', '✓ Response received!')
     } catch (error: any) {
+      if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
+        return
+      }
+
       logDiagnostics('ERROR_CAUGHT', {
         errorType: error.code || error.message,
         errorMessage: error.message,
@@ -1674,6 +1722,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         timestamp: new Date().toISOString()
       })
     } finally {
+      chatAbortControllerRef.current = null
+      manualAbortRef.current = false
       setLoading(false)
       setSearchLoading(false)
       setRetryingConv(null)
@@ -1723,7 +1773,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           email: authForm.email,
           password: authForm.password
         },
-        { timeout: 10000 }
+        { timeout: 10000, withCredentials: true }
       )
       
       const isOwner =
@@ -1733,11 +1783,10 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         isLoggedIn: true,
         userId: response.data.user_id,
         email: response.data.email,
-        token: response.data.token,
+        token: null,
         isOwner
       })
       
-      localStorage.setItem('zevy_token', response.data.token)
       localStorage.setItem('zevy_user_id', response.data.user_id)
       localStorage.setItem('zevy_email', response.data.email)
       localStorage.setItem('zevy_is_owner', String(isOwner))
@@ -1755,6 +1804,9 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
   }
 
   const handleLogout = () => {
+    axios
+      .post(normalizeUrl(API_URL, '/api/auth/logout'), {}, { withCredentials: true })
+      .catch(() => {})
     setAuth({
       isLoggedIn: false,
       userId: 'guest',
@@ -2317,6 +2369,28 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     }, 20)
     return () => clearInterval(interval)
   }, [typingIndex, typingContent])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (!loading && typingIndex === null) return
+      e.preventDefault()
+      manualAbortRef.current = true
+      try {
+        chatAbortControllerRef.current?.abort()
+      } catch {}
+      chatAbortControllerRef.current = null
+      if (typingIndex !== null) {
+        setTypingIndex(null)
+        setTypingContent('')
+      }
+      setLoading(false)
+      setSearchLoading(false)
+      addNotification('info', 'Stopped generating')
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [addNotification, loading, typingIndex])
 
   // Add this effect to check connectivity on page load
   useEffect(() => {
@@ -3185,6 +3259,16 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   className="hidden"
                 />
 
+                {(loading || typingIndex !== null) && (
+                  <button
+                    onClick={stopGenerating}
+                    className="w-11 h-11 flex items-center justify-center rounded-xl transition-all button-hover"
+                    style={{ background: palette.error, border: `1px solid ${palette.border}` }}
+                  >
+                    <Square size={16} style={{ color: '#fff' }} />
+                  </button>
+                )}
+
                 <button
                   onClick={() => sendMessage()}
                   disabled={loading || (!input.trim() && attachedFiles.length === 0)}
@@ -3385,7 +3469,23 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                         <input
                           type="text"
                           value={trait}
-                          onChange={e => setTrait(e.target.value)}
+                          onChange={e => {
+                            setTrait(e.target.value)
+                            try {
+                              localStorage.setItem('zevy_trait', e.target.value)
+                            } catch {}
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              const target = e.target as HTMLInputElement
+                              const value = target.value.trim()
+                              setTrait(value)
+                              try {
+                                localStorage.setItem('zevy_trait', value)
+                              } catch {}
+                            }
+                          }}
                           placeholder="e.g., Helpful, Witty, Technical"
                           className="w-full p-2.5 rounded-lg text-sm focus:outline-none transition-all"
                           style={{ background: palette.sidebar, border: `1px solid ${palette.border}`, color: palette.accent }}

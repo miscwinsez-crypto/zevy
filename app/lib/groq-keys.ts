@@ -1,27 +1,16 @@
-import {
-  groqApiKey1,
-  groqApiKey2,
-  groqApiKey3,
-  groqApiKey4,
-  groqApiKey5,
-  groqApiKey6,
-  groqApiKey7,
-  groqApiKey8,
-  groqApiKey9,
-  groqApiKey10
-} from './env'
+import { getVercelEnv } from '@/lib/env'
 
 export const groqApiKeys = [
-  groqApiKey1,
-  groqApiKey2,
-  groqApiKey3,
-  groqApiKey4,
-  groqApiKey5,
-  groqApiKey6,
-  groqApiKey7,
-  groqApiKey8,
-  groqApiKey9,
-  groqApiKey10
+  getVercelEnv('GROQ_API_KEY_1'),
+  getVercelEnv('GROQ_API_KEY_2'),
+  getVercelEnv('GROQ_API_KEY_3'),
+  getVercelEnv('GROQ_API_KEY_4'),
+  getVercelEnv('GROQ_API_KEY_5'),
+  getVercelEnv('GROQ_API_KEY_6'),
+  getVercelEnv('GROQ_API_KEY_7'),
+  getVercelEnv('GROQ_API_KEY_8'),
+  getVercelEnv('GROQ_API_KEY_9'),
+  getVercelEnv('GROQ_API_KEY_10'),
 ].filter(Boolean) as string[]
 
 let currentKeyIndex = 0

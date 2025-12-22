@@ -646,7 +646,7 @@ CREATE TABLE user_usage (
 **Vyra Mode Response:**
 ```json
 {
-  "response": "Based on comprehensive research from multiple sources including Wikipedia's detailed quantum computing entry and recent news from TechCrunch and Nature, here are the latest developments:\n\n**Major Breakthroughs (2024):**\n• IBM's 433-qubit Osprey processor achieving new stability records\n• Google's error correction milestone with 2.6% error rate\n• Chinese researchers demonstrating 24-qubit entanglement\n\n**Wikipedia Knowledge:** Quantum computing leverages quantum mechanical phenomena like superposition and entanglement to process information in ways classical computers cannot...\n\n**Recent News:** According to Nature (Dec 2024), researchers at MIT have developed a new error correction algorithm that could reduce quantum decoherence by 40%...\n\n**Analysis:** The field is rapidly approaching practical applications in cryptography, drug discovery, and financial modeling..."
+  "response": "Here’s a grounded overview of recent quantum computing progress, focusing on broadly reported themes (hardware scaling, error correction, and early applications). If you enable web search, I’ll cite specific recent sources and dates.\n\n**Trends:**\n• Better error-correction experiments and improved logical-qubit demonstrations\n• Continued scaling of superconducting and trapped-ion systems\n• Faster compilation/control stacks and improved calibration\n\n**What this means:** Practical advantage remains narrow and task-specific today, but reliability is improving and research pace is high."
 }
 ```
 
@@ -690,7 +690,7 @@ Setting up Zevy AI is straightforward. The system requires some basic configurat
 **What You Need:**
 - **AI Model Access**: API keys for Groq (required for all models)
 - **Knowledge Sources**: Google Search, News APIs (optional but recommended)
-- **Database**: Supabase account for usage tracking (optional for basic usage)
+- **Database**: Supabase project (required for accounts, usage tracking, and chat history saving)
 
 **Setup Process:**
 1. **Get Groq API Keys**: Sign up at groq.com for high-speed AI inference
@@ -710,7 +710,7 @@ Zevy AI takes your privacy seriously. The system only tracks what's necessary to
 - **Basic Preferences**: To improve your experience
 
 **What We Don't Track:**
-- **Conversation Content**: Your actual messages and questions are not stored
+- **Conversation Content (Guests)**: Guest conversations are not stored in Supabase
 - **Personal Information**: No personal data beyond what's needed for basic usage
 - **File Contents**: Uploaded documents are processed but not permanently stored
 
@@ -766,6 +766,16 @@ CREATE TRIGGER update_user_usage_updated_at
   FOR EACH ROW 
   EXECUTE FUNCTION update_updated_at_column();
 ```
+
+### Conversation History
+Zevy saves chat history for signed-in users in a `conversations` table keyed by `id` (client-generated `chat_id`) and `user_email`.
+
+Core fields:
+- `id` (text/uuid): Conversation ID
+- `user_email` (text): Signed-in user's email
+- `trait` (text, nullable): Selected personality/trait
+- `messages` (jsonb): Array of `{ role, content }` messages
+- `created_at`, `updated_at` (timestamps)
 
 ---
 

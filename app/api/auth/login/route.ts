@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createSupabaseClient } from '@/app/lib/supabase'
 
 const OWNER_EMAILS = [
   'miscwinsez@gmail.com',
@@ -67,25 +68,32 @@ export async function POST(request: NextRequest) {
     }
 
     const isOwner = OWNER_EMAILS.includes(email);
-    
-    // Demo response - Replace with actual Supabase auth when configured
-    const userId = `user_${Buffer.from(email).toString('base64').slice(0, 16)}`
-    const token = Buffer.from(`${email}:${Date.now()}`).toString('base64')
 
-    return NextResponse.json({
-      user_id: userId,
-      email: email,
-      token: token,
-      name: email.split('@')[0],
-      message: 'Login successful (Demo mode)',
-      is_owner: isOwner,
-      unlimited_access: isOwner
-    }, {
-      status: 200,
-      headers: {
-        'Set-Cookie': `auth_token=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`
-      }
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: String(email).trim(),
+      password: String(password),
     })
+
+    if (error || !data.session || !data.user) {
+      return NextResponse.json(
+        { detail: 'Invalid email or password' },
+        { status: 401 }
+      )
+    }
+
+    return NextResponse.json(
+      {
+        user_id: data.user.id,
+        email: data.user.email,
+        token: null,
+        name: (data.user.email || '').split('@')[0],
+        message: 'Login successful',
+        is_owner: isOwner,
+        unlimited_access: isOwner,
+      },
+      { status: 200 }
+    )
   } catch (error: any) {
     console.error('Login error:', error)
     return NextResponse.json(
