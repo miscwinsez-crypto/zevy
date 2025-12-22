@@ -1,5 +1,8 @@
 // Network and API utilities for connecting to the deployment
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+// Always use relative URLs in the browser to avoid cross-origin and stale host issues.
+// On the server we still respect NEXT_PUBLIC_API_URL if it is set.
+const API_URL =
+  typeof window === 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || '') : '';
 
 const makeUrl = (path: string) => {
   if (!API_URL) return path;
