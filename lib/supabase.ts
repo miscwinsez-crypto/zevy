@@ -9,7 +9,8 @@ let supabaseClient: ReturnType<typeof createClient<Database>> | null = null
 
 if (supabaseUrl && supabaseAnonKey) {
   try {
-    supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    const parsedUrl = new URL(supabaseUrl)
+    supabaseClient = createClient<Database>(parsedUrl.toString(), supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
@@ -18,6 +19,7 @@ if (supabaseUrl && supabaseAnonKey) {
     })
   } catch (error) {
     console.error('Failed to initialize Supabase client:', error)
+    supabaseClient = null
   }
 }
 

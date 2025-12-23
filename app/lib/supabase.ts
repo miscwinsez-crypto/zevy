@@ -12,10 +12,21 @@ export const createSupabaseClient = async () => {
     throw new Error('Supabase environment variables are not configured')
   }
 
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(supabaseUrl)
+  } catch {
+    throw new Error('Supabase URL is invalid. Check NEXT_PUBLIC_SUPABASE_URL in the environment.')
+  }
+
+  if (!parsedUrl.protocol.startsWith('http')) {
+    throw new Error('Supabase URL must use http or https.')
+  }
+
   const cookieStore = await cookies()
 
   return createServerClient<Database>(
-    supabaseUrl,
+    parsedUrl.toString(),
     supabaseKey,
     {
       cookies: {

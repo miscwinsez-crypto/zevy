@@ -119,6 +119,19 @@ export async function POST(request: NextRequest) {
     )
   } catch (error: any) {
     console.error('Signup error:', error)
+    const message = typeof error?.message === 'string' ? error.message.toLowerCase() : ''
+    const isConfigError =
+      message.includes('supabase environment variables are not configured') ||
+      message.includes('supabase url is invalid') ||
+      message.includes('supabase url must use http or https')
+
+    if (isConfigError) {
+      return NextResponse.json(
+        { detail: 'Signup service configuration is invalid. Please try again in a little while.' },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
       { detail: 'Internal server error' },
       { status: 500 }
