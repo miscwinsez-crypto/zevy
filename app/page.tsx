@@ -29,6 +29,8 @@ import {
   ThumbsDown,
   ChevronDown,
   Edit2,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
@@ -3461,14 +3463,24 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                         style={{ background: palette.sidebar, border: `1px solid ${palette.border}`, color: palette.accent }}
                       />
 
-                      <input
-                        type={authForm.showPassword ? 'text' : 'password'}
-                        value={authForm.password}
-                        onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                        placeholder="Password"
-                        className="w-full p-2.5 rounded-lg text-sm focus:outline-none transition-all button-hover"
-                        style={{ background: palette.sidebar, border: `1px solid ${palette.border}`, color: palette.accent }}
-                      />
+                      <div className="relative">
+                        <input
+                          type={authForm.showPassword ? 'text' : 'password'}
+                          value={authForm.password}
+                          onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                          placeholder="Password"
+                          className="w-full p-2.5 pr-10 rounded-lg text-sm focus:outline-none transition-all button-hover"
+                          style={{ background: palette.sidebar, border: `1px solid ${palette.border}`, color: palette.accent }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAuthForm({ ...authForm, showPassword: !authForm.showPassword })}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-xs"
+                          style={{ color: palette.subdued }}
+                        >
+                          {authForm.showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
 
                       <button
                         onClick={handleLogin}
