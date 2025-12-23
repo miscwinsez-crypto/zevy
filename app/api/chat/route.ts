@@ -1968,6 +1968,7 @@ export async function POST(req: NextRequest) {
     timezone,
     searchEnabled: rawSearchEnabled,
     webSearch,
+    documents = [],
   } = body
 
   const serverNow = new Date()
@@ -2033,6 +2034,22 @@ export async function POST(req: NextRequest) {
   const userMessage = translatedText
 
   const intent = determineIntent(userMessage, chat_history)
+
+  let documentsContext = ''
+  if (Array.isArray(documents) && documents.length > 0) {
+    const parts: string[] = []
+    for (const doc of documents) {
+      const name = typeof doc?.name === 'string' ? doc.name : 'Document'
+      const type = typeof doc?.type === 'string' ? doc.type : 'unknown'
+      const content = typeof doc?.content === 'string' ? doc.content : ''
+      if (!content.trim()) continue
+      const truncated = content.length > 4000 ? `${content.slice(0, 4000)}\n[...]` : content
+      parts.push(`Document: ${name} (type: ${type})\n${truncated}`)
+    }
+    if (parts.length > 0) {
+      documentsContext = parts.join('\n\n')
+    }
+  }
 
   const modelLower = model.toLowerCase()
   const isVyraMode = modelLower === 'vyra'
@@ -2149,7 +2166,9 @@ export async function POST(req: NextRequest) {
         }
       }
       const researchModel = selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
-      const contextualizedMessage = `${userMessage}\n\n${calculatorContext ? `${calculatorContext}\n\n` : ''}Knowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history
+      const contextualizedMessage = `${userMessage}\n\n${calculatorContext ? `${calculatorContext}\n\n` : ''}${
+        documentsContext ? `Document Context:\n${documentsContext}\n\n` : ''
+      }Knowledge Context:\n${knowledgeContext}\n\nPrevious Conversation:\n${chat_history
         .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
         .join('\n')}`
       aiResponse = await callGroq(
@@ -2190,8 +2209,12 @@ export async function POST(req: NextRequest) {
       const fullContext =
         contextBuilder.length > 0 ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}` : contextualUserMessage
 
+      const fullContextWithDocuments = documentsContext
+        ? `${fullContext}\n\nDocument Context:\n${documentsContext}`
+        : fullContext
+
       const fullContextWithCalculator =
-        calculatorContext ? `${fullContext}\n\n${calculatorContext}` : fullContext
+        calculatorContext ? `${fullContextWithDocuments}\n\n${calculatorContext}` : fullContextWithDocuments
 
       aiResponse = await callGroq(
         [
