@@ -943,3 +943,11 @@ The system's architecture ensures scalability, reliability, and performance whil
 *Documentation Version: 3.0*
 *System Version: 2.0 (Enhanced Knowledge Integration)*
 *Zevy AI - Created by Adam Zein Ziqry | Zevy Cloud Company*
+
+## Last Updated: December 24, 2025
+
+### Recent Changes:
+- Hardened Supabase configuration for login and signup to avoid DNS issues
+- Standardized SQL for user_usage and conversations tables used by Zevy
+- Fixed chat Sources section to only show real, clickable links
+- Verified lint, build, and API route health for the current codebase

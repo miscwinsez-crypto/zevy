@@ -1007,3 +1007,11 @@ The system's architecture ensures scalability, reliability, and performance whil
 - Confirmed API key usage from Vercel environment variables
 - Added harm detection via meta-llama/llama-guard-4-12b
 - Updated all documentation timestamps
+
+## Last Updated: December 24, 2025
+
+### Recent Changes:
+- Hardened Supabase config for login and signup to avoid DNS errors
+- Finalized SQL schema for user_usage and conversations (chat history) tables
+- Fixed chat Sources section so only valid, non-duplicate links render
+- Ran lint and production build to validate the current implementation

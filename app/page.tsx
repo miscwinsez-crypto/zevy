@@ -1434,19 +1434,33 @@ useEffect(() => {
         setSearchResults(response.data.searchResults);
       }
 
+      const rawSources: { title: string; url: string }[] = Array.isArray(response.data.sources)
+        ? response.data.sources
+            .filter((s: any) => {
+              const raw = s && (s.url || s.link)
+              return typeof raw === 'string' && /^https?:\/\//i.test(raw)
+            })
+            .map((s: any) => ({
+              title: String(s.title || s.name || s.sourceTitle || s.url || s.link || 'Source'),
+              url: String(s.url || s.link)
+            }))
+        : []
+
+      const uniqueSources =
+        rawSources.length > 0
+          ? rawSources.filter(
+              (source, index, self) =>
+                source.url &&
+                self.findIndex(other => other.url === source.url) === index
+            )
+          : []
+
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
         mode: response.data.mode_used || actualMode,
         timestamp: new Date().toISOString(),
-        sources: Array.isArray(response.data.sources)
-          ? response.data.sources
-              .filter((s: any) => s && (s.url || s.link))
-              .map((s: any) => ({
-                title: String(s.title || s.name || s.sourceTitle || s.url || s.link || 'Source'),
-                url: String(s.url || s.link)
-              }))
-          : undefined
+        sources: uniqueSources.length > 0 ? uniqueSources : undefined
       };
       if (typingIndex !== null) {
         setTypingIndex(null)
