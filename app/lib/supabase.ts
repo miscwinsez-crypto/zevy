@@ -5,12 +5,11 @@ import type { Database } from '@/lib/database.types'
 import { getVercelEnv } from '@/lib/env'
 
 export const createSupabaseClient = async () => {
-  const supabaseUrl =
-    getVercelEnv('SUPABASE_URL') || getVercelEnv('NEXT_PUBLIC_SUPABASE_URL')
+  const supabaseUrl = getVercelEnv('SUPABASE_URL')
 
   const supabaseKey =
-    getVercelEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY') ||
-    getVercelEnv('SUPABASE_SERVICE_KEY')
+    getVercelEnv('SUPABASE_SERVICE_KEY') ||
+    getVercelEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error('Supabase environment variables are not configured')
@@ -20,7 +19,7 @@ export const createSupabaseClient = async () => {
   try {
     parsedUrl = new URL(supabaseUrl)
   } catch {
-    throw new Error('Supabase URL is invalid. Check SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in the environment.')
+    throw new Error('Supabase URL is invalid. Check SUPABASE_URL in the environment.')
   }
 
   if (!parsedUrl.protocol.startsWith('http')) {
