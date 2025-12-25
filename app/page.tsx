@@ -2621,12 +2621,19 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         </div>
       )}
 
-      {/* Network Status Bar */}
       {(networkStatus === 'offline' || apiError) && (
-        <div className="fixed top-0 left-0 right-0 z-40 p-3 flex items-center gap-2" style={{ background: '#7f1d1d' }}>
-          <AlertCircle size={18} color="#fca5a5" />
-          <span className="text-sm" style={{ color: '#fca5a5' }}>
-            {apiError || 'Connection issues'}
+        <div
+          className="fixed top-0 left-0 right-0 z-40 p-3 flex items-center gap-2"
+          style={{
+            background: palette.panel,
+            borderBottom: `1px solid ${palette.border}`
+          }}
+        >
+          <AlertCircle size={18} style={{ color: palette.subdued }} />
+          <span className="text-sm" style={{ color: palette.accent }}>
+            {networkStatus === 'offline'
+              ? 'You appear to be offline. Please check your connection and try again.'
+              : 'Sorry, I had an error while talking to the server. Please try again in a moment.'}
           </span>
         </div>
       )}
