@@ -1324,7 +1324,7 @@ User: ${prompt}
   } catch (error) {
     console.error('Error in content moderation:', error);
     return new NextResponse(JSON.stringify({ response: 'Error processing your request.' }), {
-      status: 500,
+      status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -1445,20 +1445,24 @@ export async function POST(req: NextRequest) {
       selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
     )
     
-    // Use appropriate model to process the browsing results
     const contextualizedMessage = `${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history.map((m: {role: string, content: string}) => `${m.role}: ${m.content}`).join('\n')}`
-    aiResponse = await callGroq(
-      [{ role: 'user', content: contextualizedMessage }],
-      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
-      stream,
-      current_time,
-      timezone,
-      undefined,
-      true
-    )
     
-    // Log successful Groq/Compound search
-    console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
+    try {
+      aiResponse = await callGroq(
+        [{ role: 'user', content: contextualizedMessage }],
+        selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
+        stream,
+        current_time,
+        timezone,
+        undefined,
+        true
+      )
+      console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
+    } catch (error) {
+      console.error('Groq/Compound search error:', error)
+      aiResponse =
+        'The research system hit an internal error while generating this answer. Please try again in a moment or start a new chat if it continues.'
+    }
   } else {
     if (!searchEnabled) {
       const intent = detectInformationIntent(userMessage, chat_history);
@@ -1503,22 +1507,28 @@ export async function POST(req: NextRequest) {
             ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
             : contextualUserMessage;
 
-        aiResponse = await callGroq(
-          [
-            { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled) },
-            ...formattedHistory,
-            {
-              role: 'user',
-              content: fullContext
-            }
-          ],
-          selectedModel,
-          stream,
-          current_time,
-          timezone,
-          contextualUserMessage,
-          searchEnabled
-        );
+        try {
+          aiResponse = await callGroq(
+            [
+              { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled) },
+              ...formattedHistory,
+              {
+                role: 'user',
+                content: fullContext
+              }
+            ],
+            selectedModel,
+            stream,
+            current_time,
+            timezone,
+            contextualUserMessage,
+            searchEnabled
+          );
+        } catch (error) {
+          console.error('Groq chat error:', error)
+          aiResponse =
+            'The chat system hit an internal error while generating this answer. Please try again in a moment or start a new chat if it continues.'
+        }
       }
     }
   }

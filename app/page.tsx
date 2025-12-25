@@ -3153,7 +3153,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           />
         </div>
 
-        <div className="p-3 sm:p-4 border-t" style={{ background: palette.panel, borderColor: palette.border }}>
+        <div className="p-3 sm:p-4" style={{ background: palette.background }}>
           <div className="max-w-4xl mx-auto">
             {attachedFiles.length > 0 && (
               <div className="mb-4 space-y-2">
