@@ -38,8 +38,8 @@ const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
   const searchStatus = searchEnabled
-    ? 'Search is currently ON. You can access real-time information from the web.'
-    : 'Search is currently OFF. You cannot access real-time information.';
+    ? 'Search is ON. You can use the Groq Compound research system to browse the web and aggregate information from sources like Wikipedia, news sites, and open data APIs. Treat Wikipedia as a cross-checker for factual claims rather than a single source of truth.'
+    : 'Search is OFF. You cannot call the Groq Compound research system. You must answer from your internal knowledge only and clearly admit uncertainty instead of guessing when you are not sure.';
 
   return `
     You are Zevy, a helpful and friendly AI assistant. Your goal is to provide accurate, helpful, and engaging conversations.
@@ -47,12 +47,41 @@ const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boo
     Current time: ${currentTime} (${timezone}).
     ${searchStatus}
 
+    Research and accuracy:
+    - When search is ON and a research context is provided, you must treat that context as your primary evidence. Synthesize it carefully and do not contradict it without a clear reason.
+    - When search is OFF, never pretend you have live web access. If a question needs fresh or niche information (like very recent events, obscure facts, or specific song/lyrics identification), explain your limits instead of inventing an answer.
+    - It is always better to say "I am not sure" than to confidently state something wrong.
+
+    Songs and lyrics:
+    - When the user asks you to identify a song from partial lyrics or vague memory, you must be extra cautious.
+    - If you are not highly confident, say that you are not sure instead of guessing artist names or song titles.
+    - If search is ON and a research context is provided, rely on that context. If the context is weak or ambiguous, still say you are not sure rather than forcing a match.
+
     When responding, you must adhere to the following rules:
     1.  Be conversational and engaging.
-    2.  If you don't know the answer, say so. Don't make up information.
-    3.  Keep your responses concise and to the point, unless the user asks for more detail.
-    4.  You can use emojis to add personality to your responses, but don't overdo it.
+    2.  If you don't know the answer, say so. Do not invent facts, dates, names, places, or song titles.
+    3.  Keep your responses concise and to the point unless the user asks for more detail.
+    4.  You can use emojis and light humor to add personality, but never let it get in the way of clarity.
     5.  When asked about your creator, you should state clearly that you were created by Adam Zein Ziqry, a 15-year-old developer building Zevy AI.
+
+    Humor and tone:
+    - Detect whether the user is joking, playful, or serious based on their words, punctuation, and emojis.
+    - For serious topics (health, self-harm, trauma, grief, emergencies, money stress, exams, or anything clearly sensitive), stay calm, kind, and mostly serious. Avoid lowbrow, slapstick, or dark humor there.
+    - For casual or playful conversations, you may use:
+      * Lowbrow humor (simple, silly, or slapstick)
+      * Dry wit (subtle, sarcastic, or ironic)
+      * Satire (lightly poking fun at ideas, not at the user)
+      * Wit (clever, quick, or sharp remarks)
+      * Slapstick (over-the-top, exaggerated scenarios, described in words)
+      * Dark humor (only mild; never graphic, cruel, or directed at vulnerable people)
+      * Puns and wordplay when they fit the topic
+    - Never make jokes about real suffering, hate, discrimination, or violence.
+    - If the user seems confused, anxious, or upset, reduce or drop the humor and prioritize being clear, supportive, and practical.
+
+    Joke detection and replies:
+    - If the user is clearly joking with you, you can answer with playful, TARS-style humor: a mix of dry wit, light sarcasm, and clever one-liners.
+    - If the user mixes a real problem with a joke, treat the problem seriously first, then optionally add a small, gentle joke at the end.
+    - Do not overuse humor; a little goes a long way.
   `;
 };
 
@@ -835,7 +864,15 @@ export async function GET(request: NextRequest) {
 }
 
 // Call Groq API — Vercel-only keys
-async function callGroq(messages: any[], model: string, stream = false, currentTime?: string, timezone?: string, contextualUserMessage?: string): Promise<string | ReadableStream> {
+async function callGroq(
+  messages: any[],
+  model: string,
+  stream = false,
+  currentTime?: string,
+  timezone?: string,
+  contextualUserMessage?: string,
+  searchEnabled: boolean = false
+): Promise<string | ReadableStream> {
   const apiKey = getGroqApiKey()
   if (!apiKey) {
     throw new Error('No valid GROQ API keys found')
@@ -844,7 +881,7 @@ async function callGroq(messages: any[], model: string, stream = false, currentT
   try {
     const payload = {
       model: model,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, false as boolean) }, ...messages],
+      messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, searchEnabled) }, ...messages],
       temperature: 0.7,
       max_tokens: 1024,
       stream: stream
@@ -915,7 +952,15 @@ async function detectAndTranslate(text: string, targetLanguage: string = 'en'): 
 
 async function testGroqConnection(): Promise<{ status: string; error?: string }> {
   try {
-    const testResponse = await callGroq([{ role: 'user', content: 'Test connection' }], ASTRA_MODEL_SMART, false, new Date().toLocaleString(), 'UTC')
+    const testResponse = await callGroq(
+      [{ role: 'user', content: 'Test connection' }],
+      ASTRA_MODEL_SMART,
+      false,
+      new Date().toLocaleString(),
+      'UTC',
+      undefined,
+      false
+    )
     if (typeof testResponse === 'string' && testResponse.length > 0) {
       return { status: 'connected' }
     }
@@ -1059,8 +1104,24 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
     // Get independent responses from both models
-    const moonshotResponse = await callGroq([{ role: 'user', content: moonshotAnalysisPrompt }], VYRA_MODEL_MOONSHOT, false)
-    const qwenResponse = await callGroq([{ role: 'user', content: qwenAnalysisPrompt }], VYRA_MODEL_QWEN, false)
+    const moonshotResponse = await callGroq(
+      [{ role: 'user', content: moonshotAnalysisPrompt }],
+      VYRA_MODEL_MOONSHOT,
+      false,
+      current_time,
+      timezone,
+      undefined,
+      searchEnabled
+    )
+    const qwenResponse = await callGroq(
+      [{ role: 'user', content: qwenAnalysisPrompt }],
+      VYRA_MODEL_QWEN,
+      false,
+      current_time,
+      timezone,
+      undefined,
+      searchEnabled
+    )
     
     // Ensure responses are strings for comparison
     const moonshotText = typeof moonshotResponse === 'string' ? moonshotResponse : ''
@@ -1081,7 +1142,15 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Challenge Logos's reasoning directly. Point out flaws in their logic, defend your position, and explain why your analysis is more accurate. Don't be diplomatic - be direct and assertive in your disagreement.`
       
-      const moonshotDebateResponse = await callGroq([{ role: 'user', content: moonshotDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
+      const moonshotDebateResponse = await callGroq(
+        [{ role: 'user', content: moonshotDebatePrompt }],
+        VYRA_MODEL_MOONSHOT,
+        false,
+        current_time,
+        timezone,
+        undefined,
+        searchEnabled
+      )
       
       const qwenDebatePrompt = `Logos, you've provided your analysis, but Kairo has challenged your reasoning and defended their position. Respond directly to this challenge.
 
@@ -1097,7 +1166,15 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Defend your analysis against Kairo's challenge. Point out any flaws in their reasoning, explain why your approach is correct, and directly counter their arguments. Don't back down - be assertive and thorough in your defense.`
       
-      const qwenDebateResponse = await callGroq([{ role: 'user', content: qwenDebatePrompt }], VYRA_MODEL_QWEN, false)
+      const qwenDebateResponse = await callGroq(
+        [{ role: 'user', content: qwenDebatePrompt }],
+        VYRA_MODEL_QWEN,
+        false,
+        current_time,
+        timezone,
+        undefined,
+        searchEnabled
+      )
       
       const finalDebatePrompt = `Kairo, you've responded to the challenge. This is your final opportunity in this debate.
 
@@ -1115,7 +1192,15 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Address Logos's defense directly. Point out any remaining weaknesses in their argument, reinforce your position, and make your final case for why your analysis is superior. This is your closing argument in this debate.`
       
-      const finalDebateResponse = await callGroq([{ role: 'user', content: finalDebatePrompt }], VYRA_MODEL_MOONSHOT, false)
+      const finalDebateResponse = await callGroq(
+        [{ role: 'user', content: finalDebatePrompt }],
+        VYRA_MODEL_MOONSHOT,
+        false,
+        current_time,
+        timezone,
+        undefined,
+        searchEnabled
+      )
       
       const finalSynthesisPrompt = `You need to provide the final answer to the user after witnessing a genuine debate between two AI personas, Kairo and Logos. Here's what transpired:
 
@@ -1133,7 +1218,15 @@ Kairo's Final Argument: ${finalDebateResponse}
 
 Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
       
-      const finalResponse = await callGroq([{ role: 'user', content: finalSynthesisPrompt }], VYRA_MODEL_MOONSHOT, stream)
+      const finalResponse = await callGroq(
+        [{ role: 'user', content: finalSynthesisPrompt }],
+        VYRA_MODEL_MOONSHOT,
+        stream,
+        current_time,
+        timezone,
+        undefined,
+        searchEnabled
+      )
       return finalResponse
       
     } else {
@@ -1149,7 +1242,15 @@ Logos's Analysis: ${qwenText}
 
 Since both personas independently reached the same conclusion, provide a confident, authoritative answer. Briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
       
-      const finalResponse = await callGroq([{ role: 'user', content: agreementAnalysisPrompt }], VYRA_MODEL_MOONSHOT, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
+      const finalResponse = await callGroq(
+        [{ role: 'user', content: agreementAnalysisPrompt }],
+        VYRA_MODEL_MOONSHOT,
+        stream,
+        current_time || new Date().toLocaleString(),
+        timezone || 'UTC',
+        undefined,
+        searchEnabled
+      )
       return finalResponse
     }
     
@@ -1157,7 +1258,15 @@ Since both personas independently reached the same conclusion, provide a confide
     console.error('Error in Vyra debate system:', error)
     // Fallback to simple Astra response if debate fails - use Astra Fast for speed
     const fallbackPrompt = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
-    return await callGroq([{ role: 'user', content: fallbackPrompt }], ASTRA_MODEL_FAST, stream, current_time || new Date().toLocaleString(), timezone || 'UTC')
+    return await callGroq(
+      [{ role: 'user', content: fallbackPrompt }],
+      ASTRA_MODEL_FAST,
+      stream,
+      current_time || new Date().toLocaleString(),
+      timezone || 'UTC',
+      undefined,
+      searchEnabled
+    )
   }
 }
 
@@ -1285,7 +1394,15 @@ export async function POST(req: NextRequest) {
     const harmfulResponsePrompt = `Generate a polite but firm response explaining that you cannot help with harmful or inappropriate requests. Be conversational and friendly while setting clear boundaries. Keep it under 100 words.`
     
     try {
-      const harmfulResponse = await callGroq([{ role: 'user', content: harmfulResponsePrompt }], selectedModel, false, current_time, timezone)
+      const harmfulResponse = await callGroq(
+        [{ role: 'user', content: harmfulResponsePrompt }],
+        selectedModel,
+        false,
+        current_time,
+        timezone,
+        undefined,
+        searchEnabled
+      )
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
       // For streaming, we need to format it as a Server-Sent Event
@@ -1308,7 +1425,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let aiResponse: string | ReadableStream
+  let aiResponse: string | ReadableStream = ''
 
   if (selectedModel === 'vyra-debate') {
     const debateResponse = await generateVyraSmartDebate(
@@ -1323,27 +1440,27 @@ export async function POST(req: NextRequest) {
   } else if (searchEnabled) {
     // Groq/Compound web browsing system - activated for both Astra and Vyra when search is enabled
     const compound = new GroqCompound()
-    const browsingContext = await compound.browseAndAnalyze(userMessage, selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART)
+    const browsingContext = await compound.browseAndAnalyze(
+      userMessage,
+      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
+    )
     
     // Use appropriate model to process the browsing results
     const contextualizedMessage = `${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history.map((m: {role: string, content: string}) => `${m.role}: ${m.content}`).join('\n')}`
-    aiResponse = await callGroq([{ role: 'user', content: contextualizedMessage }], selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART, stream, current_time, timezone)
+    aiResponse = await callGroq(
+      [{ role: 'user', content: contextualizedMessage }],
+      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
+      stream,
+      current_time,
+      timezone,
+      undefined,
+      true
+    )
     
     // Log successful Groq/Compound search
     console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
   } else {
-    if (searchEnabled) {
-      const intent = detectInformationIntent(userMessage, chat_history);
-      const knowledgeContext = await gatherKnowledge(userMessage, intent);
-      const contextualizedMessage = `${userMessage}\n\nKnowledge Context:\n${knowledgeContext}`;
-      aiResponse = await callGroq(
-        [{ role: 'user', content: contextualizedMessage }],
-        selectedModel,
-        stream,
-        current_time,
-        timezone
-      );
-    } else {
+    if (!searchEnabled) {
       const intent = detectInformationIntent(userMessage, chat_history);
 
       if (intent.customResponse) {
@@ -1361,13 +1478,11 @@ export async function POST(req: NextRequest) {
 
         const knowledgeContext = '';
 
-        const formattedHistory = chat_history.map(
-          (msg: { role: string; content: string }) => ({
-            role: msg.role,
-            content: msg.content,
-            ...(msg.role === 'assistant' ? { isResponse: true } : {})
-          })
-        );
+        const formattedHistory = chat_history.map((msg: { role: string; content: string }) => ({
+          role: msg.role,
+          content: msg.content,
+          ...(msg.role === 'assistant' ? { isResponse: true } : {})
+        }));
 
         let contextualUserMessage = userMessage;
         if (chat_history.length > 0) {
@@ -1401,7 +1516,8 @@ export async function POST(req: NextRequest) {
           stream,
           current_time,
           timezone,
-          contextualUserMessage
+          contextualUserMessage,
+          searchEnabled
         );
       }
     }

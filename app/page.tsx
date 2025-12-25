@@ -1206,7 +1206,7 @@ useEffect(() => {
     }
   }
 
-  const sendMessage = async (messageContent?: string, isRetry = false) => {
+  const sendMessage = async (messageContent?: string, isRetry = false, customBaseMessages?: Message[]) => {
     const baseText = messageContent ?? input
     const hasText = baseText.trim().length > 0
     const hasFiles = attachedFiles.length > 0
@@ -1256,10 +1256,15 @@ useEffect(() => {
       timestamp: new Date().toISOString()
     }
 
-    const baseMessages = isRetry ? messages : [...messages, userMessage]
+    const baseMessages = customBaseMessages
+      ? customBaseMessages
+      : isRetry
+        ? messages
+        : [...messages, userMessage]
 
     if (!isRetry) {
       updateMessages(baseMessages)
+      scrollToBottom()
       setInput('')
       if (inputRef.current) inputRef.current.style.height = '44px'
 
@@ -1291,10 +1296,11 @@ useEffect(() => {
         setTypingContent('')
       }
       const calcMessages = [...baseMessages, assistantMessage]
-      setDisplayedMessages(prev => [...prev, userMessage, { ...assistantMessage, content: '' }])
+      setDisplayedMessages([...baseMessages, { ...assistantMessage, content: '' }])
       setTypingIndex(baseMessages.length)
       setTypingContent(assistantMessage.content)
       updateMessages(calcMessages)
+      scrollToBottom()
       setLastCalcResult(calcResult.value)
       setApiError(null)
       setLoading(false)
@@ -1467,10 +1473,11 @@ useEffect(() => {
         setTypingContent('')
       }
       const fullMessages = [...baseMessages, assistantMessage]
-      setDisplayedMessages(prev => [...prev, userMessage, { ...assistantMessage, content: '' }])
+      setDisplayedMessages([...baseMessages, { ...assistantMessage, content: '' }])
       setTypingIndex(baseMessages.length)
       setTypingContent(assistantMessage.content || '')
       updateMessages(fullMessages);
+      scrollToBottom()
       setApiError(null)
       addNotification('success', '✓ Response received!')
     } catch (error: any) {
@@ -1769,9 +1776,12 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
       setEditingMessageContent('')
       return
     }
+    const updatedMessages = messages.map((m, idx) =>
+      idx === editingMessageIndex ? { ...m, content: trimmed } : m
+    )
     setEditingMessageIndex(null)
     setEditingMessageContent('')
-    sendMessage(trimmed, false)
+    sendMessage(trimmed, false, updatedMessages)
   }
 
   const handleLogin = async () => {
@@ -2842,7 +2852,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
         {/* Messages - ChatGPT/Grok/Gemini Style */}
         <div
           ref={chatContainerRef}
-          className="flex-1 overflow-y-auto px-4 sm:px-6 py-6"
+          className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 relative"
           style={{
             background: palette.background
           }}
@@ -2876,7 +2886,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                           Zevy AI
                         </p>
                         <p className="text-sm font-medium" style={{ color: palette.accent }}>
-                          Astra • Vyra • Web search
+                          Astra • Vyra • Up-to-date knowledge
                         </p>
                       </div>
                     </div>
@@ -2903,7 +2913,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                       style={{ color: palette.subdued }}
                     >
                       Ask anything, or start with a preset. Vyra gives deep debate-style reasoning,
-                      Astra keeps things fast and focused.
+                      Astra keeps things fast and focused. Vector search keeps answers as current as possible when you turn it on.
                     </p>
                   </div>
 
@@ -3127,17 +3137,23 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           )}
 
           {showScrollButton && (
-            <button
-              onClick={scrollToBottom}
-              className="fixed bottom-32 right-6 p-2 rounded-full transition-all button-hover shadow-lg"
-              style={{ background: palette.hover, color: '#fff' }}
-            >
-              <ArrowDown size={16} />
-            </button>
+          <button
+            onClick={scrollToBottom}
+            className="fixed bottom-32 right-6 p-2 rounded-full transition-all button-hover shadow-lg"
+            style={{ background: palette.hover, color: '#fff' }}
+          >
+            <ArrowDown size={16} />
+          </button>
           )}
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-8"
+            style={{
+              background: `linear-gradient(to bottom, ${palette.background}00, ${palette.background})`
+            }}
+          />
         </div>
 
-        <div className="p-3 sm:p-4" style={{ background: palette.background }}>
+        <div className="p-3 sm:p-4 border-t" style={{ background: palette.panel, borderColor: palette.border }}>
           <div className="max-w-4xl mx-auto">
             {attachedFiles.length > 0 && (
               <div className="mb-4 space-y-2">
