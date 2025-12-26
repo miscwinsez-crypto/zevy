@@ -1465,6 +1465,38 @@ User: ${prompt}
   }
 }
 
+function resolveUserMessageForSearch(
+  userMessage: string,
+  chat_history: { role: string; content: string }[]
+): string {
+  const normalized = userMessage.toLowerCase().trim();
+
+  if (!chat_history || chat_history.length === 0) {
+    return userMessage;
+  }
+
+  const isCheckFollowup =
+    /\b(check|verify|double[-\s]?check|confirm|recheck|fact[-\s]?check)\b/.test(normalized) &&
+    /\b(it|that|this|them|those|previous|above|answer|info|information)\b/.test(normalized);
+
+  if (!isCheckFollowup) {
+    return userMessage;
+  }
+
+  const lastUser = [...chat_history].reverse().find(m => m.role === 'user');
+  const lastAssistant = [...chat_history].reverse().find(m => m.role === 'assistant');
+  const topicSource = lastUser?.content || lastAssistant?.content || '';
+
+  if (!topicSource) {
+    return userMessage;
+  }
+
+  const prefix =
+    'The user is asking you to check whether the previous information is correct. The phrase "it" refers to the following topic or answer: ';
+
+  return `${userMessage}\n\n${prefix}${topicSource}`;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createRouteHandlerClient<Database>({ cookies })
   const {
@@ -1573,15 +1605,16 @@ export async function POST(req: NextRequest) {
     )
     aiResponse = debateResponse
   } else if (searchEnabled) {
-    // Groq/Compound web browsing system - activated for both Astra and Vyra when search is enabled
+    const resolvedUserMessage = resolveUserMessageForSearch(userMessage, chat_history);
+
     const compound = new GroqCompound()
     const browsingContext = await compound.browseAndAnalyze(
-      userMessage,
+      resolvedUserMessage,
       selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
       true
     )
     
-    const contextualizedMessage = `You are a helpful, conversational assistant. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then brief supporting details.\n\nUser Question: ${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
+    const contextualizedMessage = `You are a helpful, conversational assistant. Use the previous conversation to understand what the user is referring to with words like "it", "that", or "this", and answer about the actual topic being discussed, not about the wording of the request itself. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then brief supporting details.\n\nUser Question: ${resolvedUserMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
       .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
       .join('\n')}`
     
@@ -1635,9 +1668,31 @@ export async function POST(req: NextRequest) {
               .join('\n') + `\n\nuser: ${userMessage}`;
         }
 
-        const contextBuilder = [];
+        const contextBuilder: string[] = [];
         if (lastUserMessage && !contextualUserMessage.includes(lastUserMessage)) {
           contextBuilder.push(`Previous topic: ${lastUserMessage}`);
+        }
+
+        const normalizedUser = userMessage.toLowerCase().trim();
+        const isCheckFollowup =
+          /\b(check|verify|double[-\s]?check|confirm|recheck|fact[-\s]?check)\b/.test(
+            normalizedUser
+          ) &&
+          /\b(it|that|this|them|those|previous|above|answer|info|information)\b/.test(
+            normalizedUser
+          );
+
+        if (isCheckFollowup) {
+          const lastAssistantMessage =
+            chat_history
+              .filter((m: { role: string }) => m.role === 'assistant')
+              .slice(-1)[0]?.content || '';
+          const topicReference = lastUserMessage || lastAssistantMessage;
+          if (topicReference) {
+            contextBuilder.push(
+              `The user is asking you to check whether your previous answer about the following is correct: ${topicReference}`
+            );
+          }
         }
 
         const fullContext =

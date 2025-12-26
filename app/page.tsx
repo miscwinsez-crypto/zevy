@@ -2086,14 +2086,29 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
     addNotification('info', `${fileName} removed`)
   }
 
-  // Add missing function declarations
   const newChat = () => {
-    const newId = generateConvId()
-    const newConv = { id: newId, name: `Chat ${allConversations.length + 1}`, messages: [] }
-    setAllConversations(prev => [...prev, newConv])
-    setCurrentConvIdx(allConversations.length)
-    setMessages([])
-    setConversationErrors(prev => ({ ...prev, [newId]: null }))
+    setAllConversations(prev => {
+      const newId = generateConvId()
+      const newConv: ConversationData = {
+        id: newId,
+        name: `Chat ${prev.length + 1}`,
+        messages: []
+      }
+
+      const updated = [...prev, newConv]
+      const newIndex = updated.length - 1
+
+      setCurrentConvIdx(newIndex)
+      setMessages(newConv.messages)
+      setConversationErrors(prevErrors => ({ ...prevErrors, [newId]: null }))
+
+      const storageKey = auth.isLoggedIn
+        ? `zevy_conversations_${auth.email}`
+        : 'zevy_conversations_guest'
+      localStorage.setItem(storageKey, JSON.stringify(updated))
+
+      return updated
+    })
   }
 
   const deleteChat = (idx: number) => {
