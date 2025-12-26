@@ -1,6 +1,6 @@
 # 🚀 ZEVY AI: Complete Technical Documentation
 
-## Last Updated: December 12, 2025
+## Last Updated: December 26, 2025
 
 ### Recent Changes (December 12, 2025):
 **MAJOR SYSTEM OVERHAUL - Complete Knowledge Integration Enhancement**
@@ -12,8 +12,10 @@
 - **RSS Feeds**: NY Times and news source integration
 - **Open Food Facts**: Nutrition and ingredient database
 - **CIA World Factbook**: Country and geographic information
+- **Rest Countries API**: Country facts (capital, region, population, currencies) with no API key required
+- **DictionaryAPI (dictionaryapi.dev)**: Free English dictionary definitions for meaning/definition style queries
 - **Wikipedia/Wikidata/DBpedia**: Enhanced encyclopedic access
-- **Comprehensive RAG System**: All sources integrated into both Astra and Vyra models
+- **Comprehensive RAG System**: All sources integrated into both Astra and Vyra models as open-data double-checkers
 
 #### 🔑 **Enhanced API Key Management (10-Key System)**
 - **10 Groq API Keys**: Intelligent rotation and load balancing
@@ -33,12 +35,14 @@
 - **Vyra AI**: Both Kimi K2 and Qwen 32B enhanced with research
 - **Intelligent Query Detection**: 30+ patterns for knowledge requests
 - **Parallel Processing**: Multiple sources queried simultaneously
+- **Wikipedia-First Verification**: Research context keeps Wikipedia as the primary verifier for names, dates, locations, and definitions, with news and web sources used as supporting evidence
 
 #### ⚡ **Performance & Reliability**
 - **99.9% Uptime**: Multiple redundancy layers
 - **Smart Caching**: 1-hour Google, 30-minute news caching
 - **Async Processing**: Non-blocking user experience
 - **Automatic Recovery**: Self-healing failure mechanisms
+- **Resilient Chat Behavior**: Chat API and UI are hardened so successful responses always create a visible assistant message and active chats automatically move to the top without losing state
 ## The Ultimate Multi-Model AI System with Advanced Knowledge Integration
 
 ---
@@ -65,7 +69,7 @@
 
 **Zevy AI** is a revolutionary multi-model artificial intelligence system created by **Adam Zein Ziqry** (founder and developer). This system combines the power of multiple cutting-edge language models with comprehensive knowledge integration, advanced safety features, and intelligent usage management. Zevy AI is the flagship AI product developed under **Zevy Cloud** (the company).
 
-**Last Updated**: July 2024
+**Last Updated**: December 26, 2025
 
 ### 🌟 Key Innovations:
 - **Multi-Model Intelligence**: Seamlessly integrates Kimi K2, Qwen, Llama-3.3-70b, and Groq models
@@ -205,11 +209,11 @@ const astraResponse = await groq.chat.completions.create({
 ### 3. **Groq Compound System** (Knowledge Integration Engine)
 
 **Core Capabilities:**
-- **Wikipedia Integration**: Access to millions of encyclopedic articles
-- **Web Search**: Real-time information from across the internet
-- **News APIs**: Latest developments and current events
-- **Intelligent Synthesis**: Combines all sources into coherent analysis
-- **15+ Free Knowledge Sources**: Open Library, NASA API, OpenStreetMap, RSS feeds, and more
+- **Wikipedia Integration**: Access to millions of encyclopedic articles, used as the main double-checker for core factual claims
+- **Web Search**: Real-time information from across the internet as supporting evidence
+- **News APIs**: Latest developments and current events when search mode is enabled
+- **Intelligent Synthesis**: Combines all sources into coherent analysis while preferring Wikipedia when it conflicts with other sources unless strong, newer reputable news explains the change
+- **15+ Free Knowledge Sources**: Open Library, NASA API, OpenStreetMap, Rest Countries, CIA World Factbook, DictionaryAPI, RSS feeds, Open Food Facts, and more as open-data double-checkers
 
 **Enhanced Process Flow (December 2025):**
 ```
@@ -221,16 +225,18 @@ Content Extraction → Intelligent Synthesis → Comprehensive Response
 **Free Knowledge Source Integration:**
 ```typescript
 const FREE_KNOWLEDGE_SOURCES = {
-  wikipedia: true,      // Encyclopedia articles
-  wikidata: true,       // Structured data
-  dbpedia: true,        // Semantic web data
-  open_library: true,   // Books and literature
-  nasa_api: true,       // Space and astronomy
-  open_street_map: true, // Geographic data
-  rss_feeds: true,      // News feeds (NY Times)
-  open_food_facts: true, // Nutrition data
+  wikipedia: true,          // Encyclopedia articles
+  wikidata: true,           // Structured data
+  dbpedia: true,            // Semantic web data
+  open_library: true,       // Books and literature
+  nasa_api: true,           // Space and astronomy
+  open_street_map: true,    // Geographic data
+  rss_feeds: true,          // News feeds (NY Times)
+  open_food_facts: true,    // Nutrition data
   cia_world_factbook: true, // Country information
-  // And 7+ more sources...
+  rest_countries: true,     // Country facts (capital, region, population, currencies)
+  open_dictionary: true,    // DictionaryAPI (dictionaryapi.dev) for free English definitions
+  // And 5+ more sources...
 }
 
 async function getFreeKnowledge(query: string): Promise<string> {

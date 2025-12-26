@@ -38,7 +38,7 @@ const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
 const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
   const searchStatus = searchEnabled
-    ? 'Search is ON. You can use the Groq Compound research system to browse the web and aggregate information from sources like Wikipedia, news sites, and open data APIs. Treat Wikipedia as a cross-checker for factual claims rather than a single source of truth.'
+    ? 'Search is ON. You can use the Groq Compound research system to browse the web and aggregate information from sources like Wikipedia, news sites, and open data APIs. Think of Groq Compound as the finder that gathers many sources, and Wikipedia as the main double-checker for factual claims. When Wikipedia clearly disagrees with other sources, prefer Wikipedia unless strong, newer evidence from reputable news explains the difference.'
     : 'Search is OFF. You cannot call the Groq Compound research system. You must answer from your internal knowledge only and clearly admit uncertainty instead of guessing when you are not sure.';
 
   return `
@@ -681,6 +681,31 @@ async function getFreeKnowledge(query: string): Promise<string> {
     } catch (error) {
       // Silent fail - not all queries will work with this
     }
+
+    try {
+      const encoded = encodeURIComponent(query)
+      const restResponse = await axios.get(
+        `https://restcountries.com/v3.1/name/${encoded}?fields=name,capital,region,population,currencies,flags`
+      )
+      const country = Array.isArray(restResponse.data) ? restResponse.data[0] : null
+      if (country) {
+        const name = country.name?.common || country.name?.official || 'Unknown'
+        const capital = Array.isArray(country.capital) ? country.capital[0] : country.capital || 'Unknown'
+        const region = country.region || 'Unknown region'
+        const population = country.population ? country.population.toLocaleString() : 'Unknown population'
+        const currencyNames = country.currencies
+          ? Object.values(country.currencies)
+              .map((c: any) => c.name)
+              .filter(Boolean)
+              .join(', ')
+          : 'Unknown currencies'
+
+        sources.push(
+          `Rest Countries (open data double-checker): ${name} – capital ${capital}, region ${region}, population ${population}, currencies ${currencyNames}.`
+        )
+      }
+    } catch (error) {
+    }
   }
   
   // NASA API for space/astronomy queries
@@ -707,6 +732,26 @@ async function getFreeKnowledge(query: string): Promise<string> {
       }
     } catch (error) {
       // Silent fail
+    }
+  }
+
+  const definitionMatch = query.match(/\b(meaning of|definition of|what does)\s+([A-Za-z\-]{2,})\b/i)
+  if (definitionMatch) {
+    const word = definitionMatch[2]
+    try {
+      const dictResponse = await axios.get(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
+      )
+      const entry = Array.isArray(dictResponse.data) ? dictResponse.data[0] : null
+      const firstMeaning =
+        entry?.meanings?.[0]?.definitions?.[0]?.definition ||
+        entry?.meanings?.[0]?.definitions?.[0]?.example ||
+        null
+
+      if (firstMeaning) {
+        sources.push(`Dictionary (open data double-checker): Definition of "${word}" – ${firstMeaning}`)
+      }
+    } catch (error) {
     }
   }
 
@@ -1066,6 +1111,12 @@ async function generateVyraSmartDebate(
   searchEnabled: boolean = false
 ): Promise<string | ReadableStream> {
   try {
+    const normalizedMessage = userMessage.toLowerCase()
+    const wantsReasoning =
+      /\b(step by step|step-by-step|explain your reasoning|show your reasoning|walk me through|why|reasoning|both sides|debate)\b/i.test(
+        normalizedMessage
+      )
+
     const baseIntent = detectInformationIntent(userMessage)
     const intent = searchEnabled
       ? baseIntent
@@ -1081,9 +1132,11 @@ async function generateVyraSmartDebate(
     
     const knowledgeContext = await gatherKnowledge(userMessage, intent)
     
-    const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history.map(m => `${m.role}: ${m.content}`).join('\n')}`
+    const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history
+      .map((m) => `${m.role}: ${m.content}`)
+      .join('\n')}`
     
-    const moonshotAnalysisPrompt = `You are Kairo, Vyra's bold debater persona powered by Kimi K2. Analyze this question from your perspective and provide your independent assessment.
+    const moonshotAnalysisPrompt = `You are Kairo, Vyra's bold debater persona powered by Kimi K2. Analyze this question from your perspective and provide your independent assessment. Your analysis will only be used internally and will not be shown directly to the user.
 
 User Question: ${userMessage}
 
@@ -1093,7 +1146,7 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
-    const qwenAnalysisPrompt = `You are Logos, Vyra's careful debater persona powered by Qwen. Analyze this question from your perspective and provide your independent assessment.
+    const qwenAnalysisPrompt = `You are Logos, Vyra's careful debater persona powered by Qwen. Analyze this question from your perspective and provide your independent assessment. Your analysis will only be used internally and will not be shown directly to the user.
 
 User Question: ${userMessage}
 
@@ -1130,7 +1183,7 @@ Give your honest, independent analysis. Don't hold back - be direct and thorough
     const responsesAreDifferent = checkResponseDisagreement(moonshotText, qwenText)
     
     if (responsesAreDifferent) {
-      const moonshotDebatePrompt = `Kairo, you've analyzed this question and have your perspective. Now you see that Logos has a different analysis. Engage in a direct debate about this disagreement.
+      const moonshotDebatePrompt = `Kairo, you've analyzed this question and have your perspective. Now you see that Logos has a different analysis. Engage in a direct debate about this disagreement. This exchange is internal only and will never be shown to the user.
 
 User Question: ${userMessage}
 
@@ -1152,7 +1205,7 @@ Challenge Logos's reasoning directly. Point out flaws in their logic, defend you
         searchEnabled
       )
       
-      const qwenDebatePrompt = `Logos, you've provided your analysis, but Kairo has challenged your reasoning and defended their position. Respond directly to this challenge.
+      const qwenDebatePrompt = `Logos, you've provided your analysis, but Kairo has challenged your reasoning and defended their position. Respond directly to this challenge. This exchange is internal only and will never be shown to the user.
 
 User Question: ${userMessage}
 
@@ -1176,7 +1229,7 @@ Defend your analysis against Kairo's challenge. Point out any flaws in their rea
         searchEnabled
       )
       
-      const finalDebatePrompt = `Kairo, you've responded to the challenge. This is your final opportunity in this debate.
+      const finalDebatePrompt = `Kairo, you've responded to the challenge. This is your final opportunity in this debate. This exchange is internal only and will never be shown to the user.
 
 User Question: ${userMessage}
 
@@ -1202,21 +1255,35 @@ Address Logos's defense directly. Point out any remaining weaknesses in their ar
         searchEnabled
       )
       
-      const finalSynthesisPrompt = `You need to provide the final answer to the user after witnessing a genuine debate between two AI personas, Kairo and Logos. Here's what transpired:
+      const finalSynthesisPrompt = `You are Zevy, an AI assistant. Use the internal analyses and arguments below to decide on the best answer for the user, but do not mention these internal personas, the debate, or any of the text below in your final reply.
 
 User Question: ${userMessage}
 
-${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
+${knowledgeContext ? `External Knowledge:\n${knowledgeContext}\n\n` : ''}
 
-The Debate:
-Kairo's Position: ${moonshotText}
-Logos's Position: ${qwenText}
+Internal Analysis A (Kairo, bold style):
+${moonshotText}
 
-Kairo's Challenge: ${moonshotDebateResponse}
-Logos's Defense: ${qwenDebateResponse}
-Kairo's Final Argument: ${finalDebateResponse}
+Internal Analysis B (Logos, careful style):
+${qwenText}
 
-Based on this debate, provide the user with the most accurate answer. Acknowledge the disagreement, explain which position was more convincing, and give a clear final answer. Don't just summarize - make a definitive conclusion based on the debate.`
+Internal Debate A (Kairo challenging Logos):
+${moonshotDebateResponse}
+
+Internal Debate B (Logos defending against Kairo):
+${qwenDebateResponse}
+
+Internal Closing Argument (Kairo final position):
+${finalDebateResponse}
+
+Instructions for your reply:
+- These internal notes are only for you. The user must never see words like "Kairo", "Logos", "Judge", "debate", "final verdict", or "bout".
+- Do not describe the debate or how you arrived at the answer unless the user explicitly asked for reasoning.
+- ${
+        wantsReasoning
+          ? 'Give a clear answer to the question first, then briefly explain your reasoning in simple language without referencing personas or a debate.'
+          : 'Give a clear, concise answer to the question. Do not explain your internal reasoning or mention any debate. Keep it focused and straightforward.'
+      }`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: finalSynthesisPrompt }],
@@ -1230,17 +1297,26 @@ Based on this debate, provide the user with the most accurate answer. Acknowledg
       return finalResponse
       
     } else {
-      const agreementAnalysisPrompt = `Both Kairo and Logos independently reached similar conclusions. Here's the consensus view:
+      const agreementAnalysisPrompt = `You are Zevy, an AI assistant. Two internal analyses have reached similar conclusions about the user's question. Use them as private notes only and do not mention them, their names, or that a debate happened.
 
 User Question: ${userMessage}
 
-${knowledgeContext ? `Knowledge Background:\n${knowledgeContext}` : ''}
+${knowledgeContext ? `External Knowledge:\n${knowledgeContext}\n\n` : ''}
 
-Kairo's Analysis: ${moonshotText}
+Internal Analysis A (bold style):
+${moonshotText}
 
-Logos's Analysis: ${qwenText}
+Internal Analysis B (careful style):
+${qwenText}
 
-Since both personas independently reached the same conclusion, provide a confident, authoritative answer. Briefly acknowledge that this consensus strengthens the reliability of the answer. Don't just repeat what they said - synthesize their agreement into a definitive response.`
+Instructions for your reply:
+- The internal analyses are not shown to the user and must not be referenced directly.
+- Do not use words like "Kairo", "Logos", "Judge", "debate", or "final verdict" in your response.
+- ${
+        wantsReasoning
+          ? 'Provide a confident answer to the question and then briefly explain your reasoning in simple language.'
+          : 'Provide a confident, concise answer to the question without explaining your internal reasoning or mentioning any debate.'
+      }`
       
       const finalResponse = await callGroq(
         [{ role: 'user', content: agreementAnalysisPrompt }],

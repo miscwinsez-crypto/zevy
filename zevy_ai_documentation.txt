@@ -272,7 +272,7 @@ for (const apiKey of apiKeys) {
 
 **Zevy AI** is a revolutionary multi-model artificial intelligence system created by **Adam Zein Ziqry** (15-year-old founder and developer). This system combines the power of multiple cutting-edge language models with comprehensive knowledge integration, advanced safety features, and intelligent usage management. Zevy AI is the flagship AI product developed under **Zevy Cloud** (the company).
 
-**Last Updated**: December 14, 2025
+**Last Updated**: December 26, 2025
 
 ### 🌟 Key Innovations:
 - **Multi-Model Intelligence**: Seamlessly integrates Kimi K2, Qwen 32B, and Llama-4 Scout/Maverick models on Groq
@@ -1015,3 +1015,11 @@ The system's architecture ensures scalability, reliability, and performance whil
 - Finalized SQL schema for user_usage and conversations (chat history) tables
 - Fixed chat Sources section so only valid, non-duplicate links render
 - Ran lint and production build to validate the current implementation
+
+## Last Updated: December 26, 2025
+
+### Recent Changes:
+- Updated Groq Compound so Wikipedia is the main double-checker for factual claims, with other web, news, and open-data sources treated as supporting “Other Evidence”
+- Integrated additional free, no-API-key knowledge sources (Rest Countries API and DictionaryAPI) into the getFreeKnowledge pipeline as open-data double-checkers
+- Refined Vyra’s dual-model debate system so all Kairo/Logos analyses and debates are strictly internal-only, and final answers never mention internal personas or “debates” unless the user explicitly asks for reasoning
+- Hardened the chat API and UI so successful responses always produce a visible assistant message, and active conversations automatically move to the top of the chat list without losing state

@@ -414,25 +414,46 @@ export class GroqCompound {
     allInformation: any[],
     targetModel: string
   ): Promise<string> {
+    const wikipediaItems = allInformation.filter(
+      (info) => info.type && String(info.type).toLowerCase() === 'wikipedia'
+    );
+    const otherItems = allInformation.filter(
+      (info) => !info.type || String(info.type).toLowerCase() !== 'wikipedia'
+    );
+
+    const formatItem = (info: any) => {
+      let sourceInfo = `\n[${String(info.type || 'unknown').toUpperCase()}] ${info.title}`;
+      if (info.publishedAt) {
+        sourceInfo += ` (${new Date(info.publishedAt).toLocaleDateString()})`;
+      }
+      const content = typeof info.content === 'string' ? info.content : '';
+      sourceInfo += `\n${content.substring(0, 1500)}`;
+      if (info.url) {
+        sourceInfo += `\nSource: ${info.url}`;
+      }
+      return sourceInfo;
+    };
+
+    const wikipediaSection =
+      wikipediaItems.length > 0
+        ? `Wikipedia Double-Check:
+${wikipediaItems.map(formatItem).join('\n\n')}`
+        : 'Wikipedia Double-Check:\nNo direct Wikipedia articles were retrieved yet.';
+
+    const otherSourcesSection =
+      otherItems.length > 0
+        ? `Other Evidence (web search, news, Wikidata, DBpedia, and other open-data double checkers like CIA World Factbook, Rest Countries, NASA, Open Library, OpenStreetMap, and similar sources that do not require API keys):
+${otherItems.map(formatItem).join('\n\n')}`
+        : 'Other Evidence (web search, news, Wikidata, DBpedia, and open-data double checkers):\nNo additional sources were collected.';
+
     const context = `
 User Question: ${userPrompt}
 
-Information Sources:
-${allInformation
-  .map((info) => {
-    let sourceInfo = `\n[${info.type.toUpperCase()}] ${info.title}`;
-    if (info.publishedAt) {
-      sourceInfo += ` (${new Date(info.publishedAt).toLocaleDateString()})`;
-    }
-    sourceInfo += `\n${info.content.substring(0, 1500)}`;
-    if (info.url) {
-      sourceInfo += `\nSource: ${info.url}`;
-    }
-    return sourceInfo;
-  })
-  .join('\n\n')}
+${wikipediaSection}
 
-Based on the comprehensive information from Wikipedia, Wikidata, DBpedia, web search, and news sources above, provide a detailed and accurate answer to the user's question. Synthesize the information from all sources and present it in a clear, conversational manner. When you cite evidence, you must quote the specific article, page, or dataset titles from the Information Sources section (for example, "Helion Signs Power Deal with Microsoft for 2028 Delivery") and, when available, include the publisher, date, and URL. Do not invent or guess titles, publishers, or dates and do not use generic labels such as "Reuters (December 2024)" if a more specific citation is available in the sources.`;
+${otherSourcesSection}
+
+Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim.`;
 
     return context;
   }
