@@ -39,7 +39,7 @@ export class GroqCompound {
             key: googleApiKey1,
             cx: googleSearchEngineId,
             q: query,
-            num: 5,
+            num: 10,
           },
         }
       );
@@ -171,7 +171,7 @@ export class GroqCompound {
             format: 'json',
             list: 'search',
             srsearch: query,
-            srlimit: 5,
+            srlimit: 10,
             srprop: 'snippet|title|pageid',
           },
         }
@@ -220,7 +220,7 @@ export class GroqCompound {
             format: 'json',
             search: query,
             language: 'en',
-            limit: 5,
+            limit: 10,
           },
         }
       );
@@ -264,7 +264,7 @@ export class GroqCompound {
       for (const apiKey of apiKeys) {
         try {
           const encodedQuery = encodeURIComponent(query);
-          const url = `https://newsapi.org/v2/everything?q=${encodedQuery}&apiKey=${apiKey}&pageSize=5`;
+          const url = `https://newsapi.org/v2/everything?q=${encodedQuery}&apiKey=${apiKey}&pageSize=10`;
           const response = await axios.get(url);
           const articles = response.data.articles;
 
@@ -287,7 +287,8 @@ export class GroqCompound {
 
   async browseAndAnalyze(
     userPrompt: string,
-    targetModel: string
+    targetModel: string,
+    forceSearch: boolean = false
   ): Promise<string> {
     try {
       const normalizedPrompt = userPrompt.toLowerCase();
@@ -296,16 +297,37 @@ export class GroqCompound {
         (/\b(lyrics?|lyric)\b/i.test(normalizedPrompt) &&
           /\b(song|track)\b/i.test(normalizedPrompt));
 
-      const shouldSearch =
+      const wantsDeepResultsMatch =
+        normalizedPrompt.match(/\b(\d{1,3})\s*(results?|searches|search|websites?|pages?)\b/);
+      const requestedDepth = wantsDeepResultsMatch
+        ? Math.max(1, Math.min(50, parseInt(wantsDeepResultsMatch[1], 10) || 0))
+        : 0;
+
+      const isEngineerNameQuery =
+        /\bwho\b.*\b(engineered|designed|built|developed|created)\b/.test(normalizedPrompt) ||
+        /\bhuman names?\b/.test(normalizedPrompt) ||
+        (normalizedPrompt.includes('smart tunnel') &&
+          /\b(who|engineer|designer|architect|people|person|individuals|names?)\b/.test(
+            normalizedPrompt
+          ));
+
+      const isSelfOrZevyQuery =
+        /\b(zevy|adam zein ziqry)\b/.test(normalizedPrompt) ||
+        /\bwho (made|created|built)\b.*\b(you|yourself|zevy)\b/.test(normalizedPrompt);
+
+      const hasQuestionWord = /\b(what|when|where|why|how|who|which)\b/.test(normalizedPrompt);
+
+      const hasSearchKeyword =
         /(search|find|lookup|look up|current|latest|news|recent|today|this week|what happened|happened|update|time|timezone|date|day|month|year|weather|forecast|temperature|humidity|stock|price|quote|score|standings|detailed|comprehensive|explain|analyze|compare|contrast|pros and cons|advantages|disadvantages|research|study|report)/i.test(
-          userPrompt
-        ) &&
-        userPrompt.length > 10 &&
-        !/(who made|who created|who built|made by|created by|built by|zevy|you|yourself|hi|hello|hey|thanks|thank you|bye|goodbye)/i.test(
           userPrompt
         );
 
-      if (!shouldSearch) {
+      const shouldSearch =
+        !isSelfOrZevyQuery &&
+        userPrompt.length > 10 &&
+        (hasSearchKeyword || hasQuestionWord || isLyricsQuery || isEngineerNameQuery || requestedDepth > 0);
+
+      if (!shouldSearch && !forceSearch) {
         return '';
       }
 
@@ -343,7 +365,14 @@ export class GroqCompound {
       }
 
       if (webResults.length > 0) {
-        const webLimit = isLyricsQuery ? 8 : 3;
+        const baseWebLimit = isLyricsQuery ? 8 : 5;
+        const effectiveDepth = requestedDepth > 0 ? requestedDepth : baseWebLimit;
+        const webLimit = Math.min(
+          webResults.length,
+          isEngineerNameQuery ? Math.max(effectiveDepth, 10) : effectiveDepth,
+          50
+        );
+
         for (const result of webResults.slice(0, webLimit)) {
           if (result.link !== '#') {
             const pageContent = await this.visitWebsite(result.link);
@@ -502,6 +531,8 @@ Use Wikipedia as a verifier for core factual claims such as names, dates, locati
     const mentionsDrainTunnel =
       /\b(tunnel|underground)\b.*\b(drain|stormwater|flood)\b/.test(normalized) ||
       /\b(drain|stormwater|flood)\b.*\b(tunnel|underground)\b/.test(normalized) ||
+      normalized.includes('smart tunnel') ||
+      normalized.includes('stormwater management and road tunnel') ||
       normalized.includes('drain tunnel system') ||
       normalized.includes('tunnel that turns into a drain');
 

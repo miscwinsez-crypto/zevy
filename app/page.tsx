@@ -2515,22 +2515,39 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                 Zevy Cloud early preview
               </span>
             </div>
-            <h2 className="text-lg font-semibold mb-2" style={{ color: palette.accent }}>
-              Zevy Cloud Beta
+            <h2 className="text-lg font-semibold mb-1" style={{ color: palette.accent }}>
+              Zevy Cloud Open Beta
             </h2>
             <p className="text-xs mb-3" style={{ color: palette.subdued }}>
-              This is an early beta build, meant for testing and feedback.
+              This is an early open beta build, meant for testing and feedback.
             </p>
             <div className="space-y-2 text-xs" style={{ color: palette.subdued }}>
               <div>
                 <p className="font-semibold mb-1" style={{ color: palette.accent }}>
-                  What is not stable yet
+                  Currently unavailable
                 </p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Chat history can reset; refreshing may clear the current conversation.</li>
-                  <li>File attach and document handling are unfinished and may not work as expected.</li>
-                  <li>Humanizer and other experimental tools are still being tuned.</li>
+                  <li>Document analysis (file upload and document tools)</li>
+                  <li>Image generation and related visual tools</li>
+                  <li>Login and sign up (accounts are temporarily disabled)</li>
                 </ul>
+              </div>
+              <div>
+                <p className="font-semibold mb-1" style={{ color: palette.accent }}>
+                  What works right now
+                </p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Chatting with Astra and Vyra in open beta mode</li>
+                  <li>Auto-saving chats for guests so you can come back later</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold mb-1" style={{ color: palette.accent }}>
+                  Accuracy and RAG status
+                </p>
+                <p>
+                  Some answers may still be incorrect or incomplete because the full RAG system is not finished yet. I am actively working on improving knowledge and reliability.
+                </p>
               </div>
               <div>
                 <p className="font-semibold mb-1" style={{ color: palette.accent }}>

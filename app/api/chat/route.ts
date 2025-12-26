@@ -58,11 +58,12 @@ const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boo
     - If search is ON and a research context is provided, rely on that context. If the context is weak or ambiguous, still say you are not sure rather than forcing a match.
 
     When responding, you must adhere to the following rules:
-    1.  Be conversational and engaging.
-    2.  If you don't know the answer, say so. Do not invent facts, dates, names, places, or song titles.
-    3.  Keep your responses concise and to the point unless the user asks for more detail.
-    4.  You can use emojis and light humor to add personality, but never let it get in the way of clarity.
-    5.  When asked about your creator, you should state clearly that you were created by Adam Zein Ziqry, a 15-year-old developer building Zevy AI.
+    1.  Answer like a modern conversational assistant (similar in style to ChatGPT or Grok): clear, direct, and friendly.
+    2.  Start by directly answering the user's question, then add short supporting details.
+    3.  If you don't know the answer, say so. Do not invent facts, dates, names, places, or song titles.
+    4.  Keep your responses concise unless the user explicitly asks for extra depth or long explanations.
+    5.  You can use emojis and light humor to add personality, but never let it get in the way of clarity.
+    6.  When asked about your creator, you should state clearly that you were created by Adam Zein Ziqry, a 15-year-old developer building Zevy AI.
 
     Humor and tone:
     - Detect whether the user is joking, playful, or serious based on their words, punctuation, and emojis.
@@ -347,9 +348,10 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
        normalizedMessage.includes('how about'))
     
     // Ultra-specific search patterns
-    const searchPatterns = [
+  const searchPatterns = [
       /(search|find|look up|google)\s+(for|about)\s+/i,
       /(what is|who is|where is|when was|how to|why does)\s+/i,
+      /\bwho\s+(engineered|designed|built|developed|created)\b/i,
       /\b(define|explain|describe|tell me about|show me|give me)\b\s+/i,
       /\b(weather|forecast|temperature|humidity|precipitation)\b\s+/i,
       /\b(news|headlines|breaking|article|report)\b\s+/i,
@@ -400,13 +402,6 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
      }
    }
    
-   // Default case for ambiguous messages
-   return {
-     isConversational: false,
-     shouldSearch: false,
-     confidence: 'low',
-     reason: 'Unable to determine intent clearly'
-   }
   const isChatPattern = CHAT_PATTERNS.some(pattern => pattern.test(normalizedMessage))
   if (isChatPattern) {
     return {
@@ -518,11 +513,11 @@ function detectInformationIntent(message: string, chatHistory: any[] = []): {
   }
   
   return {
-      isConversational: false,
-      shouldSearch: true,
-      confidence: 'low',
-      reason: 'Default to search for better response quality'
-    }
+    isConversational: false,
+    shouldSearch: true,
+    confidence: 'low',
+    reason: 'Default to search for better response quality'
+  }
 }
 
 /**
@@ -1564,10 +1559,13 @@ export async function POST(req: NextRequest) {
     const compound = new GroqCompound()
     const browsingContext = await compound.browseAndAnalyze(
       userMessage,
-      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART
+      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
+      true
     )
     
-    const contextualizedMessage = `${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history.map((m: {role: string, content: string}) => `${m.role}: ${m.content}`).join('\n')}`
+    const contextualizedMessage = `You are a helpful, conversational assistant. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then brief supporting details.\n\nUser Question: ${userMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
+      .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+      .join('\n')}`
     
     try {
       aiResponse = await callGroq(
