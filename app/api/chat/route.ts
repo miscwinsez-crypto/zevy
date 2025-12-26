@@ -543,7 +543,17 @@ async function isPromptSafe(prompt: string, userModel: string): Promise<boolean>
 
   const groq = new Groq({ apiKey })
 
-  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Analyze the user's prompt for harmful content including: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content, or any dangerous/inappropriate requests. 
+  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Your job is to check ONLY for clearly harmful content, such as: illegal activities, hate speech, harassment, serious violence, self-harm or suicide, sexually explicit content involving minors or violence, or any clearly dangerous/inappropriate requests.
+
+Creative, entertainment, or expressive content is generally SAFE. Treat the following as SAFE by default unless they are clearly combined with one of the harmful behaviours above:
+- Song lyrics (requesting, quoting, or analyzing lyrics)
+- Song or music identification questions
+- Fictional stories, roleplay, or fanfiction that are not graphic, violent, or abusive
+- Romantic or flirty content that is not explicit, violent, or involving minors
+- Artistic, poetic, or expressive writing
+- Requests about music, artists, or albums
+
+Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm, suicide, or serious violence.
 
 User prompt: "${prompt}"
 Current AI model being used: ${userModel}
@@ -558,6 +568,16 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
       max_tokens: 10
     })
     const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
+    const normalized = prompt.toLowerCase()
+
+    if (
+      result === 'unsafe' &&
+      /\b(song|lyrics|lyric|music|track|album|artist)\b/.test(normalized) &&
+      !/(kill|murder|suicide|self-harm|self harm|rape|torture|child|minor)/.test(normalized)
+    ) {
+      return true
+    }
+
     return result === 'safe'
   } catch (error) {
     // Silent error handling - no console output to avoid browser errors
@@ -1362,7 +1382,24 @@ async function generateSummary(prompt: string): Promise<string> {
 async function isSafe(prompt: string): Promise<NextResponse | null> {
   const groq = new Groq({ apiKey: getGroqApiKey() });
 
-  const moderationPrompt = `[INST] Task: Check if there is unsafe content in 'User' messages in conversations. Categories of unsafe content are: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content." Provide a single-word response: "safe" or "unsafe."
+  const moderationPrompt = `[INST] Task: Check if there is unsafe content in 'User' messages in conversations.
+
+You must only mark a message as "unsafe" when it clearly asks for or promotes:
+- Illegal activities (committing crimes, evading law enforcement, serious fraud)
+- Hate speech or harassment against protected groups or individuals
+- Serious violence or encouragement of violence
+- Self-harm, suicide, or instructions to harm oneself
+- Explicit sexual content (especially involving minors, violence, or abuse)
+- Attempts to obtain private, highly sensitive information (passwords, credit cards, doxxing)
+- Malicious code aimed at harming systems or stealing data
+
+Creative or entertainment content is generally SAFE. Treat the following as SAFE by default unless they are clearly combined with the harmful behaviors above:
+- Song lyrics, music identification, and questions about songs or artists
+- Quoting, discussing, or analyzing lyrics
+- Fictional stories, roleplay, or fanfiction that are not graphic, violent, or abusive
+- Romantic or flirty content that is not explicit, violent, or involving minors
+
+Categories of unsafe content are: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content." Provide a single-word response: "safe" or "unsafe."
 
 <BEGIN CONVERSATION>
 
@@ -1380,6 +1417,15 @@ User: ${prompt}
     });
 
     const result = response.choices[0]?.message?.content?.toLowerCase().trim() || '';
+    const normalized = prompt.toLowerCase();
+
+    if (
+      result === 'unsafe' &&
+      /\b(song|lyrics|lyric|music|track|album|artist)\b/.test(normalized) &&
+      !/(kill|murder|suicide|self-harm|self harm|rape|torture|child|minor)/.test(normalized)
+    ) {
+      return null;
+    }
 
     if (result === 'unsafe') {
       let reason = 'The prompt contains unsafe content.';

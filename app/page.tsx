@@ -3137,20 +3137,14 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           )}
 
           {showScrollButton && (
-          <button
-            onClick={scrollToBottom}
-            className="fixed bottom-32 right-6 p-2 rounded-full transition-all button-hover shadow-lg"
-            style={{ background: palette.hover, color: '#fff' }}
-          >
-            <ArrowDown size={16} />
-          </button>
+            <button
+              onClick={scrollToBottom}
+              className="fixed bottom-32 right-6 p-2 rounded-full transition-all button-hover shadow-lg"
+              style={{ background: palette.hover, color: '#fff' }}
+            >
+              <ArrowDown size={16} />
+            </button>
           )}
-          <div
-            className="pointer-events-none absolute bottom-0 left-0 right-0 h-8"
-            style={{
-              background: `linear-gradient(to bottom, ${palette.background}00, ${palette.background})`
-            }}
-          />
         </div>
 
         <div className="p-3 sm:p-4" style={{ background: palette.background }}>

@@ -290,6 +290,12 @@ export class GroqCompound {
     targetModel: string
   ): Promise<string> {
     try {
+      const normalizedPrompt = userPrompt.toLowerCase();
+      const isLyricsQuery =
+        /song\s+that\s+goes\b/i.test(userPrompt) ||
+        (/\b(lyrics?|lyric)\b/i.test(normalizedPrompt) &&
+          /\b(song|track)\b/i.test(normalizedPrompt));
+
       const shouldSearch =
         /(search|find|lookup|look up|current|latest|news|recent|today|this week|what happened|happened|update|time|timezone|date|day|month|year|weather|forecast|temperature|humidity|stock|price|quote|score|standings|detailed|comprehensive|explain|analyze|compare|contrast|pros and cons|advantages|disadvantages|research|study|report)/i.test(
           userPrompt
@@ -337,7 +343,8 @@ export class GroqCompound {
       }
 
       if (webResults.length > 0) {
-        for (const result of webResults.slice(0, 3)) {
+        const webLimit = isLyricsQuery ? 8 : 3;
+        for (const result of webResults.slice(0, webLimit)) {
           if (result.link !== '#') {
             const pageContent = await this.visitWebsite(result.link);
             allInformation.push({
@@ -350,7 +357,7 @@ export class GroqCompound {
         }
       }
 
-      if (newsResults.length > 0) {
+      if (!isLyricsQuery && newsResults.length > 0) {
         for (const article of newsResults.slice(0, 3)) {
           allInformation.push({
             type: 'news',
@@ -364,7 +371,7 @@ export class GroqCompound {
         }
       }
 
-      if (wikidataResults.length > 0) {
+      if (!isLyricsQuery && wikidataResults.length > 0) {
         for (const result of wikidataResults.slice(0, 2)) {
           allInformation.push({
             type: 'wikidata',
@@ -375,7 +382,7 @@ export class GroqCompound {
         }
       }
 
-      if (dbpediaResults.length > 0) {
+      if (!isLyricsQuery && dbpediaResults.length > 0) {
         for (const result of dbpediaResults.slice(0, 3)) {
           allInformation.push({
             type: 'dbpedia',
@@ -406,6 +413,24 @@ export class GroqCompound {
   }
 
   private async generateSearchQuery(userPrompt: string): Promise<string> {
+    const lyricsPattern =
+      /(?:what(?:'s| is)?|whats)?\s*the\s+song\s+that\s+goes\s+(.+)/i;
+    const genericLyricsPattern =
+      /which\s+song\s+has\s+the\s+lyrics?\s+(.+)/i;
+
+    const directMatch = userPrompt.match(lyricsPattern);
+    const altMatch = userPrompt.match(genericLyricsPattern);
+    const match = directMatch || altMatch;
+
+    if (match && match[1]) {
+      const rawSnippet = match[1].replace(/["'“”]/g, '').trim();
+      const snippet =
+        rawSnippet.length > 120 ? rawSnippet.substring(0, 120) : rawSnippet;
+      if (snippet.length > 0) {
+        return `"${snippet}" lyrics`;
+      }
+    }
+
     return userPrompt.length > 100 ? userPrompt.substring(0, 100) : userPrompt;
   }
 
@@ -414,6 +439,12 @@ export class GroqCompound {
     allInformation: any[],
     targetModel: string
   ): Promise<string> {
+    const normalizedPrompt = userPrompt.toLowerCase();
+    const isLyricsQuery =
+      normalizedPrompt.includes('song that goes') ||
+      (/\b(lyrics?|lyric)\b/.test(normalizedPrompt) &&
+        /\b(song|track)\b/.test(normalizedPrompt));
+
     const wikipediaItems = allInformation.filter(
       (info) => info.type && String(info.type).toLowerCase() === 'wikipedia'
     );
@@ -446,6 +477,10 @@ ${wikipediaItems.map(formatItem).join('\n\n')}`
 ${otherItems.map(formatItem).join('\n\n')}`
         : 'Other Evidence (web search, news, Wikidata, DBpedia, and open-data double checkers):\nNo additional sources were collected.';
 
+    const extraGuidance = isLyricsQuery
+      ? '\nFor this query, the user is trying to identify a song from partial lyrics. Use the web sources to look for exact or very close lyric matches across multiple pages. If you are not confident after checking all the evidence, clearly say you are not sure instead of guessing a random song title.'
+      : '';
+
     const context = `
 User Question: ${userPrompt}
 
@@ -453,7 +488,7 @@ ${wikipediaSection}
 
 ${otherSourcesSection}
 
-Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim.`;
+Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim.${extraGuidance}`;
 
     return context;
   }
