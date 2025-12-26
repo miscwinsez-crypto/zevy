@@ -75,7 +75,17 @@ export class GroqCompound {
         },
       });
 
-      const html = response.data;
+      const raw = response.data;
+
+      if (typeof raw !== 'string') {
+        return {
+          url,
+          title: 'Non-text content',
+          content: '',
+        };
+      }
+
+      const html = raw;
       const title = this.extractTitle(html) || url;
       const content = this.extractTextContent(html);
 
@@ -104,6 +114,7 @@ export class GroqCompound {
     text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
     text = text.replace(/<[^>]+>/g, ' ');
     text = text.replace(/\s+/g, ' ').trim();
+    text = text.replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\uFFFF]/g, '');
     return text;
   }
 
@@ -388,12 +399,16 @@ export class GroqCompound {
 
       if (!isLyricsQuery && newsResults.length > 0) {
         for (const article of newsResults.slice(0, 3)) {
+          const sourceName = article.source?.name || 'Unknown';
+          const description = article.description || '';
+          const combined = description
+            ? `${description} (reported by ${sourceName})`
+            : `Reported by ${sourceName}`;
+
           allInformation.push({
             type: 'news',
             title: article.title,
-            content: `${article.description || ''} Source: ${
-              article.source?.name || 'Unknown'
-            }`,
+            content: combined,
             url: article.url,
             publishedAt: article.publishedAt,
           });
@@ -482,15 +497,12 @@ export class GroqCompound {
     );
 
     const formatItem = (info: any) => {
-      let sourceInfo = `\n[${String(info.type || 'unknown').toUpperCase()}] ${info.title}`;
+      let sourceInfo = `${String(info.type || 'unknown').toUpperCase()} - ${info.title}`;
       if (info.publishedAt) {
         sourceInfo += ` (${new Date(info.publishedAt).toLocaleDateString()})`;
       }
       const content = typeof info.content === 'string' ? info.content : '';
       sourceInfo += `\n${content.substring(0, 1500)}`;
-      if (info.url) {
-        sourceInfo += `\nSource: ${info.url}`;
-      }
       return sourceInfo;
     };
 
@@ -517,7 +529,7 @@ ${wikipediaSection}
 
 ${otherSourcesSection}
 
-Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim.${extraGuidance}`;
+Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim. Do not include raw URLs, "Source:" labels, or these metadata lines in your answer. If you mention a source, refer to it briefly in natural language (for example, "a Malaysian news article" or "the project operator's website") instead of listing links.${extraGuidance}`;
 
     return context;
   }

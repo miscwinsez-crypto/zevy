@@ -939,18 +939,32 @@ async function callGroq(
   }
 
   try {
+    const effectiveTime = currentTime || new Date().toLocaleString()
+    const effectiveTimezone = timezone || 'UTC'
+
+    const messagesWithSystem =
+      messages.length > 0 && messages[0].role === 'system'
+        ? messages
+        : [
+            {
+              role: 'system',
+              content: SYSTEM_PROMPT(effectiveTime, effectiveTimezone, searchEnabled)
+            },
+            ...messages
+          ]
+
     const payload = {
-      model: model,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT(currentTime as string, timezone as string, searchEnabled) }, ...messages],
+      model,
+      messages: messagesWithSystem,
       temperature: 0.7,
       max_tokens: 1024,
-      stream: stream
+      stream
     }
 
     if (contextualUserMessage) {
-      const lastMessage = payload.messages[payload.messages.length - 1];
+      const lastMessage = payload.messages[payload.messages.length - 1]
       if (lastMessage && lastMessage.role === 'user') {
-        lastMessage.content = contextualUserMessage;
+        lastMessage.content = contextualUserMessage
       }
     }
 
@@ -1294,6 +1308,8 @@ ${finalDebateResponse}
 Instructions for your reply:
 - These internal notes are only for you. The user must never see words like "Kairo", "Logos", "Judge", "debate", "final verdict", or "bout".
 - Do not describe the debate or how you arrived at the answer unless the user explicitly asked for reasoning.
+- Do not copy long paragraphs or bullet lists directly from External Knowledge. Paraphrase them in your own words and keep the answer focused on explaining things to the user.
+- If you mention a specific source (like Wikipedia or a news outlet), refer to it briefly in natural language instead of reading out large chunks.
 - ${
         wantsReasoning
           ? 'Give a clear answer to the question first, then briefly explain your reasoning in simple language without referencing personas or a debate.'
@@ -1327,6 +1343,8 @@ ${qwenText}
 Instructions for your reply:
 - The internal analyses are not shown to the user and must not be referenced directly.
 - Do not use words like "Kairo", "Logos", "Judge", "debate", or "final verdict" in your response.
+- Do not copy long paragraphs or bullet lists directly from External Knowledge. Paraphrase them in your own words instead.
+- If you mention a specific source (like Wikipedia or a news outlet), refer to it briefly in natural language instead of reading out large chunks.
 - ${
         wantsReasoning
           ? 'Provide a confident answer to the question and then briefly explain your reasoning in simple language.'
