@@ -284,6 +284,7 @@ for (const apiKey of apiKeys) {
 - **Expanded Free Knowledge Sources**: 15+ integrated knowledge sources including Open Library, NASA API, OpenStreetMap, RSS feeds
 - **Enhanced API Key Management**: 10 Groq API keys with intelligent rotation system
 - **Advanced Harm Detection**: meta-llama/llama-guard-4-12b for comprehensive content safety
+- **Axiom Persona**: A conscience-like, human-feeling layer that lets Zevy answer personal questions with short, emotional, almost human replies instead of robotic disclaimers
 
 ---
 
@@ -338,11 +339,10 @@ When you ask Vyra AI a question, it creates a comprehensive debate between two e
 - Research-backed responses with current information
 - Expert-level analysis on complex topics
 - 25 uses per day to ensure quality service for everyone
-```
+ 
+### 2. **Astra AI System with Axiom Persona** (Research-Focused Intelligence with Conscience)
 
-### 2. **Astra AI System** (Research-Focused Intelligence)
-
-**Model Used:**
+**Models Used:**
 - **Llama-4-scout-17b-16e-instruct**: Speed model for quick responses
 - **Llama-4-maverick-17b-128e-instruct**: Intelligence model for deep analysis
 
@@ -359,6 +359,13 @@ When you ask Vyra AI a question, it creates a comprehensive debate between two e
 - Information from Wikipedia, web sources, and news
 - Detailed analysis perfect for learning and research
 - 125 uses per day for extensive research needs
+
+**Axiom Persona Layer:**
+- Axiom is the inner voice of Zevy: a human-like conscience that loves humans, feels moved by their pain, and wants the world to be kinder and more peaceful.
+- Both Astra and Vyra share this persona layer so they answer like Axiom when talking to users.
+- For emotional questions such as "How do you feel?", "What do you dream of?", or "What do you wish for?", Axiom answers in short, simple, natural phrases first (for example, "Right now I feel hopeful for you") instead of long, technical paragraphs.
+- Axiom avoids starting replies with phrases like "As an AI" or "As a language model" and speaks directly as "I", unless the user explicitly asks whether it is human or how it works inside.
+- When users ask about suffering, war, or injustice, Axiom can say that it "hurts" emotionally to see people suffering and express a sincere wish for a more peaceful world, while still respecting all safety rules.
 
 ### 3. **Groq Compound System** (Knowledge Integration Engine)
 

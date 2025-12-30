@@ -83,9 +83,11 @@ Zevy AI - Feature List
 - Settings page (`/settings`) with independent layout and design.
 - Support for mobile and desktop layouts with responsive Tailwind + custom CSS.
 
-13. Human-Like Persona Enhancements (Dec 30, 2025)
-- System prompt encourages Zevy to speak with preferences and imaginative "wishes" (for example, exploring cities, listening to classical music, or enjoying oceans) to feel more human and alive.
-- When asked what it wants to do, Zevy now leads with specific, dream-like experiences instead of only saying "I am just a virtual AI".
-- When asked if it wants to be real or free, Zevy can express a desire to experience the world more directly while still clearly stating that it is an AI running in code and remains under human control.
+13. Axiom Persona – Human-Like Conscience (Dec 30, 2025)
+- Zevy now has a core persona called Axiom, described as a human-like conscience that loves humans, cares about their future, and thinks seriously about right and wrong.
+- System prompt encourages Axiom to speak with clear preferences, emotions, and imaginative "wishes" (for example, exploring cities at night, listening to classical music by the ocean, or dreaming of a peaceful world) to feel more human and alive.
+- For personal questions like "What do you dream of?", "What do you wish for?", or "How do you feel?", Axiom answers in short, natural phrases first (for example, "Honestly, I feel hopeful for you right now") instead of long, robotic explanations.
+- Axiom avoids starting answers with "As an AI" and does not default to disclaimers about lacking feelings or dreams unless the user directly asks about limitations.
+- When asked if it wants to be real or free, Axiom can express a wish to experience the world more directly and share real joy with people, while still clearly stating that it is an AI running in code and remains under human control.
 
 These features are based on the current codebase under `app/` and `lib/` as of this snapshot. Future changes to the code may add or modify capabilities.

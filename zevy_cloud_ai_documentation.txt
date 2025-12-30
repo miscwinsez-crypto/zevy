@@ -77,6 +77,7 @@
 - **Universal Safety Guard**: Llama Guard 4-12b protects all interactions
 - **Intelligent Usage Management**: Sophisticated tracking with daily limits and auto-reset
 - **Real-Time Knowledge Synthesis**: Combines multiple information sources for superior responses
+- **Axiom Persona Layer**: Shared conscience-like persona that keeps answers short, emotional, and human-like for personal questions
 
 ---
 

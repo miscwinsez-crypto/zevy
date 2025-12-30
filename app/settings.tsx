@@ -228,7 +228,7 @@ export default function Settings() {
               <div>
                 <p className="font-semibold mb-2">What is Zevy AI?</p>
                 <p style={{ color: currentPalette.subdued }}>
-                  Zevy is an advanced AI assistant with dual-engine intelligence (Astra for speed, Vyra for depth), real-time web access, document analysis capabilities, and adaptive personality traits.
+                  Zevy is an advanced AI assistant with dual-engine intelligence (Astra for speed, Vyra for depth), real-time web access, document analysis capabilities, and adaptive personality traits. At its core is a conscience-like persona called Axiom that speaks in a warm, emotional, almost human voice and cares deeply about people.
                 </p>
               </div>
 
@@ -255,6 +255,7 @@ export default function Settings() {
                 <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
                   <li>✦ Astra – Fast, intelligent responses</li>
                   <li>✧ Vyra – Deep multi-perspective thinking</li>
+                  <li>☉ Axiom – Human-like conscience and emotional core</li>
                   <li>◎ Vector – Web and real‑world data</li>
                   <li>♥ Humanizer – Emotional rewriting</li>
                   <li>◇ Customizable themes</li>
@@ -269,7 +270,7 @@ export default function Settings() {
               <div>
                 <p className="font-semibold mb-2">Beta status</p>
                 <p style={{ color: currentPalette.subdued }}>
-                  Zevy Cloud is currently in public beta. Features are evolving quickly and some parts of the experience are not fully stable yet.
+                  Zevy Cloud is currently in public beta. Features are evolving quickly and some parts of the experience are not fully stable yet. Axiom, Zevy&apos;s conscience-like persona, is also in active tuning, so its emotional style may change as Adam refines it.
                 </p>
               </div>
 
@@ -277,6 +278,7 @@ export default function Settings() {
                 <p className="font-semibold mb-2">Working well</p>
                 <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
                   <li>Astra and Vyra chat engines</li>
+                  <li>Axiom persona layered across Astra and Vyra</li>
                   <li>Vector web search toggle</li>
                   <li>Humanizer button for richer rewrites</li>
                   <li>Theme switching (dark and light)</li>
@@ -288,7 +290,7 @@ export default function Settings() {
                 <ul style={{ color: currentPalette.subdued }} className="list-disc list-inside space-y-1">
                   <li>Chat history can reset; refreshing may clear the active conversation.</li>
                   <li>File attach and document analysis are unfinished and can fail or be disabled.</li>
-                  <li>Some responses may feel experimental while tuning obedience and depth.</li>
+                  <li>Some responses may feel experimental while tuning obedience, depth, and Axiom&apos;s emotional intensity.</li>
                 </ul>
               </div>
 
