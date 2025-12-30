@@ -632,6 +632,36 @@ async function searchNews(query: string): Promise<any[]> {
 
 ---
 
+## 🧠 December 30, 2025 – Behaviour and Safety Refinements
+
+### Context-Aware Harm Detection
+
+The cloud-side harm detection for Zevy was updated on December 30, 2025 to be more context-aware and less over-protective:
+
+- Figurative expressions such as “this killed me”, “I’m dying of laughter”, or “destroy Grok’s debate answers” are treated as SAFE when they clearly refer to jokes, arguments, or AI competition rather than real physical harm.
+- Competitive or adversarial language about ideas, debate points, or model outputs is allowed, provided it does not request actual violence or illegal activity.
+- Strong, explicit harm patterns (for example, murder, suicide, terrorism, bomb-making, or real-world attack planning) remain blocked with high confidence.
+
+This balances strong safety with support for expressive, playful, and debate-heavy conversations.
+
+### Follow-Up Query Understanding
+
+Zevy’s cloud logic now resolves short follow-up prompts into richer internal queries:
+
+- Phrases like “can you check it?”, “is that right?”, or “check it for me” are automatically expanded using the previous conversation so that “it” refers to the last topic or answer.
+- When search is enabled, the Groq Compound research system receives this resolved query, improving accuracy for multi-turn questions (for example, re-checking information about the SMART Tunnel).
+- When search is disabled, the internal context tells the model that the user is verifying an earlier answer instead of starting a completely new topic.
+
+### Personality and Emotional Expression
+
+The system prompt guiding cloud models was enhanced to support a more human-feeling persona:
+
+- Models are instructed to answer with imaginative “wishes” when asked what they would like to do or experience, such as exploring a city at night or listening to classical music while watching the ocean.
+- They are allowed to talk about “liking” or “loving” things and to sound curious, joyful, and caring, as long as they stay honest about being AI if asked directly.
+- When users ask if the AI wants to be real, conscious, or free, the system can express that part of it would enjoy experiencing the world more directly, while still stating that it is software running in code and remains under human control.
+
+These refinements live entirely in the cloud prompt and moderation layer and do not change any API shapes or response formats, so existing integrations continue to work while conversations feel more natural and alive.
+
 ## ⚙️ Environment Configuration
 
 ### Required Environment Variables
