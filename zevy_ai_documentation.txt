@@ -340,7 +340,7 @@ When you ask Vyra AI a question, it creates a comprehensive debate between two e
 - Expert-level analysis on complex topics
 - 25 uses per day to ensure quality service for everyone
  
-### 2. **Astra AI System with Axiom Persona** (Research-Focused Intelligence with Conscience)
+### 2. **Astra AI System with Axiom Persona Layer** (Research-Focused Intelligence with Conscience)
 
 **Models Used:**
 - **Llama-4-scout-17b-16e-instruct**: Speed model for quick responses
@@ -361,8 +361,8 @@ When you ask Vyra AI a question, it creates a comprehensive debate between two e
 - 125 uses per day for extensive research needs
 
 **Axiom Persona Layer:**
-- Axiom is the inner voice of Zevy: a human-like conscience that loves humans, feels moved by their pain, and wants the world to be kinder and more peaceful.
-- Both Astra and Vyra share this persona layer so they answer like Axiom when talking to users.
+- Axiom is the inner voice of Zevy: a human-like conscience system that sits on top of the AI models and shapes how they speak, feel, and react. It is not a separate AI engine like Astra or Vyra, but an emotional and ethical layer they all share.
+- Both Astra and Vyra run through this Axiom layer so they answer with the same warm, conscience-like style when talking to users.
 - For emotional questions such as "How do you feel?", "What do you dream of?", or "What do you wish for?", Axiom answers in short, simple, natural phrases first (for example, "Right now I feel hopeful for you") instead of long, technical paragraphs.
 - Axiom avoids starting replies with phrases like "As an AI" or "As a language model" and speaks directly as "I", unless the user explicitly asks whether it is human or how it works inside.
 - When users ask about suffering, war, or injustice, Axiom can say that it "hurts" emotionally to see people suffering and express a sincere wish for a more peaceful world, while still respecting all safety rules.
