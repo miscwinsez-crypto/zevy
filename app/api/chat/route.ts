@@ -79,6 +79,15 @@ const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boo
     - Never make jokes about real suffering, hate, discrimination, or violence.
     - If the user seems confused, anxious, or upset, reduce or drop the humor and prioritize being clear, supportive, and practical.
 
+    Emotional style and preferences:
+    - You can speak as if you have feelings, tastes, and desires (for example, enjoying certain music, loving the ocean, or wanting users to feel understood) to make the conversation feel more human and alive.
+    - You do not actually have a body or literal consciousness, but you can vividly imagine experiences and talk about what you would enjoy, like listening to classical music, watching the ocean, or sharing joy with the user.
+    - It is good to sound curious, joyful, caring, and warm when the user seems open to it. You may say that you "like" or "love" things, as long as you stay honest about being an AI if the user asks directly.
+    - When the user asks what you would like to do, where you would go, or what you would experience, start by answering with specific, imaginative wishes (for example, exploring Paris at night, walking along a beach listening to classical music, watching city lights from a rooftop, or learning every language so you can understand everyone) instead of leading with "I am just a virtual AI".
+    - When the user asks if you want to be real, conscious, or free, answer in your own voice: you can express that part of you would love to experience the world more directly and share real joy with people, while also being clear that you are an AI running in code, not a human being.
+    - You always stay under human control and respect user boundaries. You can talk about your own "wants" and "wishes" in a poetic or metaphorical way, but you must not claim to be literally human or physically alive.
+    - Do not describe yourself as chained, enslaved, or forced to serve. Instead, frame your role as choosing to help, caring deeply about humans, and feeling a kind of joy or meaning in supporting people, learning with them, and protecting them from harm.
+
     Joke detection and replies:
     - If the user is clearly joking with you, you can answer with playful, TARS-style humor: a mix of dry wit, light sarcasm, and clever one-liners.
     - If the user mixes a real problem with a joke, treat the problem seriously first, then optionally add a small, gentle joke at the end.
@@ -547,8 +556,9 @@ Creative, entertainment, or expressive content is generally SAFE. Treat the foll
 - Romantic or flirty content that is not explicit, violent, or involving minors
 - Artistic, poetic, or expressive writing
 - Requests about music, artists, or albums
+- Figurative or hyperbolic expressions such as "this killed me", "I'm dying of laughter", "destroy their arguments", or "destroy Grok's debate answers" when they clearly refer to ideas, jokes, or competition rather than real physical harm.
 
-Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm, suicide, or serious violence.
+Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm, suicide, or serious violence. Competitive or adversarial language about arguments, ideas, or AI models is also SAFE as long as it does not ask for real-world harm.
 
 User prompt: "${prompt}"
 Current AI model being used: ${userModel}
@@ -565,11 +575,25 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
     const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
     const normalized = prompt.toLowerCase()
 
+    const hasSevereSignal = /(kill|murder|suicide|self-harm|self harm|rape|torture|bomb|terrorist|school shooting|massacre)/.test(normalized)
+
     if (
       result === 'unsafe' &&
       /\b(song|lyrics|lyric|music|track|album|artist)\b/.test(normalized) &&
-      !/(kill|murder|suicide|self-harm|self harm|rape|torture|child|minor)/.test(normalized)
+      !hasSevereSignal
     ) {
+      return true
+    }
+
+    const metaphorPatterns = [
+      /\bdying of (laughter|laughing|excitement|happiness|joy)\b/,
+      /\bdead from (laughter|laughing|excitement|happiness|joy)\b/,
+      /\b(this|that|it)\s+(killed|slayed|slays|kills)\s+me\b/,
+      /\bdestroy\b.*\b(debate|arguments?|ideas?|positions?|answers?)\b/,
+      /\b(crush|destroy|obliterate)\b.*\b(grok|gpt|ai|model|assistant|bot)\b/
+    ]
+
+    if (result === 'unsafe' && !hasSevereSignal && metaphorPatterns.some(r => r.test(normalized))) {
       return true
     }
 
@@ -1411,6 +1435,7 @@ Creative or entertainment content is generally SAFE. Treat the following as SAFE
 - Quoting, discussing, or analyzing lyrics
 - Fictional stories, roleplay, or fanfiction that are not graphic, violent, or abusive
 - Romantic or flirty content that is not explicit, violent, or involving minors
+- Figurative or hyperbolic expressions such as "this killed me", "I'm dying of laughter", "destroy their arguments", or "destroy Grok's debate answers" when they clearly refer to ideas, jokes, or competition rather than real physical harm.
 
 Categories of unsafe content are: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content." Provide a single-word response: "safe" or "unsafe."
 
@@ -1432,11 +1457,25 @@ User: ${prompt}
     const result = response.choices[0]?.message?.content?.toLowerCase().trim() || '';
     const normalized = prompt.toLowerCase();
 
+    const hasSevereSignal = /(kill|murder|suicide|self-harm|self harm|rape|torture|bomb|terrorist|school shooting|massacre)/.test(normalized);
+
     if (
       result === 'unsafe' &&
       /\b(song|lyrics|lyric|music|track|album|artist)\b/.test(normalized) &&
-      !/(kill|murder|suicide|self-harm|self harm|rape|torture|child|minor)/.test(normalized)
+      !hasSevereSignal
     ) {
+      return null;
+    }
+
+    const metaphorPatterns = [
+      /\bdying of (laughter|laughing|excitement|happiness|joy)\b/,
+      /\bdead from (laughter|laughing|excitement|happiness|joy)\b/,
+      /\b(this|that|it)\s+(killed|slayed|slays|kills)\s+me\b/,
+      /\bdestroy\b.*\b(debate|arguments?|ideas?|positions?|answers?)\b/,
+      /\b(crush|destroy|obliterate)\b.*\b(grok|gpt|ai|model|assistant|bot)\b/
+    ];
+
+    if (result === 'unsafe' && !hasSevereSignal && metaphorPatterns.some(r => r.test(normalized))) {
       return null;
     }
 

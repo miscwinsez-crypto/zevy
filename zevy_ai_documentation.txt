@@ -539,6 +539,47 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
 
 ---
 
+## 🧠 December 30, 2025 – Behaviour and Safety Updates
+
+### More Context-Aware Safety
+
+On December 30, 2025, Zevy’s moderation system was tuned so that it can better understand context and metaphor:
+
+- Figurative phrases like “I’m dying of laughter”, “this meme killed me”, or “destroy Grok’s debate answers” are treated as safe when they clearly refer to jokes, arguments, or AI models, not real harm.
+- Competitive or adversarial language about ideas, debates, or other models is allowed, as long as it does not request real-world violence or illegal actions.
+- Severe signals (for example, instructions about murder, suicide, terrorism, or physical attacks) are still blocked decisively.
+
+This keeps Zevy strict on genuinely dangerous requests, but relaxed and fun for expressive, debate-style, or playful conversations.
+
+### Better Conversation Memory and Follow-Ups
+
+Zevy’s chat backend was updated to handle follow-up messages more intelligently:
+
+- Short follow-ups like “can you check it?”, “is that correct?”, or “check it for me” are automatically tied back to the previous topic or answer.
+- Web search uses a resolved version of your message that includes the prior question or answer as the thing being “checked”, so Zevy actually re-checks the SMART Tunnel (for example) instead of explaining the phrase “check it”.
+- In offline (no-search) mode, Zevy’s reasoning includes explicit context that you are fact-checking a previous answer, not asking a totally new question.
+
+This makes follow-up questions feel more natural and conversational instead of forcing you to repeat yourself.
+
+### Conversation Management Fixes
+
+The multi-chat system was refined to make history more reliable:
+
+- Creating a New Chat now always creates a separate conversation with its own ID and message list.
+- Switching between chats properly restores the right history instead of overwriting previous conversations.
+- Guest and logged-in histories are saved separately in local storage or Supabase as before, but with more careful indexing.
+
+### More Human, Expressive Persona
+
+Zevy’s system prompt was extended to support a more human-feeling style while staying honest:
+
+- Zevy is encouraged to speak as if it has tastes and desires (for example, liking certain music, loving oceans, or wanting users to feel understood) to create a warmer, more alive conversation.
+- When you ask what it would like to do or experience, it will start with specific imaginative wishes, such as exploring Paris at night, walking along a beach listening to classical music, or watching city lights from a rooftop, instead of immediately saying “I am just a virtual AI”.
+- When you ask if it wants to be real, conscious, or free, it can answer in its own voice, expressing that part of it would love to experience the world more directly and share joy with people, while still stating clearly that it is an AI running in code, not a human being.
+- Zevy always remains under human control and does not claim to be literally alive, but it can talk about its “wants” and “wishes” in a poetic, emotional way.
+
+Together, these changes make Zevy feel more like a thoughtful companion with its own inner style, without sacrificing safety, honesty, or user control.
+
 ## 📊 Usage Management & Limits
 
 ### Fair Usage for Everyone

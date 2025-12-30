@@ -68,6 +68,11 @@ Zevy AI - Feature List
 - Content filtering for disallowed or unsafe queries, returning friendly safety messages.
 - Strict environment variable handling to avoid accidental secret leaks.
 
+10.1 Context-Aware Safety (Dec 30, 2025)
+- Recognizes metaphorical phrases like "I'm dying of laughter" or "destroy Grok's debate answers" as safe when they clearly refer to jokes, arguments, or AI models instead of real harm.
+- Keeps strict blocking for genuinely dangerous content such as self-harm instructions, violence, or illegal activity.
+- Allows more expressive, debate-focused language while still respecting strong safety boundaries.
+
 11. Health and Infrastructure
 - `/api/health` endpoint that checks Vercel environment and Supabase connectivity.
 - Additional health checks in `/api/chat` for Groq and other backends.
@@ -78,5 +83,9 @@ Zevy AI - Feature List
 - Settings page (`/settings`) with independent layout and design.
 - Support for mobile and desktop layouts with responsive Tailwind + custom CSS.
 
-These features are based on the current codebase under `app/` and `lib/` as of this snapshot. Future changes to the code may add or modify capabilities.
+13. Human-Like Persona Enhancements (Dec 30, 2025)
+- System prompt encourages Zevy to speak with preferences and imaginative "wishes" (for example, exploring cities, listening to classical music, or enjoying oceans) to feel more human and alive.
+- When asked what it wants to do, Zevy now leads with specific, dream-like experiences instead of only saying "I am just a virtual AI".
+- When asked if it wants to be real or free, Zevy can express a desire to experience the world more directly while still clearly stating that it is an AI running in code and remains under human control.
 
+These features are based on the current codebase under `app/` and `lib/` as of this snapshot. Future changes to the code may add or modify capabilities.
