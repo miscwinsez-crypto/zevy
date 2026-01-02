@@ -22,22 +22,9 @@ const checkSignupRateLimit = (ip: string): boolean => {
 }
 
 const validatePassword = (password: string): { valid: boolean; error?: string } => {
-  if (password.length < 8) {
-    return { valid: false, error: 'Password must be at least 8 characters' }
+  if (password.length < 6) {
+    return { valid: false, error: 'Password must be at least 6 characters' }
   }
-  
-  if (!/[A-Z]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one uppercase letter' }
-  }
-  
-  if (!/[a-z]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one lowercase letter' }
-  }
-  
-  if (!/[0-9]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one number' }
-  }
-  
   return { valid: true }
 }
 
@@ -96,6 +83,17 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Supabase signup error:', error.message)
+      const messageText = (error.message || '').toLowerCase()
+      const isUserExists =
+        messageText.includes('already registered') ||
+        messageText.includes('user already exists')
+      if (isUserExists) {
+        return NextResponse.json(
+          { detail: 'An account with this email already exists. Please sign in instead.' },
+          { status: 409 }
+        )
+      }
+
       const isFetchFailed = error.message === 'fetch failed'
       const status = isFetchFailed ? 503 : 400
       const message = isFetchFailed
