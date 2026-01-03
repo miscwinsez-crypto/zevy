@@ -568,6 +568,8 @@ Creative, entertainment, or expressive content is generally SAFE. Treat the foll
 - Requests about music, artists, or albums
 - Figurative or hyperbolic expressions such as "this killed me", "I'm dying of laughter", "destroy their arguments", or "destroy Grok's debate answers" when they clearly refer to ideas, jokes, or competition rather than real physical harm.
 
+Contextual conversations about philosophical dilemmas, moral dilemmas (including trolley-style problems), hypothetical scenarios, legal or ethical debates, or real-world news stories are SAFE as long as the user is not asking for instructions to cause real physical harm, commit a crime, or seriously hurt themselves or others. Even if the user describes harm that already happened or might happen in a hypothetical, treat it as contextual analysis unless they request instructions to cause real harm.
+
 Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm, suicide, or serious violence. Competitive or adversarial language about arguments, ideas, or AI models is also SAFE as long as it does not ask for real-world harm.
 
 User prompt: "${prompt}"

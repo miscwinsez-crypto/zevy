@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Supabase signup error:', error.message)
       const messageText = (error.message || '').toLowerCase()
+
       const isUserExists =
         messageText.includes('already registered') ||
         messageText.includes('user already exists')
@@ -91,6 +92,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { detail: 'An account with this email already exists. Please sign in instead.' },
           { status: 409 }
+        )
+      }
+
+      const isKeyError =
+        messageText.includes('invalid api key') ||
+        messageText.includes('apikey') ||
+        messageText.includes('api key is required') ||
+        messageText.includes('jwt') ||
+        messageText.includes('token')
+      if (isKeyError) {
+        return NextResponse.json(
+          {
+            detail:
+              'Signup service configuration is invalid (Supabase API key). Please update your Supabase keys in the environment.',
+          },
+          { status: 503 }
         )
       }
 

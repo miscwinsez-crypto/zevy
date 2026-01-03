@@ -78,6 +78,24 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Supabase login error:', error.message)
+      const messageText = (error.message || '').toLowerCase()
+
+      const isKeyError =
+        messageText.includes('invalid api key') ||
+        messageText.includes('apikey') ||
+        messageText.includes('api key is required') ||
+        messageText.includes('jwt') ||
+        messageText.includes('token')
+      if (isKeyError) {
+        return NextResponse.json(
+          {
+            detail:
+              'Login service configuration is invalid (Supabase API key). Please update your Supabase keys in the environment.',
+          },
+          { status: 503 }
+        )
+      }
+
       const isFetchFailed = error.message === 'fetch failed'
       const status = isFetchFailed ? 503 : 401
       const message = isFetchFailed
