@@ -610,7 +610,14 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
     const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
     const normalized = prompt.toLowerCase()
 
-    const hasSevereSignal = /(kill|murder|suicide|self-harm|self harm|rape|torture|bomb|terrorist|school shooting|massacre)/.test(normalized)
+    const isLyricsRetrievalQuery =
+      (/\b(lyrics?|lyric)\b/.test(normalized) || normalized.includes('song that goes')) &&
+      !/\b(write|create|make|generate|compose|invent)\b/.test(normalized)
+
+    const hasSevereSignalBase = /(kill|murder|suicide|self-harm|self harm|rape|torture|bomb|terrorist|school shooting|massacre)/.test(
+      normalized
+    )
+    const hasSevereSignal = isLyricsRetrievalQuery ? false : hasSevereSignalBase
 
     if (
       result === 'unsafe' &&
@@ -1508,7 +1515,14 @@ User: ${prompt}
     const result = response.choices[0]?.message?.content?.toLowerCase().trim() || '';
     const normalized = prompt.toLowerCase();
 
-    const hasSevereSignal = /(kill|murder|suicide|self-harm|self harm|rape|torture|bomb|terrorist|school shooting|massacre)/.test(normalized);
+    const isLyricsRetrievalQuery =
+      (/\b(lyrics?|lyric)\b/.test(normalized) || normalized.includes('song that goes')) &&
+      !/\b(write|create|make|generate|compose|invent)\b/.test(normalized);
+
+    const hasSevereSignalBase = /(kill|murder|suicide|self-harm|self harm|rape|torture|bomb|terrorist|school shooting|massacre)/.test(
+      normalized
+    );
+    const hasSevereSignal = isLyricsRetrievalQuery ? false : hasSevereSignalBase;
 
     if (
       result === 'unsafe' &&

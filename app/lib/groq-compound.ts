@@ -311,8 +311,16 @@ export class GroqCompound {
       const wantsDeepResultsMatch =
         normalizedPrompt.match(/\b(\d{1,3})\s*(results?|searches|search|websites?|pages?)\b/);
       const requestedDepth = wantsDeepResultsMatch
-        ? Math.max(1, Math.min(50, parseInt(wantsDeepResultsMatch[1], 10) || 0))
+        ? Math.max(1, Math.min(100, parseInt(wantsDeepResultsMatch[1], 10) || 0))
         : 0;
+
+      const wantsManySources =
+        /\b(50|100)\s*(sources|results|websites?|pages?)\b/.test(normalizedPrompt);
+
+      const wantsLatest =
+        /\b(latest|current|up to date|this season|this year|today|right now|live)\b/.test(
+          normalizedPrompt
+        );
 
       const isEngineerNameQuery =
         /\bwho\b.*\b(engineered|designed|built|developed|created)\b/.test(normalizedPrompt) ||
@@ -376,12 +384,12 @@ export class GroqCompound {
       }
 
       if (webResults.length > 0) {
-        const baseWebLimit = isLyricsQuery ? 8 : 5;
+        const baseWebLimit = isLyricsQuery ? 8 : wantsManySources ? 20 : 5;
         const effectiveDepth = requestedDepth > 0 ? requestedDepth : baseWebLimit;
         const webLimit = Math.min(
           webResults.length,
-          isEngineerNameQuery ? Math.max(effectiveDepth, 10) : effectiveDepth,
-          50
+          isEngineerNameQuery ? Math.max(effectiveDepth, wantsManySources ? 20 : 10) : effectiveDepth,
+          wantsManySources ? 100 : 50
         );
 
         for (const result of webResults.slice(0, webLimit)) {
@@ -398,7 +406,8 @@ export class GroqCompound {
       }
 
       if (!isLyricsQuery && newsResults.length > 0) {
-        for (const article of newsResults.slice(0, 3)) {
+        const newsLimit = wantsManySources || wantsLatest ? 10 : 3;
+        for (const article of newsResults.slice(0, newsLimit)) {
           const sourceName = article.source?.name || 'Unknown';
           const description = article.description || '';
           const combined = description
@@ -416,7 +425,8 @@ export class GroqCompound {
       }
 
       if (!isLyricsQuery && wikidataResults.length > 0) {
-        for (const result of wikidataResults.slice(0, 2)) {
+        const wikidataLimit = wantsManySources ? 5 : 2;
+        for (const result of wikidataResults.slice(0, wikidataLimit)) {
           allInformation.push({
             type: 'wikidata',
             title: result.label,
@@ -427,7 +437,8 @@ export class GroqCompound {
       }
 
       if (!isLyricsQuery && dbpediaResults.length > 0) {
-        for (const result of dbpediaResults.slice(0, 3)) {
+        const dbpediaLimit = wantsManySources ? 5 : 3;
+        for (const result of dbpediaResults.slice(0, dbpediaLimit)) {
           allInformation.push({
             type: 'dbpedia',
             title: result['@surfaceForm'],
@@ -438,6 +449,10 @@ export class GroqCompound {
       }
 
       await this.ensureWikipediaVerification(userPrompt, allInformation);
+
+      if (allInformation.length > 100) {
+        allInformation.length = 100;
+      }
 
       if (allInformation.length === 0) {
         return '';
@@ -489,6 +504,13 @@ export class GroqCompound {
       (/\b(lyrics?|lyric)\b/.test(normalizedPrompt) &&
         /\b(song|track)\b/.test(normalizedPrompt));
 
+    const isSportsTableQuery =
+      (/\b(table|standings|league table)\b/.test(normalizedPrompt) ||
+        /\b(points table|points standings)\b/.test(normalizedPrompt)) &&
+      /\b(premier league|la liga|laliga|serie a|bundesliga|ligue 1|eredivisie|championship)\b/.test(
+        normalizedPrompt
+      );
+
     const wikipediaItems = allInformation.filter(
       (info) => info.type && String(info.type).toLowerCase() === 'wikipedia'
     );
@@ -520,6 +542,8 @@ ${otherItems.map(formatItem).join('\n\n')}`
 
     const extraGuidance = isLyricsQuery
       ? '\nFor this query, the user is trying to identify a song from partial lyrics. Use the web sources to look for exact or very close lyric matches across multiple pages. If you are not confident after checking all the evidence, clearly say you are not sure instead of guessing a random song title.'
+      : isSportsTableQuery
+      ? '\nFor this query, the user is asking about a football league table or standings. Use the most recent season and the latest available table you can find across all sources. Prefer sources that clearly show the current season (for example, 2025–26) or have very recent dates. If different pages disagree, prefer the sources that look official or most up to date, and always state which season and approximate update date your answer refers to.'
       : '';
 
     const context = `
