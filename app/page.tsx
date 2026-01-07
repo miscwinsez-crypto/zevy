@@ -1283,7 +1283,7 @@ useEffect(() => {
       updateMessages(baseMessages)
       scrollToBottom()
       setInput('')
-      if (inputRef.current) inputRef.current.style.height = '44px'
+      if (inputRef.current) inputRef.current.style.height = '60px'
 
       // Auto-rename on first message
       if (messages.length === 0) {
@@ -1435,7 +1435,7 @@ useEffect(() => {
             normalizeUrl(API_URL, '/api/chat'),
             requestData,
             { 
-              timeout: 60000,
+              timeout: 120000,
               signal: requestAbortController.signal,
               withCredentials: true,
               headers: {
@@ -3154,7 +3154,12 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   {message.role === 'user' && (
                     <div className="flex justify-end w-full gap-2 items-center">
                       <div className="max-w-2xl p-3 rounded-lg" style={{ background: palette.hover, color: '#fff' }}>
-                        <p className="text-sm">{message.content}</p>
+                        <p
+                          className="text-sm"
+                          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.5' }}
+                        >
+                          {message.content}
+                        </p>
                       </div>
                       <button
                         onClick={() => startEditMessage(idx)}
@@ -3330,6 +3335,12 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value)
+                    if (inputRef.current) {
+                      inputRef.current.style.height = 'auto'
+                      const maxHeight = 240
+                      const nextHeight = Math.min(e.target.scrollHeight, maxHeight)
+                      inputRef.current.style.height = `${nextHeight}px`
+                    }
                   }}
                   onKeyPress={handleKeyPress}
                   placeholder="Message Zevy or attach documents for analysis..."

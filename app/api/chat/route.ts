@@ -1039,7 +1039,7 @@ async function callGroq(
       model,
       messages: messagesWithSystem,
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: 2048,
       stream
     }
 
@@ -1055,7 +1055,7 @@ async function callGroq(
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000,
+      timeout: 120000,
       responseType: stream ? 'stream' : 'json'
     })
 
@@ -1767,8 +1767,25 @@ export async function POST(req: NextRequest) {
         )
       } catch (fallbackError) {
         console.error('Groq/Compound fallback error:', fallbackError)
-        aiResponse =
-          "I ran into a problem trying to use my research tools and had to answer without them. Please try again later if you need a more certain, sourced answer."
+        try {
+          const offlinePrompt = `You cannot use web search or external research tools for this reply. Answer using only your existing knowledge and reasoning. If the question clearly needs fresh or very specific real-world information, give your best short guess and mention that you might be wrong.\n\nUser Question: ${resolvedUserMessage}\n\nPrevious Conversation:\n${chat_history
+            .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+            .join('\n')}`
+
+          aiResponse = await callGroq(
+            [{ role: 'user', content: offlinePrompt }],
+            selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
+            stream,
+            current_time,
+            timezone,
+            undefined,
+            false
+          )
+        } catch (finalError) {
+          console.error('Groq/Compound offline fallback error:', finalError)
+          aiResponse =
+            'I tried to answer from my own knowledge but ran into an internal error. Please try again in a moment.'
+        }
       }
     }
   } else {
