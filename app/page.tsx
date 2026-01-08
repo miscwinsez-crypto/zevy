@@ -3641,6 +3641,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                           <option value="Therapist">Therapist</option>
                           <option value="Strategist">Strategist</option>
                           <option value="Storyteller">Storyteller</option>
+                          <option value="Rage">Rage</option>
+                          <option value="Ego">Ego</option>
                         </select>
                         <p className="text-xs mt-1" style={{ color: palette.subdued }}>Choose the mindset Zevy uses for scenarios and advice</p>
                       </div>
