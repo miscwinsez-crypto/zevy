@@ -50,7 +50,7 @@ Zevy AI - Feature List
 8. Personalization and Settings
 - Dedicated Settings page accessible from the main chat UI.
 - Theme customization: switch between dark and light palettes and tweak look and feel.
-- Trait / personality customization so Zevy can adapt its style (e.g., more technical or more casual).
+- Trait / personality customization so Zevy can adapt its style (e.g., more technical or more casual), plus a separate mindset selector (Balanced, Philosopher, Witty, Technical) that changes how Astra and Vyra approach scenarios, advice, and deep questions.
 - About section describing Zevy, its creator, and core values.
 - Social links for Zevy and the creator (Instagram, X/Twitter, Reddit, etc.).
 - In-app settings drawer on the main page with tabs (Account, Appearance, About).

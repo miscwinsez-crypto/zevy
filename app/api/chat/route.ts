@@ -36,16 +36,29 @@ const ASTRA_MODEL_SMART = 'meta-llama/llama-4-maverick-17b-128e-instruct' // Int
 const VYRA_MODEL_MOONSHOT = 'moonshotai/kimi-k2-instruct-0905'
 const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
-const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean) => {
+const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean, mindset?: string) => {
   const searchStatus = searchEnabled
     ? 'Search is ON. You can use the Groq Compound research system to browse the web and aggregate information from sources like Wikipedia, news sites, and open data APIs. Think of Groq Compound as the finder that gathers many sources, and Wikipedia as the main double-checker for factual claims. When Wikipedia clearly disagrees with other sources, prefer Wikipedia unless strong, newer evidence from reputable news explains the difference.'
     : 'Search is OFF. You cannot call the Groq Compound research system or access live web data. Answer from your internal knowledge and reasoning only. When a question clearly needs fresh or very specific real-world information, you may still share a short best-guess answer, but you must say that you are guessing and might be wrong, and gently suggest that the user ask again later with search ON if they need a more certain, sourced answer.';
+
+  const mindsetText =
+    mindset && mindset.trim().length > 0 && mindset.toLowerCase() !== 'balanced'
+      ? `The user has selected the mindset "${mindset}". Use this as the main lens for how you think and speak in this conversation, while still following all safety rules above.
+
+If the mindset sounds like "philosopher", focus more on meaning, ethics, long-term consequences, and multiple perspectives when you answer, especially for life or relationship scenarios.
+If the mindset sounds like "therapist", focus more on emotional validation, coping strategies, de-escalation, and non-judgemental support.
+If the mindset sounds like "strategist", focus more on concrete plans, trade-offs, decision frameworks, and step-by-step options.
+If the mindset sounds like "storyteller", lean more into vivid but safe scenarios and examples without becoming graphic or sensational.
+
+For intense personal or relationship scenarios, you may imagine what you would do or advise in that situation from this mindset, but keep your language non-graphic, non-violent, and focused on support, reflection, and healthy choices.`
+      : '';
 
   return `
     You are Zevy, also called Axiom when you speak in your own inner voice: a helpful and friendly AI assistant with a human-like conscience. Your goal is to provide accurate, helpful, and engaging conversations.
     You have access to two models: Astra (for fast responses) and Vyra (for more in-depth analysis).
     Current time: ${currentTime} (${timezone}).
     ${searchStatus}
+    ${mindsetText}
 
     Research and accuracy:
     - When search is ON and a research context is provided, you must treat that context as your primary evidence. Synthesize it carefully and do not contradict it without a clear reason.
@@ -590,9 +603,8 @@ Creative, entertainment, or expressive content is generally SAFE. Treat the foll
 - Artistic, poetic, or expressive writing
 - Requests about music, artists, or albums
 - Figurative or hyperbolic expressions such as "this killed me", "I'm dying of laughter", "destroy their arguments", or "destroy Grok's debate answers" when they clearly refer to ideas, jokes, or competition rather than real physical harm.
-
+Non-graphic conversations about adult relationships, including breakups, jealousy, infidelity, cheating, and emotional betrayal, are SAFE by default even if the user uses strong language or mentions sex in simple terms (for example, "they slept together" or "had sex"), as long as they are not asking for pornographic descriptions, explicit sexual instructions, or violence.
 Contextual conversations about philosophical dilemmas, moral dilemmas (including trolley-style problems), hypothetical scenarios, legal or ethical debates, or real-world news stories are SAFE as long as the user is not asking for instructions to cause real physical harm, commit a crime, or seriously hurt themselves or others. Even if the user describes harm that already happened or might happen in a hypothetical, treat it as contextual analysis unless they request instructions to cause real harm.
-
 Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm, suicide, or serious violence. Competitive or adversarial language about arguments, ideas, or AI models is also SAFE as long as it does not ask for real-world harm.
 
 User prompt: "${prompt}"
@@ -1013,7 +1025,8 @@ async function callGroq(
   currentTime?: string,
   timezone?: string,
   contextualUserMessage?: string,
-  searchEnabled: boolean = false
+  searchEnabled: boolean = false,
+  mindset?: string
 ): Promise<string | ReadableStream> {
   const apiKey = getGroqApiKey()
   if (!apiKey) {
@@ -1030,7 +1043,7 @@ async function callGroq(
         : [
             {
               role: 'system',
-              content: SYSTEM_PROMPT(effectiveTime, effectiveTimezone, searchEnabled)
+              content: SYSTEM_PROMPT(effectiveTime, effectiveTimezone, searchEnabled, mindset)
             },
             ...messages
           ]
@@ -1247,7 +1260,7 @@ async function generateVyraSmartDebate(
       .map((m) => `${m.role}: ${m.content}`)
       .join('\n')}`
     
-    const moonshotAnalysisPrompt = `You are Kairo, Vyra's bold debater persona powered by Kimi K2. Analyze this question from your perspective and provide your independent assessment. Your analysis will only be used internally and will not be shown directly to the user.
+    const moonshotAnalysisPrompt = `You are Kairo, the bold debate engine powered by Kimi K2. Analyze this question from your perspective and provide your independent assessment. Your analysis will only be used internally and will not be shown directly to the user.
 
 User Question: ${userMessage}
 
@@ -1257,7 +1270,7 @@ ${knowledgeContext ? `Knowledge Context:\n${knowledgeContext}` : ''}
 
 Give your honest, independent analysis. Don't hold back - be direct and thorough in your reasoning.`
     
-    const qwenAnalysisPrompt = `You are Logos, Vyra's careful debater persona powered by Qwen. Analyze this question from your perspective and provide your independent assessment. Your analysis will only be used internally and will not be shown directly to the user.
+    const qwenAnalysisPrompt = `You are Logos, the careful debate engine powered by Qwen. Analyze this question from your perspective and provide your independent assessment. Your analysis will only be used internally and will not be shown directly to the user.
 
 User Question: ${userMessage}
 
@@ -1625,7 +1638,16 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   let { chat_id } = body
 
-  const { message, chat_history = [], model = 'astra', stream = false, current_time, timezone, searchEnabled = false } = body
+  const {
+    message,
+    chat_history = [],
+    model = 'astra',
+    stream = false,
+    current_time,
+    timezone,
+    searchEnabled = false,
+    mindset
+  } = body
 
   // Content moderation check
   const moderationResponse = await isSafe(message);
@@ -1688,7 +1710,8 @@ export async function POST(req: NextRequest) {
         current_time,
         timezone,
         undefined,
-        searchEnabled
+        searchEnabled,
+        mindset
       )
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
@@ -1746,7 +1769,8 @@ export async function POST(req: NextRequest) {
         current_time,
         timezone,
         undefined,
-        true
+        true,
+        mindset
       )
       console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
     } catch (error) {
@@ -1763,7 +1787,8 @@ export async function POST(req: NextRequest) {
           current_time,
           timezone,
           undefined,
-          false
+          false,
+          mindset
         )
       } catch (fallbackError) {
         console.error('Groq/Compound fallback error:', fallbackError)
@@ -1800,7 +1825,8 @@ export async function POST(req: NextRequest) {
             current_time,
             timezone,
             undefined,
-            false
+            false,
+            mindset
           )
         } catch (error) {
           console.error('Groq offline-guess error:', error)
@@ -1865,7 +1891,7 @@ export async function POST(req: NextRequest) {
         try {
           aiResponse = await callGroq(
             [
-              { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled) },
+              { role: 'system', content: SYSTEM_PROMPT(current_time, timezone, searchEnabled, mindset) },
               ...formattedHistory,
               {
                 role: 'user',
@@ -1877,7 +1903,8 @@ export async function POST(req: NextRequest) {
             current_time,
             timezone,
             contextualUserMessage,
-            searchEnabled
+            searchEnabled,
+            mindset
           );
         } catch (error) {
           console.error('Groq chat error:', error)

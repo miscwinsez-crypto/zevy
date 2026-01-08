@@ -292,6 +292,7 @@ export default function ZevyCloudAI() {
   const [loading, setLoading] = useState(false)
   const [authLoading, setAuthLoading] = useState(false)
   const [trait, setTrait] = useState('Straightforward')
+  const [mindset, setMindset] = useState('Balanced')
   const [mode, setMode] = useState<'auto' | 'astra' | 'vyra'>('astra')
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -901,9 +902,11 @@ useEffect(() => {
     }
 
     const savedTrait = localStorage.getItem('zevy_trait')
+    const savedMindset = localStorage.getItem('zevy_mindset')
     const savedMode = localStorage.getItem('zevy_mode')
     
     if (savedTrait) setTrait(savedTrait)
+    if (savedMindset) setMindset(savedMindset)
     if (savedMode === 'astra' || savedMode === 'auto') {
       setMode(savedMode as 'auto' | 'astra')
     }
@@ -1401,6 +1404,7 @@ useEffect(() => {
             chat_id: currentConvId,
             message: textToSend,
             trait: trait,
+            mindset: mindset,
 
             // Backend expects `model`, `chat_history`, `searchEnabled`.
             // Keep legacy fields too (`mode`, `conversation_history`, `webSearch`) for compatibility.
@@ -3617,6 +3621,28 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                           style={{ background: palette.sidebar, border: `1px solid ${palette.border}`, color: palette.accent }}
                         />
                         <p className="text-xs mt-1" style={{ color: palette.subdued }}>Customize how Zevy responds to you</p>
+                      </div>
+
+                      <div className="mt-4">
+                        <label className="block text-sm font-semibold mb-2" style={{ color: palette.accent }}>◆ Mindset</label>
+                        <select
+                          value={mindset}
+                          onChange={e => {
+                            setMindset(e.target.value)
+                            try {
+                              localStorage.setItem('zevy_mindset', e.target.value)
+                            } catch {}
+                          }}
+                          className="w-full p-2.5 rounded-lg text-sm focus:outline-none transition-all"
+                          style={{ background: palette.sidebar, border: `1px solid ${palette.border}`, color: palette.accent }}
+                        >
+                          <option value="Balanced">Balanced</option>
+                          <option value="Philosopher">Philosopher</option>
+                          <option value="Therapist">Therapist</option>
+                          <option value="Strategist">Strategist</option>
+                          <option value="Storyteller">Storyteller</option>
+                        </select>
+                        <p className="text-xs mt-1" style={{ color: palette.subdued }}>Choose the mindset Zevy uses for scenarios and advice</p>
                       </div>
 
                       <div className="p-4 rounded-lg" style={{ background: palette.sidebar, border: `1px solid ${palette.border}` }}>

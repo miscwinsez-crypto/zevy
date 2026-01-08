@@ -633,6 +633,13 @@ async function searchNews(query: string): Promise<any[]> {
 
 ---
 
+## Mindset & Scenario Integrations (January 2026)
+
+- The primary chat endpoint (`app/api/chat/route.ts`) now accepts a `mindset` field in the JSON body alongside `trait`, `mode`, and `message`. This mindset is threaded into the global system prompt so Astra and Vyra can reason as a “philosopher”, “strategist”, “storyteller”, or other user-selected lens while still respecting all safety rules.
+- Mindset choices are surfaced in the UI (main chat page and settings) and persisted for signed-in users in Supabase (via the `trait` fields on profile/conversation rows) and for guest users in localStorage (`zevy_trait`, `zevy_mindset`).
+- The Llama Guard 4-12b safety layer has been tuned so clearly non-graphic hypothetical and relationship scenarios (for example, “what would you do if your partner cheated?”) are treated as safe analysis, while any request for real-world harm, self-harm, or crime remains blocked.
+- Vector and Groq error handling has been tightened so missing or misconfigured GROQ_API_KEY_* values, or temporary research failures in Groq Compound, return specific, user-facing explanations instead of generic “internal error” responses.
+
 ## 🧠 December 30, 2025 – Behaviour and Safety Refinements
 
 ### Context-Aware Harm Detection

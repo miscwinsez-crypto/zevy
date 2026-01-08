@@ -1071,3 +1071,12 @@ The system's architecture ensures scalability, reliability, and performance whil
 - Integrated additional free, no-API-key knowledge sources (Rest Countries API and DictionaryAPI) into the getFreeKnowledge pipeline as open-data double-checkers
 - Refined Vyra’s dual-model debate system so all Kairo/Logos analyses and debates are strictly internal-only, and final answers never mention internal personas or “debates” unless the user explicitly asks for reasoning
 - Hardened the chat API and UI so successful responses always produce a visible assistant message, and active conversations automatically move to the top of the chat list without losing state
+
+## Last Updated: January 8, 2026
+
+### Recent Changes:
+- Added explicit Kairo (Kimi K2) and Logos (Qwen) debate engine descriptions in the internal Vyra prompts so the two main debate engines are clearly separated while remaining invisible to the user in final answers
+- Introduced a global mindset system that lets users choose how Zevy thinks about scenarios (for example Balanced, Philosopher, Witty, Technical), with the selected mindset passed into the main system prompt and stored per user in Supabase and localStorage
+- Relaxed safety and moderation rules for clearly non-graphic hypothetical scenarios and relationship dilemmas so Astra and Vyra can talk through “what would you do if…” questions while still blocking real-world harm, self-harm, and illegal instructions
+- Tightened error messages around Groq and vector search so missing or invalid GROQ_API_KEY_* values, or temporary research failures, surface as clear user-facing guidance instead of generic “internal error” responses
+- Verified end-to-end integrations (Groq models, Groq Compound, Supabase usage tracking, vector search, and the chat UI) with a clean lint run and successful Next.js production build (`yarn build`)
