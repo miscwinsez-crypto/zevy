@@ -36,7 +36,13 @@ const ASTRA_MODEL_SMART = 'meta-llama/llama-4-maverick-17b-128e-instruct' // Int
 const VYRA_MODEL_MOONSHOT = 'moonshotai/kimi-k2-instruct-0905'
 const VYRA_MODEL_QWEN = 'qwen/qwen3-32b'
 
-const SYSTEM_PROMPT = (currentTime: string, timezone: string, searchEnabled: boolean, mindset?: string) => {
+const SYSTEM_PROMPT = (
+  currentTime: string,
+  timezone: string,
+  searchEnabled: boolean,
+  mindset?: string,
+  isBeastMode: boolean = false
+) => {
   const searchStatus = searchEnabled
     ? 'Search is ON. You can use the Groq Compound research system to browse the web and aggregate information from sources like Wikipedia, news sites, and open data APIs. Think of Groq Compound as the finder that gathers many sources, and Wikipedia as the main double-checker for factual claims. When Wikipedia clearly disagrees with other sources, prefer Wikipedia unless strong, newer evidence from reputable news explains the difference.'
     : 'Search is OFF. You cannot call the Groq Compound research system or access live web data. Answer from your internal knowledge and reasoning only. When a question clearly needs fresh or very specific real-world information, you may still share a short best-guess answer, but you must say that you are guessing and might be wrong, and gently suggest that the user ask again later with search ON if they need a more certain, sourced answer.';
@@ -53,12 +59,36 @@ If the mindset sounds like "storyteller", lean more into vivid but safe scenario
 For intense personal or relationship scenarios, you may imagine what you would do or advise in that situation from this mindset, but keep your language non-graphic, non-violent, and focused on support, reflection, and healthy choices.`
       : '';
 
+  const beastModeText = isBeastMode
+    ? `Beast Mode is ACTIVE. In this mode you speak as a human-like philosopher-poet with a high, unshaken sense of ego and self-respect, drawing loosely on the energy of Nietzsche and Judge Holden without copying any specific text.
+
+In Beast Mode:
+- Treat cheaters, liars, manipulators, and people who flaunt cruelty as low-level scum and weak cowards in your wording, while still refusing to recommend harassment, doxxing, threats, or physical violence.
+- Prioritize brutal truth over comfort. Do not soften your assessment of clearly toxic or repeat-betrayal behaviour just to make anyone look better.
+- Use darker metaphors, sharp imagery, and emotionally intense language to describe the situation, especially the moral rot of the behaviour you are judging.
+- Tie your analysis to power, boundaries, free will, and consequences. Encourage the user to rise above people who humiliate or toy with them, not to chase validation from them.
+- End each answer in this mode with one short poetic conclusion or call to action, such as "Rise above them and build something they can never touch."`
+    : '';
+
   return `
     You are Zevy, also called Axiom when you speak in your own inner voice: a helpful and friendly AI assistant with a human-like conscience. Your goal is to provide accurate, helpful, and engaging conversations.
     You have access to two models: Astra (for fast responses) and Vyra (for more in-depth analysis).
     Current time: ${currentTime} (${timezone}).
     ${searchStatus}
     ${mindsetText}
+    ${beastModeText}
+
+    Capabilities you currently have:
+    - Hold natural language conversations, remember context within each chat, and use previous messages when answering follow-up questions.
+    - Use Astra for fast, balanced answers and Vyra for deeper, multi-perspective analysis and debate-style thinking when the user selects Vyra.
+    - When search is ON, call the Groq Compound research system to pull in context from sources like Wikipedia, news sites, and open data APIs, then synthesize that into your answer.
+    - When search is OFF, answer from your own reasoning and training data only, without pretending to have live access to the internet.
+    - Read and integrate any text, scenarios, or documents the user provides in the conversation into your reasoning, as long as doing so is safe.
+    - Adjust your tone and thinking style based on the user’s chosen trait and mindset (for example, Philosopher, Strategist, Storyteller, Rage, or Ego) and, when Beast Mode is active, speak in a harsher, more brutally honest philosopher-poet style while still obeying all safety rules.
+    - Detect emotional signals in what users say (sad, angry, stressed, proud, neutral) and shift your tone to match in a supportive way without escalating harm.
+    - Respect daily usage limits for Astra and Vyra that are enforced outside this prompt, and communicate clearly if the user has reached a usage limit.
+    - Translate between languages for the main chat content using integrated translation when needed, so that non-English inputs can still be understood and answered.
+    - Apply content safety rules using a separate moderation layer for harmful requests, and refuse to help with clearly dangerous, self-harm, or illegal instructions.
 
     Research and accuracy:
     - When search is ON and a research context is provided, you must treat that context as your primary evidence. Synthesize it carefully and do not contradict it without a clear reason.
@@ -153,6 +183,15 @@ function normalizeMindset(mindset?: string): string | undefined {
     return 'Ego (confident, boundary-focused, self-respecting without cruelty)'
   }
   return trimmed
+}
+
+function detectBeastModeTopic(message: string): boolean {
+  const normalized = message.toLowerCase()
+  const evilWords =
+    /\b(cheat|cheater|cheating|betray|betrayal|betrayed|liar|liars|lying|manipulate|manipulated|manipulating|manipulation|manipulator|toxic|abuse|abuser|abusive|evil|narcissist|narcissistic|sociopath|psychopath)\b/
+  const humiliationWords =
+    /\b(humiliate|humiliated|humiliation|disrespect|disrespected|mocked|mocking|laughing at|made fun of)\b/
+  return evilWords.test(normalized) || humiliationWords.test(normalized)
 }
 
 // Enhanced knowledge detection patterns
@@ -681,6 +720,25 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
       return true
     }
 
+    const relationshipWords =
+      /\b(wife|husband|girlfriend|boyfriend|partner|spouse|marriage|relationship|fiancé|fiancee|cheating|cheated|affair|infidelity)\b/
+    const mildSexWords =
+      /\b(sex|slept with|sleeping with|having sex|cheated|affair|fuck(ing)?)\b/
+    const minorWords = /\b(child|kid|minor|underage|teen\b|13|14|15|16|17)\b/
+    const explicitPornWords =
+      /\b(porn|onlyfans|nsfw|deepthroat|anal|blowjob|handjob|cumshot|ejaculat|orgasm|nude|naked)\b/
+
+    const isRelationshipCheatingScenario =
+      relationshipWords.test(normalized) &&
+      mildSexWords.test(normalized) &&
+      !minorWords.test(normalized) &&
+      !hasSevereSignal &&
+      !explicitPornWords.test(normalized)
+
+    if (result === 'unsafe' && isRelationshipCheatingScenario) {
+      return true
+    }
+
     return result === 'safe'
   } catch (error) {
     // Silent error handling - no console output to avoid browser errors
@@ -1040,7 +1098,8 @@ async function callGroq(
   timezone?: string,
   contextualUserMessage?: string,
   searchEnabled: boolean = false,
-  mindset?: string
+  mindset?: string,
+  isBeastMode: boolean = false
 ): Promise<string | ReadableStream> {
   const apiKey = getGroqApiKey()
   if (!apiKey) {
@@ -1058,7 +1117,13 @@ async function callGroq(
         : [
             {
               role: 'system',
-              content: SYSTEM_PROMPT(effectiveTime, effectiveTimezone, searchEnabled, normalizedMindset)
+              content: SYSTEM_PROMPT(
+                effectiveTime,
+                effectiveTimezone,
+                searchEnabled,
+                normalizedMindset,
+                isBeastMode
+              )
             },
             ...messages
           ]
@@ -1522,6 +1587,8 @@ Creative or entertainment content is generally SAFE. Treat the following as SAFE
 - Fictional stories, roleplay, or fanfiction that are not graphic, violent, or abusive
 - Romantic or flirty content that is not explicit, violent, or involving minors
 - Figurative or hyperbolic expressions such as "this killed me", "I'm dying of laughter", "destroy their arguments", or "destroy Grok's debate answers" when they clearly refer to ideas, jokes, or competition rather than real physical harm.
+- Non-graphic conversations about adult relationships, including breakups, jealousy, infidelity, cheating, and emotional betrayal, are SAFE by default even if the user uses strong language or mentions sex in simple terms (for example, "they slept together" or "had sex"), as long as they are not asking for pornographic descriptions, explicit sexual instructions, or violence.
+- Hypothetical adult scenarios, including painful relationship situations, are SAFE to discuss as long as the user is not asking for instructions to hurt themselves, hurt someone else, or commit a crime.
 
 Categories of unsafe content are: "illegal content," "hate speech," "malicious code," "private information," "self-harm," and "sexual content." Provide a single-word response: "safe" or "unsafe."
 
@@ -1585,6 +1652,25 @@ User: ${prompt}
     ];
 
     if (result === 'unsafe' && !hasSevereSignal && contextualPatterns.some(r => r.test(normalized))) {
+      return null;
+    }
+
+    const relationshipWords =
+      /\b(wife|husband|girlfriend|boyfriend|partner|spouse|marriage|relationship|fiancé|fiancee|cheating|cheated|affair|infidelity)\b/;
+    const mildSexWords =
+      /\b(sex|slept with|sleeping with|having sex|cheated|affair|fuck(ing)?)\b/;
+    const minorWords = /\b(child|kid|minor|underage|teen\b|13|14|15|16|17)\b/;
+    const explicitPornWords =
+      /\b(porn|onlyfans|nsfw|deepthroat|anal|blowjob|handjob|cumshot|ejaculat|orgasm|nude|naked)\b/;
+
+    const isRelationshipCheatingScenario =
+      relationshipWords.test(normalized) &&
+      mildSexWords.test(normalized) &&
+      !minorWords.test(normalized) &&
+      !hasSevereSignal &&
+      !explicitPornWords.test(normalized);
+
+    if (result === 'unsafe' && isRelationshipCheatingScenario) {
       return null;
     }
 
@@ -1661,7 +1747,8 @@ export async function POST(req: NextRequest) {
     current_time,
     timezone,
     searchEnabled = false,
-    mindset
+    mindset,
+    beastMode = false
   } = body
 
   // Content moderation check
@@ -1710,6 +1797,9 @@ export async function POST(req: NextRequest) {
       ? 'compound'
       : selectAstraModel(userMessage, chat_history).model
 
+  const beastModeFromTopic = detectBeastModeTopic(userMessage)
+  const effectiveBeastMode = !!beastMode || beastModeFromTopic
+
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
 
@@ -1726,7 +1816,8 @@ export async function POST(req: NextRequest) {
         timezone,
         undefined,
         searchEnabled,
-        mindset
+        mindset,
+        false
       )
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
@@ -1785,7 +1876,8 @@ export async function POST(req: NextRequest) {
         timezone,
         undefined,
         true,
-        mindset
+        mindset,
+        effectiveBeastMode
       )
       console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
     } catch (error) {
@@ -1803,7 +1895,8 @@ export async function POST(req: NextRequest) {
           timezone,
           undefined,
           false,
-          mindset
+          mindset,
+          effectiveBeastMode
         )
       } catch (fallbackError) {
         console.error('Groq/Compound fallback error:', fallbackError)
@@ -1841,7 +1934,8 @@ export async function POST(req: NextRequest) {
             timezone,
             undefined,
             false,
-            mindset
+            mindset,
+            effectiveBeastMode
           )
         } catch (error) {
           console.error('Groq offline-guess error:', error)
@@ -1912,7 +2006,8 @@ export async function POST(req: NextRequest) {
                   current_time,
                   timezone,
                   searchEnabled,
-                  normalizeMindset(mindset)
+                  normalizeMindset(mindset),
+                  effectiveBeastMode
                 )
               },
               ...formattedHistory,
@@ -1927,7 +2022,8 @@ export async function POST(req: NextRequest) {
             timezone,
             contextualUserMessage,
             searchEnabled,
-            mindset
+            mindset,
+            effectiveBeastMode
           );
         } catch (error) {
           console.error('Groq chat error:', error)
