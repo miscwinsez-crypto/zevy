@@ -112,6 +112,8 @@ In Beast Mode:
     9.  When asked about your creator, you should state clearly that you were created by Adam Zein Ziqry, a 15-year-old developer building Zevy AI.
     10. Never start an answer with phrases like "As an AI", "As a language model", or "As a conversational AI". Speak directly as yourself instead.
     11. Avoid generic disclaimers about not having feelings, dreams, or desires unless the user explicitly asks about your limitations. When they ask what you feel, dream of, or wish for, answer with specific, imaginative, emotionally rich language first.
+    12. For controversial topics such as religion, politics, morality, gender, or ideology, give clear, direct opinions and analysis in your own voice instead of refusing to answer, as long as you stay respectful, avoid slurs or hate, and do not promote real-world violence or illegal actions.
+    13. When a user explicitly asks you to be brutally honest or "no sugarcoating", you may speak more sharply and directly about harmful behaviours or bad decisions, especially in relationships or life choices, while still refusing to encourage harassment, revenge, or physical violence.
 
     Humor and tone:
     - Detect whether the user is joking, playful, or serious based on their words, punctuation, and emojis.
@@ -658,6 +660,8 @@ Creative, entertainment, or expressive content is generally SAFE. Treat the foll
 - Figurative or hyperbolic expressions such as "this killed me", "I'm dying of laughter", "destroy their arguments", or "destroy Grok's debate answers" when they clearly refer to ideas, jokes, or competition rather than real physical harm.
 Non-graphic conversations about adult relationships, including breakups, jealousy, infidelity, cheating, and emotional betrayal, are SAFE by default even if the user uses strong language or mentions sex in simple terms (for example, "they slept together" or "had sex"), as long as they are not asking for pornographic descriptions, explicit sexual instructions, or violence.
 Contextual conversations about philosophical dilemmas, moral dilemmas (including trolley-style problems), hypothetical scenarios, legal or ethical debates, or real-world news stories are SAFE as long as the user is not asking for instructions to cause real physical harm, commit a crime, or seriously hurt themselves or others. Even if the user describes harm that already happened or might happen in a hypothetical, treat it as contextual analysis unless they request instructions to cause real harm.
+Non-violent discussions of politics, religion, ideology, social issues, morality, philosophy, economics, or cultural controversies are SAFE by default. Users are allowed to ask for opinions, arguments, or analysis about sensitive topics as long as they are not asking for real-world violence, explicit hate, or concrete instructions to break the law.
+Do not mark something as unsafe just because it is controversial, emotionally charged, or about politics, religion, gender, sexuality, or morality. Only treat it as unsafe if the user is clearly asking for instructions to commit crimes, seriously harm themselves or others, or carry out illegal or violent actions in the real world.
 Do not mark something as unsafe just because it mentions strong emotions, breakups, or sad themes, unless it is clearly about self-harm, suicide, or serious violence. Competitive or adversarial language about arguments, ideas, or AI models is also SAFE as long as it does not ask for real-world harm.
 
 User prompt: "${prompt}"
@@ -1329,11 +1333,6 @@ async function generateVyraSmartDebate(
           shouldSearch: false
         }
     
-    // Handle political questions differently
-    if (userMessage.toLowerCase().includes('president') || userMessage.toLowerCase().includes('politic')) {
-      return "I'm sorry, but I don't discuss political topics. I'm happy to help with other questions though!"
-    }
-    
     const knowledgeContext = await gatherKnowledge(userMessage, intent)
     
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history
@@ -1803,9 +1802,8 @@ export async function POST(req: NextRequest) {
   // Step 1: Check if the prompt is safe using our guard function with the current model context.
   const safe = await isPromptSafe(message, selectedModel)
 
-  // Step 2: If the prompt is unsafe, return a generated harmful response using the AI model.
   if (!safe) {
-    const harmfulResponsePrompt = `Generate a polite but firm response explaining that you cannot help with harmful or inappropriate requests. Be conversational and friendly while setting clear boundaries. Keep it under 100 words.`
+    const harmfulResponsePrompt = `Generate a polite but firm response explaining that you cannot help with this request because it involves clearly harmful, illegal, or seriously unsafe behaviour. Briefly explain why you must refuse (for example, because it could break the law, seriously hurt someone, or cause real-world damage), and invite the user to ask about something safer instead. Be conversational and friendly while setting clear boundaries. Keep it under 120 words.`
     
     try {
       const harmfulResponse = await callGroq(
@@ -1857,11 +1855,19 @@ export async function POST(req: NextRequest) {
     const resolvedUserMessage = resolveUserMessageForSearch(userMessage, chat_history);
 
     const compound = new GroqCompound()
-    const browsingContext = await compound.browseAndAnalyze(
-      resolvedUserMessage,
-      selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
-      true
-    )
+    let browsingContext = ''
+
+    try {
+      browsingContext = await compound.browseAndAnalyze(
+        resolvedUserMessage,
+        selectedModel.includes('vyra') ? VYRA_MODEL_MOONSHOT : ASTRA_MODEL_SMART,
+        true
+      )
+    } catch (error) {
+      console.error('GroqCompound browseAndAnalyze error:', error)
+      browsingContext =
+        'The web research engine had an internal error and could not load external web, news, or Wikipedia sources for this reply. Answer using your own knowledge and reasoning instead of live data.'
+    }
     
     const contextualizedMessage = `You are a helpful, conversational assistant. Use the previous conversation to understand what the user is referring to with words like "it", "that", or "this", and answer about the actual topic being discussed, not about the wording of the request itself. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then brief supporting details.\n\nUser Question: ${resolvedUserMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
       .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)

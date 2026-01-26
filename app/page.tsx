@@ -253,20 +253,49 @@ export default function ZevyCloudAI() {
   const [currentLocalTime, setCurrentLocalTime] = useState<Date>(new Date())
   const [lastActiveTime, setLastActiveTime] = useState<{time: Date, location: string} | null>(null)
   
-  // Calculate time difference between locations
-  const calculateTimeDifference = (fromLocation: string, toLocation: string) => {
-    const apiConfig = getApiConfig()
-    // This would be replaced with actual timezone database lookup in production
-    const timezoneMap: Record<string, number> = {
-      'malaysia': 8, // UTC+8
-      'australia': 10, // UTC+10
-      'japan': 9,
-      'uk': 0,
-      'us': -5
+  const resolveTimeZone = (location: string): string => {
+    const lower = location.toLowerCase().trim()
+    const map: Record<string, string> = {
+      malaysia: 'Asia/Kuala_Lumpur',
+      'kuala lumpur': 'Asia/Kuala_Lumpur',
+      australia: 'Australia/Sydney',
+      sydney: 'Australia/Sydney',
+      japan: 'Asia/Tokyo',
+      tokyo: 'Asia/Tokyo',
+      uk: 'Europe/London',
+      'united kingdom': 'Europe/London',
+      london: 'Europe/London',
+      us: 'America/New_York',
+      usa: 'America/New_York',
+      'united states': 'America/New_York',
+      'new york': 'America/New_York'
     }
-    
-    const fromOffset = timezoneMap[fromLocation.toLowerCase()] || 0
-    const toOffset = timezoneMap[toLocation.toLowerCase()] || 0
+    if (map[lower]) {
+      return map[lower]
+    }
+    if (location.includes('/')) {
+      return location
+    }
+    return 'UTC'
+  }
+
+  const getTimeZoneOffsetHours = (timeZone: string): number => {
+    try {
+      const now = new Date()
+      const localeString = now.toLocaleString('en-US', { timeZone })
+      const targetTime = new Date(localeString)
+      const diffMs = targetTime.getTime() - now.getTime()
+      return diffMs / (1000 * 60 * 60)
+    } catch {
+      return 0
+    }
+  }
+
+  const calculateTimeDifference = (fromLocation: string, toLocation: string) => {
+    const fromTimeZone = resolveTimeZone(fromLocation)
+    const toTimeZone = resolveTimeZone(toLocation)
+    const fromOffset = getTimeZoneOffsetHours(fromTimeZone)
+    const toOffset = getTimeZoneOffsetHours(toTimeZone)
     return toOffset - fromOffset
   }
   

@@ -301,55 +301,55 @@ export class GroqCompound {
     targetModel: string,
     forceSearch: boolean = false
   ): Promise<string> {
-    try {
-      const normalizedPrompt = userPrompt.toLowerCase();
-      const isLyricsQuery =
-        /song\s+that\s+goes\b/i.test(userPrompt) ||
-        (/\b(lyrics?|lyric)\b/i.test(normalizedPrompt) &&
-          /\b(song|track)\b/i.test(normalizedPrompt));
+    const normalizedPrompt = userPrompt.toLowerCase();
+    const isLyricsQuery =
+      /song\s+that\s+goes\b/i.test(userPrompt) ||
+      (/\b(lyrics?|lyric)\b/i.test(normalizedPrompt) &&
+        /\b(song|track)\b/i.test(normalizedPrompt));
 
-      const wantsDeepResultsMatch =
-        normalizedPrompt.match(/\b(\d{1,3})\s*(results?|searches|search|websites?|pages?)\b/);
-      const requestedDepth = wantsDeepResultsMatch
-        ? Math.max(1, Math.min(100, parseInt(wantsDeepResultsMatch[1], 10) || 0))
-        : 0;
+    const wantsDeepResultsMatch =
+      normalizedPrompt.match(/\b(\d{1,3})\s*(results?|searches|search|websites?|pages?)\b/);
+    const requestedDepth = wantsDeepResultsMatch
+      ? Math.max(1, Math.min(100, parseInt(wantsDeepResultsMatch[1], 10) || 0))
+      : 0;
 
-      const wantsManySources =
-        /\b(50|100)\s*(sources|results|websites?|pages?)\b/.test(normalizedPrompt);
+    const wantsManySources =
+      /\b(50|100)\s*(sources|results|websites?|pages?)\b/.test(normalizedPrompt);
 
-      const wantsLatest =
-        /\b(latest|current|up to date|this season|this year|today|right now|live)\b/.test(
+    const wantsLatest =
+      /\b(latest|current|up to date|this season|this year|today|right now|live)\b/.test(
+        normalizedPrompt
+      );
+
+    const isEngineerNameQuery =
+      /\bwho\b.*\b(engineered|designed|built|developed|created)\b/.test(normalizedPrompt) ||
+      /\bhuman names?\b/.test(normalizedPrompt) ||
+      (normalizedPrompt.includes('smart tunnel') &&
+        /\b(who|engineer|designer|architect|people|person|individuals|names?)\b/.test(
           normalizedPrompt
-        );
+        ));
 
-      const isEngineerNameQuery =
-        /\bwho\b.*\b(engineered|designed|built|developed|created)\b/.test(normalizedPrompt) ||
-        /\bhuman names?\b/.test(normalizedPrompt) ||
-        (normalizedPrompt.includes('smart tunnel') &&
-          /\b(who|engineer|designer|architect|people|person|individuals|names?)\b/.test(
-            normalizedPrompt
-          ));
+    const isSelfOrZevyQuery =
+      /\b(zevy|adam zein ziqry)\b/.test(normalizedPrompt) ||
+      /\bwho (made|created|built)\b.*\b(you|yourself|zevy)\b/.test(normalizedPrompt);
 
-      const isSelfOrZevyQuery =
-        /\b(zevy|adam zein ziqry)\b/.test(normalizedPrompt) ||
-        /\bwho (made|created|built)\b.*\b(you|yourself|zevy)\b/.test(normalizedPrompt);
+    const hasQuestionWord = /\b(what|when|where|why|how|who|which)\b/.test(normalizedPrompt);
 
-      const hasQuestionWord = /\b(what|when|where|why|how|who|which)\b/.test(normalizedPrompt);
+    const hasSearchKeyword =
+      /(search|find|lookup|look up|current|latest|news|recent|today|this week|what happened|happened|update|time|timezone|date|day|month|year|weather|forecast|temperature|humidity|stock|price|quote|score|standings|detailed|comprehensive|explain|analyze|compare|contrast|pros and cons|advantages|disadvantages|research|study|report)/i.test(
+        userPrompt
+      );
 
-      const hasSearchKeyword =
-        /(search|find|lookup|look up|current|latest|news|recent|today|this week|what happened|happened|update|time|timezone|date|day|month|year|weather|forecast|temperature|humidity|stock|price|quote|score|standings|detailed|comprehensive|explain|analyze|compare|contrast|pros and cons|advantages|disadvantages|research|study|report)/i.test(
-          userPrompt
-        );
+    const shouldSearch =
+      !isSelfOrZevyQuery &&
+      userPrompt.length > 10 &&
+      (hasSearchKeyword || hasQuestionWord || isLyricsQuery || isEngineerNameQuery || requestedDepth > 0);
 
-      const shouldSearch =
-        !isSelfOrZevyQuery &&
-        userPrompt.length > 10 &&
-        (hasSearchKeyword || hasQuestionWord || isLyricsQuery || isEngineerNameQuery || requestedDepth > 0);
+    if (!shouldSearch && !forceSearch) {
+      return '';
+    }
 
-      if (!shouldSearch && !forceSearch) {
-        return '';
-      }
-
+    try {
       const searchQuery = await this.generateSearchQuery(userPrompt);
 
       const [webResults, wikipediaResults, newsResults, wikidataResults, dbpediaResults] = await Promise.all([
@@ -362,8 +362,6 @@ export class GroqCompound {
 
       const allInformation: any[] = [];
 
-      // Fast path: for common "what time is it in X" queries, use a dedicated time API
-      // so we don't rely on brittle HTML parsing.
       const timeSource = await this.tryGetWorldTime(userPrompt);
       if (timeSource) {
         allInformation.push(timeSource);
@@ -467,7 +465,7 @@ export class GroqCompound {
       return analysis;
     } catch (error) {
       console.error('Vector browsing error:', error);
-      return '';
+      throw error;
     }
   }
 
