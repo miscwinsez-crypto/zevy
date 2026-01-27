@@ -1002,8 +1002,12 @@ async function getFreeKnowledge(query: string): Promise<string> {
 /**
  * Enhanced knowledge gathering that prioritizes free sources and current events
  */
-async function gatherKnowledge(userMessage: string, intent: { shouldSearch: boolean; confidence: string; reason: string }): Promise<string> {
-  if (!intent.shouldSearch) {
+async function gatherKnowledge(
+  userMessage: string,
+  intent: { shouldSearch: boolean; confidence: string; reason: string },
+  forceCompound: boolean = false
+): Promise<string> {
+  if (!intent.shouldSearch && !forceCompound) {
     return ''
   }
   
@@ -1058,10 +1062,19 @@ Image generation is currently unavailable but may be added in future updates.`
     knowledgeParts.push(freeKnowledge)
   }
   
-  // Use Groq Compound for complex queries or when confidence is high
-  if ((intent.confidence === 'high' && userMessage.length > 30) || hasDatePattern || hasCurrentEventTerms) {
+  // Use Groq Compound when forced, for complex queries, or when confidence is high
+  if (
+    forceCompound ||
+    (intent.confidence === 'high' && userMessage.length > 30) ||
+    hasDatePattern ||
+    hasCurrentEventTerms
+  ) {
     try {
-      const compoundKnowledge = await compound.browseAndAnalyze(userMessage, ASTRA_MODEL_SMART)
+      const compoundKnowledge = await compound.browseAndAnalyze(
+        userMessage,
+        ASTRA_MODEL_SMART,
+        forceCompound
+      )
       if (compoundKnowledge && compoundKnowledge.length > 50) {
         knowledgeParts.push(`Comprehensive Research:\n${compoundKnowledge}`)
       }
@@ -1352,7 +1365,7 @@ async function generateVyraSmartDebate(
           shouldSearch: false
         }
     
-    const knowledgeContext = await gatherKnowledge(userMessage, intent)
+    const knowledgeContext = await gatherKnowledge(userMessage, intent, searchEnabled)
     
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history
       .map((m) => `${m.role}: ${m.content}`)
