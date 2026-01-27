@@ -554,13 +554,17 @@ ${otherItems.map(formatItem).join('\n\n')}`
       : '';
 
     const context = `
+You are a research-focused assistant that must be brutally honest about what the sources do and do not support. Never invent specific names, dates, titles, or awards that are not clearly present in the evidence below. If the evidence does not contain a clear answer, you must say you are not sure instead of guessing or fabricating details.
+
+When the user asks "who is", "what is", or "which person" for a specific award, title, or role in a given year or place, only state a person’s name if that exact name appears in the evidence and clearly matches the question. If multiple names appear or nothing is conclusive, explain the uncertainty and refuse to pick a random name.
+
 User Question: ${userPrompt}
 
 ${wikipediaSection}
 
 ${otherSourcesSection}
 
-Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim. Do not include raw URLs, "Source:" labels, or these metadata lines in your answer. If you mention a source, refer to it briefly in natural language (for example, "a Malaysian news article" or "the project operator's website") instead of listing links.${extraGuidance}`;
+Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim. Do not include raw URLs, "Source:" labels, or these metadata lines in your answer. If you mention a source, refer to it briefly in natural language (for example, "a Malaysian news article" or "the project operator's website") instead of listing links. If none of the evidence gives you a clear, specific answer, you must explicitly say that and avoid making anything up.${extraGuidance}`;
 
     return context;
   }

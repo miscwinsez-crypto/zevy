@@ -1764,10 +1764,18 @@ export async function POST(req: NextRequest) {
     stream = false,
     current_time,
     timezone,
-    searchEnabled = false,
+    searchEnabled: rawSearchEnabled,
+    webSearch,
     mindset,
     beastMode = false
   } = body
+
+  const searchEnabled =
+    typeof rawSearchEnabled === 'boolean'
+      ? rawSearchEnabled
+      : typeof webSearch === 'boolean'
+        ? webSearch
+        : false
 
   // Content moderation check
   const moderationResponse = await isSafe(message);
@@ -1888,7 +1896,15 @@ export async function POST(req: NextRequest) {
         'The web research engine had an internal error and could not load external web, news, or Wikipedia sources for this reply. Answer using your own knowledge and reasoning instead of live data.'
     }
     
-    const contextualizedMessage = `You are a helpful, conversational assistant. Use the previous conversation to understand what the user is referring to with words like "it", "that", or "this", and answer about the actual topic being discussed, not about the wording of the request itself. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then brief supporting details.\n\nUser Question: ${resolvedUserMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
+    const contextualizedMessage = `You are a helpful, conversational assistant. Use the previous conversation to understand what the user is referring to with words like "it", "that", or "this", and answer about the actual topic being discussed, not about the wording of the request itself. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then brief supporting details.
+
+You also receive a "Web Research Context". Treat this context as the only external live information you have for this reply. If it clearly contains a specific name, date, title, or fact that answers the user’s question, you can use it. If it does not contain a clear answer, or if it only has vague hints, you must say that you could not find a reliable answer instead of guessing.
+
+For questions asking "who is", "what is", or "which person" for a specific award, title, or role in a specific year or place, you must not invent or guess names. Only state a person’s name if that exact name appears in the Web Research Context in a way that clearly matches the user’s question. If the sources disagree or nothing is clear, explain that the information is uncertain instead of picking a random name.
+
+If the Web Research Context is empty, or if it says that the web research engine had an internal error and could not load external sources, answer using only your general knowledge and reasoning, and make it clear that you might be wrong because you have no live data for this reply.
+
+You do not have long-term memory. Never say that you will remember new facts for the future or that you have updated your knowledge. You can acknowledge when the user corrects you in this conversation, but you must not claim that this will persist beyond the current chat.\n\nUser Question: ${resolvedUserMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
       .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
       .join('\n')}`
     
