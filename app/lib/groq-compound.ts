@@ -321,6 +321,9 @@ export class GroqCompound {
         normalizedPrompt
       );
 
+    const hasYearNumber =
+      /\b(19[0-9]{2}|20[0-9]{2})\b/.test(normalizedPrompt);
+
     const isEngineerNameQuery =
       /\bwho\b.*\b(engineered|designed|built|developed|created)\b/.test(normalizedPrompt) ||
       /\bhuman names?\b/.test(normalizedPrompt) ||
@@ -343,7 +346,13 @@ export class GroqCompound {
     const shouldSearch =
       !isSelfOrZevyQuery &&
       userPrompt.length > 10 &&
-      (hasSearchKeyword || hasQuestionWord || isLyricsQuery || isEngineerNameQuery || requestedDepth > 0);
+      (hasSearchKeyword ||
+        hasQuestionWord ||
+        isLyricsQuery ||
+        isEngineerNameQuery ||
+        requestedDepth > 0 ||
+        wantsLatest ||
+        hasYearNumber);
 
     if (!shouldSearch && !forceSearch) {
       return '';
@@ -404,7 +413,7 @@ export class GroqCompound {
       }
 
       if (!isLyricsQuery && newsResults.length > 0) {
-        const newsLimit = wantsManySources || wantsLatest ? 10 : 3;
+        const newsLimit = wantsManySources || wantsLatest || hasYearNumber ? 10 : 3;
         for (const article of newsResults.slice(0, newsLimit)) {
           const sourceName = article.source?.name || 'Unknown';
           const description = article.description || '';
@@ -465,7 +474,7 @@ export class GroqCompound {
       return analysis;
     } catch (error) {
       console.error('Vector browsing error:', error);
-      throw error;
+      return 'The web research engine had an internal error and could not load external web, news, or Wikipedia sources for this reply. Answer using your own knowledge and reasoning instead of live data.';
     }
   }
 
