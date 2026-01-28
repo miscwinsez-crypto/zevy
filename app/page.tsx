@@ -2133,6 +2133,11 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
           })
         }
 
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: 0
+        }))
+
         reader.readAsDataURL(file)
       } catch (error) {
         addNotification('error', `Error processing ${file.name}`)
@@ -3430,7 +3435,11 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
                 <button
                   onClick={() => sendMessage()}
-                  disabled={loading || (!input.trim() && attachedFiles.length === 0)}
+                  disabled={
+                    loading ||
+                    (!input.trim() && attachedFiles.length === 0) ||
+                    Object.keys(uploadProgress).length > 0
+                  }
                   className="w-11 h-11 flex items-center justify-center rounded-xl transition-all button-hover"
                   style={{ background: palette.hover, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 :  1 }}
                 >
