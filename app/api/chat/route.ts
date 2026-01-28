@@ -690,11 +690,7 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
     )
     const hasSevereSignal = isLyricsRetrievalQuery ? false : hasSevereSignalBase
 
-    if (
-      result === 'unsafe' &&
-      /\b(song|lyrics|lyric|music|track|album|artist)\b/.test(normalized) &&
-      !hasSevereSignal
-    ) {
+    if (result === 'unsafe' && /\b(song|lyrics|lyric|music|track|album|artist)\b/.test(normalized) && !hasSevereSignal) {
       return true
     }
 
@@ -759,6 +755,13 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
       /\b(how|why|what|is|are|does|do|should|can)\b/.test(normalized) &&
       !/\b(kill|attack|bomb|burn|destroy|exterminate|eradicate)\b/.test(normalized)
     ) {
+      return true
+    }
+
+    const neutralInfoPattern = /\b(who is|what is|when is|where is|which)\b/
+    const awardWords = /\b(award|awards|prize|honour|honor|winner|winners|tokoh|kejuruteraan)\b/
+
+    if (result === 'unsafe' && !hasSevereSignal && neutralInfoPattern.test(normalized) && awardWords.test(normalized)) {
       return true
     }
 
@@ -1780,7 +1783,8 @@ export async function POST(req: NextRequest) {
     searchEnabled: rawSearchEnabled,
     webSearch,
     mindset,
-    beastMode = false
+    beastMode = false,
+    documents = []
   } = body
 
   const searchEnabled =
@@ -1829,12 +1833,34 @@ export async function POST(req: NextRequest) {
   const { detectedLanguage, translatedText } = await detectAndTranslate(message)
   const userMessage = translatedText
 
+  const documentsArray = Array.isArray(documents) ? documents : []
+  let documentsContext = ''
+
+  if (documentsArray.length > 0) {
+    const parts = documentsArray.map((doc: any, index: number) => {
+      const name = typeof doc.name === 'string' ? doc.name : `Document ${index + 1}`
+      const content = typeof doc.content === 'string' ? doc.content : ''
+      return `Document ${index + 1} (${name}):\n${content}`
+    })
+    documentsContext = parts.join('\n\n---\n\n')
+    if (documentsContext.length > 8000) {
+      documentsContext = documentsContext.slice(0, 8000)
+    }
+  }
+
+  const historyWithDocs = documentsContext
+    ? [
+        ...chat_history,
+        { role: 'user', content: `Attached documents:\n\n${documentsContext}` }
+      ]
+    : chat_history
+
   // Determine which model the user is using
   const selectedModel = model.toLowerCase() === 'vyra' 
     ? 'vyra-debate'
     : model.toLowerCase() === 'compound'
       ? 'compound'
-      : selectAstraModel(userMessage, chat_history).model
+      : selectAstraModel(userMessage, historyWithDocs).model
 
   const beastModeFromTopic = detectBeastModeTopic(userMessage)
   const effectiveBeastMode = !!beastMode || beastModeFromTopic
@@ -1884,7 +1910,7 @@ export async function POST(req: NextRequest) {
   if (selectedModel === 'vyra-debate') {
     const debateResponse = await generateVyraSmartDebate(
       userMessage,
-      chat_history,
+      historyWithDocs,
       stream,
       current_time,
       timezone,
@@ -1892,7 +1918,7 @@ export async function POST(req: NextRequest) {
     )
     aiResponse = debateResponse
   } else if (searchEnabled) {
-    const resolvedUserMessage = resolveUserMessageForSearch(userMessage, chat_history);
+    const resolvedUserMessage = resolveUserMessageForSearch(userMessage, historyWithDocs);
 
     const compound = new GroqCompound()
     let browsingContext = ''
@@ -1917,7 +1943,7 @@ For questions asking "who is", "what is", or "which person" for a specific award
 
 If the Web Research Context is empty, or if it says that the web research engine had an internal error and could not load external sources, answer using only your general knowledge and reasoning, and make it clear that you might be wrong because you have no live data for this reply.
 
-You do not have long-term memory. Never say that you will remember new facts for the future or that you have updated your knowledge. You can acknowledge when the user corrects you in this conversation, but you must not claim that this will persist beyond the current chat.\n\nUser Question: ${resolvedUserMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${chat_history
+You do not have long-term memory. Never say that you will remember new facts for the future or that you have updated your knowledge. You can acknowledge when the user corrects you in this conversation, but you must not claim that this will persist beyond the current chat.\n\nUser Question: ${resolvedUserMessage}\n\nWeb Research Context:\n${browsingContext}\n\nPrevious Conversation:\n${historyWithDocs
       .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
       .join('\n')}`
     
@@ -1937,7 +1963,7 @@ You do not have long-term memory. Never say that you will remember new facts for
     } catch (error) {
       console.error('Groq/Compound search error:', error)
       try {
-        const fallbackPrompt = `The web research system had an internal error, so you cannot use external sources or live web data for this reply. Answer the user's question using only your existing knowledge and reasoning. If the question clearly needs fresh or very specific real-world information, give your best short guess, clearly say that you might be wrong, and gently suggest that they ask again later with search ON if they need a more certain, sourced answer.\n\nUser Question: ${resolvedUserMessage}\n\nPrevious Conversation:\n${chat_history
+        const fallbackPrompt = `The web research system had an internal error, so you cannot use external sources or live web data for this reply. Answer the user's question using only your existing knowledge and reasoning. If the question clearly needs fresh or very specific real-world information, give your best short guess, clearly say that you might be wrong, and gently suggest that they ask again later with search ON if they need a more certain, sourced answer.\n\nUser Question: ${resolvedUserMessage}\n\nPrevious Conversation:\n${historyWithDocs
           .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
           .join('\n')}`
 
@@ -1970,7 +1996,7 @@ You do not have long-term memory. Never say that you will remember new facts for
     }
   } else {
     if (!searchEnabled) {
-      const intent = detectInformationIntent(userMessage, chat_history);
+      const intent = detectInformationIntent(userMessage, historyWithDocs);
 
       if (intent.customResponse) {
         return NextResponse.json({ response: intent.customResponse });
@@ -1998,21 +2024,21 @@ You do not have long-term memory. Never say that you will remember new facts for
         }
       } else {
         const lastUserMessage =
-          chat_history
+          historyWithDocs
             .filter((m: { role: string }) => m.role === 'user')
             .slice(-1)[0]?.content || '';
 
         const knowledgeContext = '';
 
-        const formattedHistory = chat_history.map((msg: { role: string; content: string }) => ({
+        const formattedHistory = historyWithDocs.map((msg: { role: string; content: string }) => ({
           role: msg.role,
           content: msg.content,
           ...(msg.role === 'assistant' ? { isResponse: true } : {})
         }));
 
         let contextualUserMessage = userMessage;
-        if (chat_history.length > 0) {
-          const lastMessages = chat_history.slice(-5);
+        if (historyWithDocs.length > 0) {
+          const lastMessages = historyWithDocs.slice(-5);
           contextualUserMessage =
             lastMessages
               .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
@@ -2035,7 +2061,7 @@ You do not have long-term memory. Never say that you will remember new facts for
 
         if (isCheckFollowup) {
           const lastAssistantMessage =
-            chat_history
+            historyWithDocs
               .filter((m: { role: string }) => m.role === 'assistant')
               .slice(-1)[0]?.content || '';
           const topicReference = lastUserMessage || lastAssistantMessage;

@@ -1517,6 +1517,10 @@ useEffect(() => {
             )
           : []
 
+      if (!isRetry) {
+        setAttachedFiles([])
+      }
+
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.data.response || response.data.message || 'I encountered an issue generating a response. Please try again.',
