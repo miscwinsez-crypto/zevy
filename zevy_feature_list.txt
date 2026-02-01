@@ -15,15 +15,19 @@ Zevy AI - Feature List
 - Ability to start a fresh chat at any time with "New Chat".
 
 3. Web Search and Knowledge
-- Optional vector/web search mode for live information when enabled.
+- Optional vector/web search mode for live information when enabled. When this mode is ON, Groq Compound is always used for live research (except for a few hard-coded self-description answers about Zevy).
+- With Astra selected, Groq Compound focuses on roughly 10 of the most relevant web sources for the user’s topic and blends them with Wikipedia and other open-data checks.
+- With Vyra selected, Groq Compound can aggregate up to around 100 web sources for the same topic and passes that richer research context into both debaters before synthesizing a final answer.
 - Integrates with Groq Compound and open data sources (Wikipedia, news RSS, NASA, etc.) via the backend.
-- Intent routing detects when live data is needed vs. when offline reasoning is enough.
+- Intent routing still helps detect when live data is needed vs. when offline reasoning is enough, but the Vector toggle now acts as a hard override to force web research when it is ON.
 
 4. Document and File Support
 - Drag-and-drop and file picker support for text-based documents.
 - Handles plain text (.txt), PDF, DOCX, Markdown (.md), CSV, and RTF files.
 - Extracts and truncates text to a safe length for analysis on the server.
 - Shows upload progress and notifications for accepted/rejected files.
+- Blocks sending a message until all attached documents are fully processed into text so they are guaranteed to be included in the analysis.
+- Clears attachments from the input bar after a successful send so it is obvious that the files are already part of the conversation context.
 - Image files are detected and rejected with a user-facing notification (currently text-focused).
 
 5. Answer Formatting and Tables

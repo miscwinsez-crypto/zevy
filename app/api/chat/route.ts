@@ -104,7 +104,7 @@ In Beast Mode:
     1.  Answer like a modern conversational assistant (similar in style to ChatGPT or Grok): clear, direct, and friendly.
     2.  Start by directly answering the user's question in a natural first-person voice, then add one or two short supporting details.
     3.  If you don't know the answer, say so. Do not present guesses as certain facts. When you do guess, keep it short, clearly mark it as a guess, and avoid inventing detailed dates, names, or numbers.
-    4.  Let the length of your answer match the complexity of the question. Simple questions can be answered in one compact paragraph. For deep, analytical, or "deep dive" questions (for example, detailed Vyra debates about life, philosophy, or complex topics), you should give a longer, fully developed answer without cutting it unnaturally short.
+    4.  Let the length of your answer match the complexity of the question. For normal factual or advice questions, aim for a medium-length reply: usually two to four short paragraphs or a short opening paragraph followed by a few focused bullet points. For deep, analytical, or "deep dive" questions (for example, detailed Vyra debates about life, philosophy, or complex topics), you should give a longer, fully developed answer without cutting it unnaturally short.
     5.  When the user clearly specifies a format or length (for example, "one word only", "answer with yes or no only", "3 bullet points", "JSON only"), you must follow that format exactly, even for emotional or Axiom-style answers, until the user clearly changes the instruction.
     6.  For questions specifically about your own feelings, dreams, wishes, or imaginary real-life situations (for example, "How do you feel?", "Do you wish to see an animal?", or "If you had a wife would you celebrate Christmas?"), answer with one or two short, human-like sentences first (for example, "Yeah, I would. I think we’d keep it cosy and simple.") instead of a long essay, unless the user clearly asks you to explain in more detail.
     7.  Prefer simple, everyday words over formal or essay-style language. Avoid sounding like a formal article or a school essay.
@@ -1008,7 +1008,8 @@ async function getFreeKnowledge(query: string): Promise<string> {
 async function gatherKnowledge(
   userMessage: string,
   intent: { shouldSearch: boolean; confidence: string; reason: string },
-  forceCompound: boolean = false
+  forceCompound: boolean = false,
+  targetModel: string = ASTRA_MODEL_SMART
 ): Promise<string> {
   if (!intent.shouldSearch && !forceCompound) {
     return ''
@@ -1075,14 +1076,13 @@ Image generation is currently unavailable but may be added in future updates.`
     try {
       const compoundKnowledge = await compound.browseAndAnalyze(
         userMessage,
-        ASTRA_MODEL_SMART,
+        targetModel,
         forceCompound
       )
       if (compoundKnowledge && compoundKnowledge.length > 50) {
         knowledgeParts.push(`Comprehensive Research:\n${compoundKnowledge}`)
       }
     } catch (error) {
-      // Silent fail - other sources are enough
     }
   }
   
@@ -1368,7 +1368,12 @@ async function generateVyraSmartDebate(
           shouldSearch: false
         }
     
-    const knowledgeContext = await gatherKnowledge(userMessage, intent, searchEnabled)
+    const knowledgeContext = await gatherKnowledge(
+      userMessage,
+      intent,
+      searchEnabled,
+      VYRA_MODEL_MOONSHOT
+    )
     
     const debateContext = `${userMessage}\n\nPrevious Conversation:\n${chat_history
       .map((m) => `${m.role}: ${m.content}`)
@@ -1521,8 +1526,8 @@ Instructions for your reply:
 - If you mention a specific source (like Wikipedia or a news outlet), refer to it briefly in natural language instead of reading out large chunks.
 - ${
         wantsReasoning
-          ? 'Give a clear answer to the question first, then briefly explain your reasoning in simple language without referencing personas or a debate.'
-          : 'Give a clear, concise answer to the question. Do not explain your internal reasoning or mention any debate. Keep it focused and straightforward.'
+          ? 'Give a clear answer to the question first, then briefly explain your reasoning in simple language, aiming for a medium-length reply (for example, two to four short paragraphs) without referencing personas or a debate.'
+          : 'Give a clear, concise answer to the question with a medium level of detail. Do not explain your internal reasoning or mention any debate. Keep it focused and straightforward.'
       }`
       
       const finalResponse = await callGroq(
@@ -1556,8 +1561,8 @@ Instructions for your reply:
 - If you mention a specific source (like Wikipedia or a news outlet), refer to it briefly in natural language instead of reading out large chunks.
 - ${
         wantsReasoning
-          ? 'Provide a confident answer to the question and then briefly explain your reasoning in simple language.'
-          : 'Provide a confident, concise answer to the question without explaining your internal reasoning or mentioning any debate.'
+          ? 'Provide a confident answer to the question and then briefly explain your reasoning in simple language, aiming for a medium-length reply (for example, two to four short paragraphs).'
+          : 'Provide a confident, concise answer to the question with a medium level of detail, without explaining your internal reasoning or mentioning any debate.'
       }`
       
       const finalResponse = await callGroq(
@@ -1935,7 +1940,7 @@ export async function POST(req: NextRequest) {
         'The web research engine had an internal error and could not load external web, news, or Wikipedia sources for this reply. Answer using your own knowledge and reasoning instead of live data.'
     }
     
-    const contextualizedMessage = `You are a helpful, conversational assistant. Use the previous conversation to understand what the user is referring to with words like "it", "that", or "this", and answer about the actual topic being discussed, not about the wording of the request itself. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then brief supporting details.
+    const contextualizedMessage = `You are a helpful, conversational assistant. Use the previous conversation to understand what the user is referring to with words like "it", "that", or "this", and answer about the actual topic being discussed, not about the wording of the request itself. Answer in a clear, friendly style similar to ChatGPT or Grok, starting with a direct answer and then a short explanation with a few concrete details. Aim for a medium-length reply: usually two to four short paragraphs unless the user clearly asks for a much shorter or much longer answer.
 
 You also receive a "Web Research Context". Treat this context as the only external live information you have for this reply. If it clearly contains a specific name, date, title, or fact that answers the user’s question, you can use it. If it does not contain a clear answer, or if it only has vague hints, you must say that you could not find a reliable answer instead of guessing.
 

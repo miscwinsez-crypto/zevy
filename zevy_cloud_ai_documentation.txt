@@ -1,6 +1,26 @@
 # 🚀 ZEVY AI: Complete Technical Documentation
 
-## Last Updated: December 26, 2025
+## Last Updated: February 1, 2026
+
+### Recent Changes (February 1, 2026):
+1. **Vector Search + Source Count Differentiation**
+   - Vector / web search mode now forces Groq Compound to run whenever search is ON, instead of relying only on intent-based detection.
+   - **Astra + Vector ON**: Groq Compound pulls up to ~10 relevant web results for the topic and merges them with Wikipedia and open-data double checkers.
+   - **Vyra + Vector ON**: Groq Compound can aggregate up to ~100 web results for the same topic before feeding a shared research context into both sides of the internal debate.
+   - Engineer-name and award queries use a stricter “no guessing” policy: Wikipedia is the primary verifier for names and dates, and the system refuses to invent winners when evidence is missing or conflicting.
+
+2. **Answer-Length and Style Calibration**
+   - System prompts for Astra, Vyra, and the Groq Compound analysis layer have been updated so default answers are mid-length by design (two to four short paragraphs, or a short paragraph plus targeted bullets).
+   - Vector-search specific prompts instruct the models to give a clear direct answer first, followed by a compact explanation with real details, reducing dry one-liners and oversized essays.
+
+3. **Document Pipeline Hardening**
+   - The frontend file pipeline now blocks sending a message until all attached documents are fully read and converted into text, fixing cases where a user’s “read this document” prompt could be sent without the document context.
+   - After a successful send, attached documents are cleared from the input area, making it obvious that they are already part of the chat history.
+   - Notification and error paths were tightened so failed reads surface as user-visible errors instead of silent drops.
+
+4. **Research Prompt Safety Enhancements**
+   - Groq Compound’s synthesis prompt explicitly disallows inventing specific names, dates, titles, or award winners when the evidence does not clearly support them.
+   - Wikipedia remains the primary double checker for names and dates; newer reputable news can override it only when it clearly documents a change, otherwise the system must communicate uncertainty.
 
 ### Recent Changes (December 12, 2025):
 **MAJOR SYSTEM OVERHAUL - Complete Knowledge Integration Enhancement**

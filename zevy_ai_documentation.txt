@@ -3,6 +3,31 @@
 
 ---
 
+## 🔄 Recent Changes (February 1, 2026)
+
+### 1. Vector Search Behaviour and Source Counts
+- The Vector / Web Search toggle now forces Groq Compound to run whenever it is ON (except for a few hard-coded self-description answers about Zevy itself).
+- When using Astra with Vector ON, Groq Compound focuses on roughly 10 of the most relevant web sources for the user’s topic and blends those with Wikipedia and other open-data checks.
+- When using Vyra with Vector ON, Groq Compound can look at up to ~100 web sources for the same topic and passes this richer research context into both sides of the internal debate before the final synthesis.
+- Engineer-name and award-style questions use strict Wikipedia-first verification and will refuse to guess names when the evidence is unclear.
+
+### 2. Answer Style and Length Tuning
+- Core system prompts for Astra, Vyra, and the Groq Compound synthesis engine have been tuned so answers default to a “medium” depth: typically two to four short paragraphs, or a short paragraph followed by a few focused bullet points.
+- Short one-line answers are now discouraged for normal questions, while extremely long essay-style responses are reserved for explicit “deep dive” or debate-style prompts.
+- The Vector-search contextual prompts explicitly tell the model to start with a direct answer, then give a compact explanation with concrete details instead of staying vague or over-explaining.
+
+### 3. Document Upload Reliability
+- The frontend now waits until attached documents (PDF, DOCX, TXT, CSV, RTF, Markdown) are fully processed into text before allowing the user to send the message, preventing “prompt sent but document ignored” scenarios.
+- After a message is sent with attached documents, the UI clears those attachments from the input area so it is visually obvious that the document has already been included in the conversation context.
+- Error handling and notifications were tightened so failed file reads surface as user-facing toasts instead of silent failures.
+
+### 4. Research Truthfulness for Awards and Names
+- The Groq Compound analysis prompt was updated with stronger constraints for “who is / which person” style queries involving awards, titles, and roles in specific years or places.
+- The system now requires an exact, clearly matching name in the research evidence before returning a person’s name; if sources conflict or the answer is ambiguous, it explains the uncertainty instead of inventing a winner.
+- Wikipedia remains the primary verifier for names and dates, with news articles only allowed to override it when they clearly describe a newer, well-sourced change.
+
+---
+
 ## 🔄 Recent Changes (December 12, 2025)
 
 ### Major System Enhancements
@@ -272,7 +297,7 @@ for (const apiKey of apiKeys) {
 
 **Zevy AI** is a revolutionary multi-model artificial intelligence system created by **Adam Zein Ziqry** (15-year-old founder and developer). This system combines the power of multiple cutting-edge language models with comprehensive knowledge integration, advanced safety features, and intelligent usage management. Zevy AI is the flagship AI product developed under **Zevy Cloud** (the company).
 
-**Last Updated**: December 26, 2025
+**Last Updated**: February 1, 2026
 
 ### 🌟 Key Innovations:
 - **Multi-Model Intelligence**: Seamlessly integrates Kimi K2, Qwen 32B, and Llama-4 Scout/Maverick models on Groq

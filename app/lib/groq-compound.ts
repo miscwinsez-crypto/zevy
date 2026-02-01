@@ -57,6 +57,70 @@ export class GroqCompound {
     }
   }
 
+  async webSearchWithLimit(
+    query: string,
+    maxResults: number
+  ): Promise<WebSearchResult[]> {
+    const effectiveMax = Math.max(1, Math.min(100, maxResults));
+
+    if (!googleApiKey1 || !googleSearchEngineId) {
+      const fallback = await this.fallbackWebSearch(query);
+      return fallback.slice(0, effectiveMax);
+    }
+
+    const results: WebSearchResult[] = [];
+    let start = 1;
+
+    while (results.length < effectiveMax) {
+      const remaining = effectiveMax - results.length;
+      const num = Math.min(10, remaining);
+
+      try {
+        const response = await axios.get(
+          'https://www.googleapis.com/customsearch/v1',
+          {
+            params: {
+              key: googleApiKey1,
+              cx: googleSearchEngineId,
+              q: query,
+              num,
+              start,
+            },
+          }
+        );
+
+        const items =
+          response.data.items?.map((item: any) => ({
+            title: item.title,
+            snippet: item.snippet,
+            link: item.link,
+          })) || [];
+
+        if (items.length === 0) {
+          break;
+        }
+
+        results.push(...items);
+
+        if (items.length < num) {
+          break;
+        }
+
+        start += num;
+      } catch (error) {
+        console.error('Web search error:', error);
+        break;
+      }
+    }
+
+    if (results.length === 0) {
+      const fallback = await this.fallbackWebSearch(query);
+      return fallback.slice(0, effectiveMax);
+    }
+
+    return results.slice(0, effectiveMax);
+  }
+
   private async fallbackWebSearch(query: string): Promise<WebSearchResult[]> {
     const wikipediaResults = await this.searchWikipedia(query);
     return wikipediaResults.map((item) => ({
@@ -343,6 +407,13 @@ export class GroqCompound {
         userPrompt
       );
 
+    const target = targetModel.toLowerCase();
+    const isVyraTarget =
+      target.includes('vyra') ||
+      target.includes('moonshot') ||
+      target.includes('kimi-k2');
+    const maxWebSources = isVyraTarget ? 100 : 10;
+
     const shouldSearch =
       !isSelfOrZevyQuery &&
       userPrompt.length > 10 &&
@@ -362,7 +433,7 @@ export class GroqCompound {
       const searchQuery = await this.generateSearchQuery(userPrompt);
 
       const [webResults, wikipediaResults, newsResults, wikidataResults, dbpediaResults] = await Promise.all([
-        this.webSearch(searchQuery),
+        this.webSearchWithLimit(searchQuery, maxWebSources),
         this.searchWikipedia(searchQuery),
         this.searchNews(searchQuery),
         this.searchWikidata(searchQuery),
@@ -391,23 +462,48 @@ export class GroqCompound {
       }
 
       if (webResults.length > 0) {
-        const baseWebLimit = isLyricsQuery ? 8 : wantsManySources ? 20 : 5;
-        const effectiveDepth = requestedDepth > 0 ? requestedDepth : baseWebLimit;
-        const webLimit = Math.min(
-          webResults.length,
-          isEngineerNameQuery ? Math.max(effectiveDepth, wantsManySources ? 20 : 10) : effectiveDepth,
-          wantsManySources ? 100 : 50
-        );
+        if (isVyraTarget) {
+          const webLimit = Math.min(webResults.length, maxWebSources);
 
-        for (const result of webResults.slice(0, webLimit)) {
-          if (result.link !== '#') {
-            const pageContent = await this.visitWebsite(result.link);
-            allInformation.push({
-              type: 'web',
-              title: result.title,
-              content: pageContent.content,
-              url: result.link,
-            });
+          for (const result of webResults.slice(0, webLimit)) {
+            if (result.link !== '#') {
+              const pageContent = await this.visitWebsite(result.link);
+              allInformation.push({
+                type: 'web',
+                title: result.title,
+                content: pageContent.content,
+                url: result.link,
+              });
+            }
+          }
+        } else {
+          const baseWebLimit = isLyricsQuery ? 8 : wantsManySources ? 20 : 5;
+          const effectiveDepth =
+            requestedDepth > 0
+              ? Math.min(requestedDepth, maxWebSources)
+              : Math.min(baseWebLimit, maxWebSources);
+          const engineerDepth = isEngineerNameQuery
+            ? Math.max(
+                effectiveDepth,
+                wantsManySources ? Math.min(20, maxWebSources) : Math.min(10, maxWebSources)
+              )
+            : effectiveDepth;
+          const webLimit = Math.min(
+            webResults.length,
+            engineerDepth,
+            wantsManySources ? maxWebSources : Math.min(50, maxWebSources)
+          );
+
+          for (const result of webResults.slice(0, webLimit)) {
+            if (result.link !== '#') {
+              const pageContent = await this.visitWebsite(result.link);
+              allInformation.push({
+                type: 'web',
+                title: result.title,
+                content: pageContent.content,
+                url: result.link,
+              });
+            }
           }
         }
       }
@@ -564,7 +660,7 @@ ${wikipediaSection}
 
 ${otherSourcesSection}
 
-Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner and do not copy large chunks of text verbatim. Do not include raw URLs, "Source:" labels, or these metadata lines in your answer. If you mention a source, refer to it briefly in natural language (for example, "a Malaysian news article" or "the project operator's website") instead of listing links. If none of the evidence gives you a clear, specific answer, you must explicitly say that and avoid making anything up.${extraGuidance}`;
+Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner with a medium level of detail: usually two to four short paragraphs or a short opening paragraph followed by a few focused bullet points. Do not copy large chunks of text verbatim. Do not include raw URLs, "Source:" labels, or these metadata lines in your answer. If you mention a source, refer to it briefly in natural language (for example, "a Malaysian news article" or "the project operator's website") instead of listing links. If none of the evidence gives you a clear, specific answer, you must explicitly say that and avoid making anything up.${extraGuidance}`;
 
     return context;
   }

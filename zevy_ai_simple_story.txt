@@ -20,8 +20,8 @@ Depending on what you need, different AI systems spring into action:
 ### Vyra AI: The Debate Expert
 **When to use**: Complex questions that need deep analysis
 **How it works**: 
-- Searches Wikipedia, web, and news for latest info
-- Two AI experts discuss your question from different angles
+- Searches Wikipedia, web, and news for latest info (and, when search is ON, can look at up to around 100 different websites about your topic).
+- Two AI experts discuss your question from different angles using the same research.
 - Combines their insights into one comprehensive answer
 **Daily limit**: 25 questions
 
@@ -30,8 +30,8 @@ Depending on what you need, different AI systems spring into action:
 ### Astra AI: The Research Genius  
 **When to use**: Learning something new or researching topics
 **How it works**:
-- Automatically searches multiple knowledge sources
-- Provides detailed, research-backed responses
+- Automatically searches multiple knowledge sources (and, when search is ON, focuses on about 10 of the most useful websites plus Wikipedia and other open-data checks).
+- Provides detailed, research-backed responses with a medium amount of detail so answers are not too short and not overwhelming.
 - Perfect for homework, learning, or curiosity
 **Daily limit**: 125 questions
 
