@@ -1293,8 +1293,22 @@ useEffect(() => {
       }
     }
 
+    let effectiveBaseText = baseText
+
+    if (hasText) {
+      const trimmedLower = baseText.trimStart().toLowerCase()
+
+      if (trimmedLower.startsWith('flashcards:')) {
+        const topic = baseText.split(':').slice(1).join(':').trim() || 'this topic'
+        effectiveBaseText = `You are an interactive tutor. Create a flashcard session to help me learn about "${topic}". Follow these rules:\n\n1. Start by confirming the topic in one short sentence.\n2. Then run a flashcard drill with around 8–12 cards.\n3. Ask ONE question at a time and wait for my answer before revealing the correct answer.\n4. When I answer, say whether I am correct, show the right answer, and give a short 1–2 sentence explanation.\n5. Keep track of how many I get right and, at the end, summarize my score and what I should review.\n6. For each question, label it clearly as "Card 1", "Card 2", etc.\n7. Do not show future questions or answers until I have answered the current card.`
+      } else if (trimmedLower.startsWith('quiz:')) {
+        const topic = baseText.split(':').slice(1).join(':').trim() || 'this topic'
+        effectiveBaseText = `You are an interactive tutor. Create a multiple-choice quiz to test me on "${topic}". Follow these rules:\n\n1. Ask between 5 and 10 questions, one at a time.\n2. For each question, provide exactly four options labeled A), B), C), and D).\n3. After each question, tell me to answer with only the letter A, B, C, or D.\n4. Wait for my answer before revealing the correct option.\n5. When I answer, say if I am correct, show the correct option, and give a short 1–2 sentence explanation.\n6. Keep track of my score and show it at the end, with a brief analysis of my strengths and weaknesses.\n7. Format each question like:\n\nQuestion 1:\n[question]\nA) ...\nB) ...\nC) ...\nD) ...\n\nAnswer with A, B, C, or D.\n\n8. Do not show future questions or answers until I have answered the current question.`
+      }
+    }
+
     const textToSend = hasText
-      ? baseText
+      ? effectiveBaseText
       : 'Please analyze the attached document(s) and answer based on them.'
 
     // Content moderation is handled server-side in the API route
@@ -2958,10 +2972,10 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
             <div className="flex items-center justify-center h-full">
               <div className="w-full max-w-3xl lg:max-w-4xl mx-auto px-3 sm:px-0">
                 <div
-                  className="rounded-2xl sm:rounded-3xl px-4 sm:px-8 lg:px-10 py-6 sm:py-8 lg:py-10 shadow-[0_18px_60px_rgba(0,0,0,0.7)] border space-y-6 sm:space-y-8"
+                  className="rounded-2xl sm:rounded-3xl px-4 sm:px-8 lg:px-10 py-6 sm:py-8 lg:py-10 shadow-[0_22px_70px_rgba(0,0,0,0.75)] border space-y-6 sm:space-y-8"
                   style={{
-                    background: `radial-gradient(circle at top, ${palette.panel} 0, ${palette.background} 55%)`,
-                    borderColor: palette.border
+                    background: `radial-gradient(circle at top left, ${palette.secondary} 0, ${palette.panel} 40%, ${palette.background} 100%)`,
+                    borderColor: `${palette.border}cc`
                   }}
                 >
                   <div className="flex items-center justify-between gap-4">
@@ -3001,7 +3015,11 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                   <div className="space-y-2 sm:space-y-3 text-center sm:text-left">
                     <h2
                       className="text-xl sm:text-2xl lg:text-4xl font-semibold tracking-tight"
-                      style={{ color: palette.accent }}
+                      style={{
+                        backgroundImage: `linear-gradient(90deg, ${palette.accent}, ${palette.success})`,
+                        WebkitBackgroundClip: 'text',
+                        color: 'transparent'
+                      }}
                     >
                       How can I help?
                     </h2>
@@ -3009,8 +3027,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                       className="text-xs sm:text-sm lg:text-base max-w-xl mx-auto sm:mx-0"
                       style={{ color: palette.subdued }}
                     >
-                      Ask anything, or start with a preset. Vyra gives deep debate-style reasoning,
-                      Astra keeps things fast and focused. Vector search keeps answers as current as possible when you turn it on.
+                      Ask anything, start with a preset, or let Zevy quiz and drill you with flashcards.
+                      Vyra gives deep debate-style reasoning, Astra keeps things fast and focused, and Vector search keeps answers as current as possible when you turn it on.
                     </p>
                   </div>
 
@@ -3019,49 +3037,68 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                       { label: '✧ Vyra Deep Reasoning', value: 'vyra' },
                       { label: '✦ Astra Fast', value: 'astra' },
                       { label: '◎ Vector Web Search', value: 'search' }
-                    ].map(item => (
-                      <button
-                        key={item.label}
-                        onClick={() => {
-                          if (item.value === 'vyra' || item.value === 'astra') {
-                            setMode(item.value as 'vyra' | 'astra')
-                          }
-                          if (item.value === 'search') {
-                            setIsSearchMode(true)
-                          }
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full button-hover"
-                        style={{
-                          background:
-                            item.value === 'search' && isSearchMode ? '#22c55e' : palette.secondary,
-                          color:
-                            item.value === 'search' && isSearchMode ? '#ffffff' : palette.accent,
-                          border:
-                            item.value === 'search' && isSearchMode
+                    ].map(item => {
+                      const isVyra = item.value === 'vyra'
+                      const isAstra = item.value === 'astra'
+                      const isSearchChip = item.value === 'search'
+                      const isActiveModel =
+                        (isVyra && mode === 'vyra') || (isAstra && mode === 'astra')
+                      const isActiveSearch = isSearchChip && isSearchMode
+
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            if (isVyra || isAstra) {
+                              setMode(item.value as 'vyra' | 'astra')
+                            }
+                            if (isSearchChip) {
+                              setIsSearchMode(true)
+                            }
+                          }}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full button-hover"
+                          style={{
+                            background: isActiveSearch
+                              ? '#22c55e'
+                              : isActiveModel
+                                ? `${palette.secondary}`
+                                : palette.secondary,
+                            color: isActiveSearch || isActiveModel ? '#ffffff' : palette.accent,
+                            border: isActiveSearch
                               ? '1px solid #16a34a'
-                              : `1px solid ${palette.border}`
-                        }}
-                      >
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
+                              : isActiveModel
+                                ? `1px solid ${palette.accent}`
+                                : `1px solid ${palette.border}`,
+                            boxShadow:
+                              isActiveModel || isActiveSearch
+                                ? '0 0 0 1px rgba(0,0,0,0.35), 0 0 32px rgba(0,0,0,0.65)'
+                                : 'none',
+                            opacity: isActiveModel || isActiveSearch ? 1 : 0.85
+                          }}
+                        >
+                          <span>{item.label}</span>
+                        </button>
+                      )
+                    })}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 pt-2">
                     {[
                       { icon: '⌕', title: 'Research', desc: 'Find latest info' },
                       { icon: '✦', title: 'Brainstorm', desc: 'Generate ideas' },
                       { icon: '✺', title: 'Explain', desc: 'Simplify topics' },
-                      { icon: '▤', title: 'Scan Document', desc: 'Check document' }
+                      { icon: '▤', title: 'Scan Document', desc: 'Check document' },
+                      { icon: '❖', title: 'Flashcards', desc: 'Drill a topic' },
+                      { icon: '❓', title: 'Quiz', desc: 'Test with A/B/C/D' }
                     ].map((item) => (
                       <button
                         key={item.title}
                         onClick={() => setInput(`${item.title}: `)}
                         className="p-3 sm:p-4 rounded-xl text-left transition-all button-hover border"
                         style={{
-                          background: palette.panel,
-                          borderColor: palette.border,
-                          boxShadow: '0 14px 40px rgba(0,0,0,0.4)'
+                          background: `linear-gradient(135deg, ${palette.panel}, ${palette.background})`,
+                          borderColor: `${palette.border}cc`,
+                          boxShadow: '0 18px 55px rgba(0,0,0,0.65)'
                         }}
                       >
                         <p className="text-2xl mb-2">{item.icon}</p>
@@ -3391,7 +3428,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                     }
                   }}
                   onKeyPress={handleKeyPress}
-                  placeholder="Message Zevy or attach documents for analysis..."
+                  placeholder="Ask Zevy anything, or drop in a document to explore together..."
                   className="flex-1 p-3 rounded-xl resize-none focus:outline-none text-sm transition-all"
                   style={{
                     background: palette.panel,
