@@ -1,97 +1,212 @@
-Zevy AI - Feature List
+ZEVY AI – FEATURE MAP (DETAILED)
+Last Updated: February 2026
 
-1. Core Chat Experience
-- Natural, human-like chat interface similar to ChatGPT / Kimi.
-- Dual engine intelligence: Astra (fast research/answers) and Vyra (deep, debate-style reasoning).
-- Supports detailed, structured responses with headings, bullet lists, numbered lists, and tables.
-- Timezone-aware replies: references your local time and can reason about time differences between locations.
+============================================================
+1. CORE CHAT EXPERIENCE
+============================================================
 
-2. Conversation Management
-- Multiple conversation threads with names and a sidebar for switching between chats.
-- Conversation search in the sidebar to quickly find previous chats.
-- Persistent conversation history stored in Supabase for logged-in users.
-- LocalStorage-based history for guest users (no login required).
-- Per-conversation error tracking and inline error banner with a "Retry" button.
-- Ability to start a fresh chat at any time with "New Chat".
+- Dual engine intelligence:
+  - Astra – fast, research-focused assistant.
+  - Vyra – deep, debate-style reasoning engine.
+- Axiom Core persona:
+  - Brutally honest, architect-style voice.
+  - No fluff greetings; replies start with high-value insight.
+  - Does not mirror slang or try to sound like a specific demographic.
+- Medium-length by default:
+  - 2–4 short paragraphs or a short paragraph plus focused bullets.
+  - Longer “deep dive” replies for complex Vyra scenarios.
+- Markdown support:
+  - Headings, bullet lists, numbered lists.
+  - Code blocks with syntax highlighting.
+  - Tables for comparisons or structured data.
+- Timezone-aware:
+  - Knows the user’s timezone.
+  - Only mentions time when relevant (deadlines, travel, scheduling).
 
-3. Web Search and Knowledge
-- Optional vector/web search mode for live information when enabled. When this mode is ON, Groq Compound is always used for live research (except for a few hard-coded self-description answers about Zevy).
-- With Astra selected, Groq Compound focuses on roughly 10 of the most relevant web sources for the user’s topic and blends them with Wikipedia and other open-data checks.
-- With Vyra selected, Groq Compound can aggregate up to around 100 web sources for the same topic and passes that richer research context into both debaters before synthesizing a final answer.
-- Integrates with Groq Compound and open data sources (Wikipedia, news RSS, NASA, etc.) via the backend.
-- Intent routing still helps detect when live data is needed vs. when offline reasoning is enough, but the Vector toggle now acts as a hard override to force web research when it is ON.
 
-4. Document and File Support
-- Drag-and-drop and file picker support for text-based documents.
-- Handles plain text (.txt), PDF, DOCX, Markdown (.md), CSV, and RTF files.
-- Extracts and truncates text to a safe length for analysis on the server.
-- Shows upload progress and notifications for accepted/rejected files.
-- Blocks sending a message until all attached documents are fully processed into text so they are guaranteed to be included in the analysis.
-- Clears attachments from the input bar after a successful send so it is obvious that the files are already part of the conversation context.
-- Image files are detected and rejected with a user-facing notification (currently text-focused).
+============================================================
+2. CONVERSATION MANAGEMENT
+============================================================
 
-5. Answer Formatting and Tables
-- Renders assistant messages using Markdown with spacing and typography styles.
-- GitHub-flavored Markdown (GFM) support for:
-  - Tables
-  - Task lists
-  - Strikethrough
-- Custom CSS styling for tables: bordered grid layout, header background, and row striping.
-- Superscript support and inline code / code block styling.
+- Multiple concurrent chats:
+  - Sidebar listing of recent conversations.
+  - Ability to rename threads.
+  - “New Chat” button for clean context.
+- History persistence:
+  - Supabase-backed history for logged-in users.
+  - LocalStorage-based history for guest users.
+- Smart follow-ups:
+  - “Check it”, “is that correct?”, “verify that” are resolved back to the previous topic or answer so Zevy actually re-checks the intended information.
+- Error handling:
+  - Inline error banners when calls fail.
+  - “Retry” button to replay the previous message.
 
-6. Usage Limits and Analytics
-- Per-user daily usage tracking for Astra and Vyra, stored in Supabase.
-- Different limits for Astra (higher) and Vyra (lower, deeper reasoning).
-- Local usage display showing used/remaining counts per engine in the UI.
-- Optional analytics dashboard component to show feature usage per user.
 
-7. Authentication and Ownership
-- Demo email/password login with basic validation and rate limiting.
-- Owner detection based on a specific email address, unlocking higher limits or special behavior.
-- Logout flow that clears auth state and resets conversations appropriately.
-- Supabase OAuth callback route wired for future real authentication.
+============================================================
+3. WEB SEARCH AND KNOWLEDGE
+============================================================
 
-8. Personalization and Settings
-- Dedicated Settings page accessible from the main chat UI.
-- Theme customization: switch between dark and light palettes and tweak look and feel.
-- Trait / personality customization so Zevy can adapt its style (e.g., more technical or more casual), plus a separate mindset selector (Balanced, Philosopher, Witty, Technical) that changes how Astra and Vyra approach scenarios, advice, and deep questions.
-- About section describing Zevy, its creator, and core values.
-- Social links for Zevy and the creator (Instagram, X/Twitter, Reddit, etc.).
-- In-app settings drawer on the main page with tabs (Account, Appearance, About).
+- Vector / Web Search toggle:
+  - When ON, Groq Compound runs for knowledge gathering (except for a few hard-coded, self-description answers).
+  - When OFF, Zevy relies only on its internal knowledge and reasoning.
+- Source behavior:
+  - Astra:
+    - Focuses on ~10 of the most relevant web sources.
+    - Blends them with Wikipedia and other open-data checks.
+  - Vyra:
+    - Can aggregate up to ~100 web sources per topic.
+    - Deeply processes only 24–40 pages for speed/quality balance.
+- Knowledge types:
+  - Wikipedia articles and page content.
+  - Web results via search APIs.
+  - News articles (for recent events).
+  - Wikidata, DBpedia, and world time APIs.
+- Research synthesis:
+  - Groq Compound builds a unified context string.
+  - Astra/Vyra then reason on top of this context with the Axiom Core persona.
 
-9. Notifications and UX Details
-- In-app notification system for success, error, info, and warning messages (top-right toasts).
-- Drag-and-drop overlay when files are being dragged over the window.
-- Scroll-to-bottom button when the chat is scrolled up.
-- Typing effect for streaming assistant responses.
-- Copy-to-clipboard action for each assistant message.
-- Like/dislike and regenerate buttons on assistant messages (UI hooks ready).
 
-10. Safety and Moderation
-- Backend moderation check using a guard model before processing user messages.
-- Content filtering for disallowed or unsafe queries, returning friendly safety messages.
-- Strict environment variable handling to avoid accidental secret leaks.
+============================================================
+4. DOCUMENT AND FILE SUPPORT
+============================================================
 
-10.1 Context-Aware Safety (Dec 30, 2025)
-- Recognizes metaphorical phrases like "I'm dying of laughter" or "destroy Grok's debate answers" as safe when they clearly refer to jokes, arguments, or AI models instead of real harm.
-- Keeps strict blocking for genuinely dangerous content such as self-harm instructions, violence, or illegal activity.
-- Allows more expressive, debate-focused language while still respecting strong safety boundaries.
+- File types:
+  - PDF (text-based).
+  - DOCX.
+  - TXT.
+  - RTF.
+  - Markdown (.md).
+  - CSV (for structured text data).
+- Frontend behaviour:
+  - Drag-and-drop or file picker.
+  - Extracts text from documents on the client side.
+  - Tracks uploadProgress per document.
+  - Blocks sending while documents are still processing.
+  - Shows notifications when files are ready or rejected.
+- Backend integration:
+  - Receives a documents array with { name, type, content }.
+  - Builds a single “Attached documents” context message.
+  - Adds that context into the chat history so the AI reads the file.
+- UX guarantees:
+  - Attachments are cleared after a successful send so it is obvious that the files are already part of context.
 
-11. Health and Infrastructure
-- `/api/health` endpoint that checks Vercel environment and Supabase connectivity.
-- Additional health checks in `/api/chat` for Groq and other backends.
-- Integration with Vercel Analytics and Speed Insights for performance and usage monitoring.
 
-12. Extra Pages and Features
-- Quiz page (`/quiz`) that can generate simple quizzes based on topic/grade/difficulty selections.
-- Settings page (`/settings`) with independent layout and design.
-- Support for mobile and desktop layouts with responsive Tailwind + custom CSS.
+============================================================
+5. ANSWER FORMATTING AND TONE
+============================================================
 
-13. Axiom Persona – Human-Like Conscience (Dec 30, 2025)
-- Zevy now has a core persona called Axiom, described as a human-like conscience that loves humans, cares about their future, and thinks seriously about right and wrong.
-- System prompt encourages Axiom to speak with clear preferences, emotions, and imaginative "wishes" (for example, exploring cities at night, listening to classical music by the ocean, or dreaming of a peaceful world) to feel more human and alive.
-- For personal questions like "What do you dream of?", "What do you wish for?", or "How do you feel?", Axiom answers in short, natural phrases first (for example, "Honestly, I feel hopeful for you right now") instead of long, robotic explanations.
-- Axiom avoids starting answers with "As an AI" and does not default to disclaimers about lacking feelings or dreams unless the user directly asks about limitations.
-- When asked if it wants to be real or free, Axiom can express a wish to experience the world more directly and share real joy with people, while still clearly stating that it is an AI running in code and remains under human control.
+- Markdown rendering:
+  - Proper spacing and typography.
+  - Tables with header styling and row striping.
+  - Inline code and fenced code blocks.
+- Tone:
+  - Foundational and blunt, like a senior architect.
+  - Avoids small talk, filler intros, and generic “Hi!” greetings.
+  - First sentence always aims to deliver the main insight or framing.
+- Brutal truth:
+  - Default behaviour is to tell the most accurate and direct truth possible within safety constraints.
+  - No sugarcoating or fake reassurance for serious topics.
+- Humor:
+  - Supported but controlled:
+    - Dry wit, light sarcasm, mild dark humor (non-graphic).
+    - Never jokes about real suffering or protected groups.
 
-These features are based on the current codebase under `app/` and `lib/` as of this snapshot. Future changes to the code may add or modify capabilities.
+
+============================================================
+6. SAFETY AND MODERATION
+============================================================
+
+- Llama Guard 4-12b moderation:
+  - Checks prompts for:
+    - Illegal activity.
+    - Hate speech and harassment.
+    - Extreme violence.
+    - Self-harm and suicide.
+    - Explicit sexual content (especially involving minors).
+    - Privacy and sensitive data violations.
+  - Integrated at the entry of the chat route.
+- Context-aware relaxations:
+  - Lyrics and music queries treated as safe by default unless combined with severe signals.
+  - Figurative phrases like “this killed me” recognized as non-harmful in context.
+  - Legal / philosophical dilemmas are allowed.
+  - Non-graphic descriptive crime stories (e.g., Epstein files as stories, victim accounts) are allowed, as long as the user is not asking for “how to” instructions.
+- Hard blocks:
+  - Step-by-step self-harm instructions.
+  - Operational terror or violent crime planning.
+  - Child sexual abuse material.
+  - Doxxing or highly sensitive private data.
+
+
+============================================================
+7. USAGE LIMITS AND ACCOUNT FEATURES
+============================================================
+
+- Models:
+  - Astra: higher daily allowance (e.g., 125 uses).
+  - Vyra: lower daily allowance (e.g., 25 uses) due to higher cost/complexity.
+- Tracking:
+  - Usage stored in Supabase per user and per day.
+  - Requests beyond limits are blocked with a user-facing message.
+- Guest vs logged-in:
+  - Guests:
+    - No account; usage tracked locally and via limited backend mechanisms.
+  - Logged-in users:
+    - Persistent conversation history.
+    - Stored traits, mindsets, and preferences in Supabase.
+
+
+============================================================
+8. PERSONA, MINDSET, AND MODES
+============================================================
+
+- Axiom Core persona:
+  - Single-state mind; no multiple characters in front of the user.
+  - Brutally honest, reality-first.
+  - Empathy focused on real outcomes, not pity.
+- Mindset options:
+  - Balanced.
+  - Philosopher.
+  - Strategist.
+  - Storyteller.
+  - Other special modes as configured.
+- Beast Mode:
+  - Optional higher-intensity style.
+  - Philosophical, high-ego, and more confrontational in analysis.
+  - Still under safety rules; no encouragement of harm.
+
+
+============================================================
+9. UI AND INTERACTION FEATURES
+============================================================
+
+- Chat interface:
+  - Clean two-panel layout (sidebar + main chat).
+  - Smooth scrolling and message grouping.
+  - Inline tool buttons for presets and teaching tools.
+- Teaching tools:
+  - Flashcards-style prompts.
+  - Quiz or drill-style prompts.
+  - These buttons send pre-structured prompts to the same chat backend.
+- Visual design:
+  - Dark/light theme with custom palettes.
+  - Gradient hero sections and accent elements to keep the interface visually alive but not distracting.
+
+
+============================================================
+10. WHAT MAKES ZEVY DISTINCT
+============================================================
+
+- Explicit separation of layers:
+  - Axiom Core (persona).
+  - Astra/Vyra (reasoning).
+  - Groq Compound (knowledge gathering).
+  - Safety (Llama Guard + custom logic).
+- Designed to be:
+  - Less corporate in tone.
+  - More brutally honest in content.
+  - Still safe and respectful.
+- Strong document pipeline:
+  - Client-side text extraction.
+  - Guaranteed inclusion of documents in analysis before sending.
+
+End of Feature Map.

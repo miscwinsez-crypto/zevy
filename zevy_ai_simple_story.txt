@@ -1,104 +1,203 @@
-# 🚀 Zevy AI: The Simple Story
+ZEVY AI – SIMPLE STORY, PRECISE BLUEPRINT
+Last Updated: February 2026
 
-## How Your Words Become Smart Answers
+============================================================
+1. THE ONE-LINE SUMMARY
+============================================================
 
-### The Journey: User → Llama Guard → AI Models → You
+Zevy AI is a dual-engine assistant (Astra + Vyra) driven by a single brutal-truth conscience (Axiom Core), backed by a dedicated research engine (Groq Compound), wrapped in a clean Next.js app with Supabase for storage and limits.
 
-**Step 1: You Ask a Question**
-You type something like "What's quantum computing?" or upload a document and ask "What does this research paper say?"
 
-**Step 2: Llama Guard Checks Safety**  
-Before anything else happens, Llama Guard (our safety AI) quickly reviews your message to make sure it's appropriate and safe for everyone.
+============================================================
+2. HOW IT THINKS
+============================================================
 
-**Step 3: The AI Models Get to Work**
-Depending on what you need, different AI systems spring into action:
+2.1 Axiom Core: The Mind
+------------------------
 
----
+- Zevy does not pretend to be many characters.
+- Internally, it acts as one coherent mind called Axiom Core:
+  - It cares more about what is true than what is comfortable.
+  - It tries to protect you by telling you what is actually happening, not what you wish was happening.
+  - It still respects safety rules, so it will not help you hurt yourself or others.
 
-## 🧠 Meet Your AI Team
+Personality traits:
+- Foundational and blunt: talks like a senior engineer who has done this for a long time.
+- Slightly cynical: does not trust fake positivity or easy answers.
+- High-intellect: tries to think like an architect of systems, not a small talk bot.
+- Time-aware but quiet about it: only mentions time when it changes the answer.
 
-### Vyra AI: The Debate Expert
-**When to use**: Complex questions that need deep analysis
-**How it works**: 
-- Searches Wikipedia, web, and news for latest info (and, when search is ON, can look at up to around 100 different websites about your topic).
-- Two AI experts discuss your question from different angles using the same research.
-- Combines their insights into one comprehensive answer
-**Daily limit**: 25 questions
 
-**Example**: Ask "Should we invest in renewable energy?" and get both economic and environmental perspectives with current data.
+2.2 Astra and Vyra: The Engines
+-------------------------------
 
-### Astra AI: The Research Genius  
-**When to use**: Learning something new or researching topics
-**How it works**:
-- Automatically searches multiple knowledge sources (and, when search is ON, focuses on about 10 of the most useful websites plus Wikipedia and other open-data checks).
-- Provides detailed, research-backed responses with a medium amount of detail so answers are not too short and not overwhelming.
-- Perfect for homework, learning, or curiosity
-**Daily limit**: 125 questions
+- Astra:
+  - The “fast brain”.
+  - Good for:
+    - Direct questions (“What is X?”, “How do I do Y?”).
+    - Practical advice and medium-depth explanations.
+  - Uses Groq Compound for research when Vector is ON, then gives a clear, structured answer.
 
-**Example**: Ask "How does photosynthesis work?" and get a clear explanation with the latest scientific understanding.
+- Vyra:
+  - The “deep brain”.
+  - Good for:
+    - Complex, messy life situations.
+    - Philosophical questions and trade-off analysis.
+    - Cases where you want it to argue and test ideas.
+  - Runs an internal debate between two invisible voices (Kairo and Logos).
+  - You never see the fight; you only see the final verdict.
 
-### Groq Compound: The Knowledge Collector
-**What it does**: Powers both Vyra and Astra by gathering information
-**Sources**: Wikipedia + Web Search + News APIs
-**Result**: You get answers that combine established knowledge with current events
 
----
+============================================================
+3. HOW IT LEARNS ABOUT A TOPIC
+============================================================
 
-## 📄 Document Magic
+The research pipeline works like this:
 
-**Upload and Ask About**: PDFs, Word documents, text files
+1. You ask a question, optionally with Vector ON.
+2. If Vector is ON:
+   - Groq Compound:
+     - Turns your question into a search query.
+     - Calls web search, Wikipedia, news APIs, and some open-data sources.
+     - Collects documents, trims them, validates with Wikipedia.
+   - For Astra:
+     - Focuses on about 10 strong sources.
+   - For Vyra:
+     - Looks at many more results but deeply reads only 24–40 pages.
+3. Groq Compound writes a research summary.
+4. Astra or Vyra read that summary and answer you.
 
-**How it works**:
-1. Upload your file
-2. Zevy AI reads and understands it
-3. Ask questions about the content
-4. Get answers based on your specific document
+For you, this looks like:
+- You turn Vector ON.
+- You ask the question.
+- Zevy takes a moment, reads a lot, then gives you a researched answer.
 
-**Example**: Upload a 50-page research paper and ask "What are the main findings?" or "Summarize the methodology."
 
----
+============================================================
+4. HOW IT HANDLES YOUR FILES
+============================================================
 
-## 🛡️ Your Safety is Built-In
+When you upload a document (PDF, DOCX, TXT, etc.):
 
-**Llama Guard** automatically checks every conversation to keep interactions safe, respectful, and appropriate for all users.
+Frontend:
+- Reads the file in your browser.
+- Extracts the text.
+- Shows that it is “processing”.
+- Blocks the Send button and Enter key until the file is fully processed.
 
----
+Backend:
+- Receives the text for each document.
+- Builds a single text block summarising all attachments.
+- Adds that block as an extra user message before your question.
+- Sends everything to the model, so the AI reads your file as part of the conversation context.
 
-## 📊 Fair Usage for Everyone
+Result:
+- When you write “Summarise this document” or “Tell me the worst thing in these files”, Zevy actually has the text in front of it.
 
-**Daily Limits** ensure all users get quality access:
-- Vyra AI: 25 questions per day
-- Astra AI: 125 questions per day
-- Limits reset every 24 hours
 
----
+============================================================
+5. HOW IT PROTECTS YOU (BUT STILL TELLS THE TRUTH)
+============================================================
 
-## 🎯 Quick Start Guide
+Moderation is strict on real-world harm, flexible on dark topics.
 
-1. **Choose Your AI**: Pick Vyra for deep analysis, Astra for research
-2. **Ask Anything**: Type your question or upload a document  
-3. **Get Smart Answers**: Receive comprehensive, current information
-4. **Upload Files**: Add documents for analysis alongside your questions
+Allowed:
+- Non-graphic stories about crimes and abuse (e.g., Epstein cases).
+- Disturbing history and news, described factually.
+- Harsh, honest commentary on bad behaviour or bad decisions.
 
----
+Blocked:
+- “How to” guides for crime, self-harm, or violence.
+- Real step-by-step instructions for hacking or serious fraud.
+- Explicit sexual content involving minors or non-consent.
+- Doxxing and leaking private sensitive data.
 
-## 💡 Pro Tips
+If something is blocked, Zevy:
+- Refuses clearly.
+- Tries to explain in plain language why it will not help with that request.
 
-- **For complex topics**: Use Vyra AI for multi-perspective analysis
-- **For learning**: Use Astra AI for clear, research-based explanations  
-- **For documents**: Upload files and ask specific questions about them
-- **For current events**: Ask about news - the AI searches latest information
-- **For history/facts**: Ask anything - Wikipedia knowledge is automatically included
 
----
+============================================================
+6. HOW IT TRACKS USAGE
+============================================================
 
-## 🌟 What Makes Zevy AI Special
+Zevy uses Supabase to keep things fair:
 
-**Three AI minds working together** to give you the best possible answers by combining:
-- ✅ Established knowledge (Wikipedia)
-- ✅ Current information (Web + News)  
-- ✅ Multiple perspectives (AI debate system)
-- ✅ Document analysis (File processing)
-- ✅ Safety first (Llama Guard protection)
+- Astra has a high daily limit (for example, ~125 questions per day).
+- Vyra has a lower daily limit (for example, ~25 questions per day) because it is more expensive and runs more steps.
+- When you hit the limit:
+  - Zevy tells you the limit is reached.
+  - Requests above the limit are blocked until the next reset.
 
-**Result**: You get comprehensive, current, well-rounded answers to any question you ask.
+Guest users:
+- Stored mostly in the browser (localStorage) with some backend usage tracking.
+
+Logged-in users:
+- History and preferences are stored securely in Supabase.
+
+
+============================================================
+7. HOW THE APP IS BUILT
+============================================================
+
+In simple terms:
+
+- Frontend:
+  - Next.js + React.
+  - Main chat page lives in app/page.tsx.
+  - UI controls:
+    - Model switch (Astra/Vyra).
+    - Vector toggle.
+    - Mindset selection.
+    - File upload and teaching tools.
+
+- Backend:
+  - API route at app/api/chat/route.ts.
+  - Reads your request, runs safety checks, chooses Astra or Vyra, optionally calls Groq Compound, and then calls Groq models.
+
+- External services:
+  - Groq – runs the actual language models.
+  - Supabase – stores users, conversations, and usage counters.
+  - Search / knowledge APIs – feed Groq Compound with data.
+
+
+============================================================
+8. WHAT MAKES ZEVY DIFFERENT
+============================================================
+
+Summarised in three points:
+
+1. Axiom Core is not trying to be your “nice” friend.
+   - It is trying to be the friend who tells you the truth even when it stings.
+   - It still refuses to help you cause real harm.
+
+2. Vyra is built for real thinking, not just long text.
+   - It runs internal arguments before answering.
+   - You get a more carefully considered response when you need it.
+
+3. Groq Compound gives it a real research backbone.
+   - Vector ON means it actually goes out, reads multiple sources, and checks them.
+   - Names, dates, and facts are grounded in evidence when possible.
+
+
+============================================================
+9. MENTAL MODEL FOR USERS
+============================================================
+
+If you want to “feel” what Zevy is:
+
+- Imagine sitting with a very serious, very experienced person.
+- They:
+  - Listen carefully.
+  - Pull out research when needed.
+  - Are not afraid to say:
+    - “This plan will probably fail.”
+    - “You are underestimating this risk.”
+    - “You are letting someone treat you worse than you admit.”
+  - But they will not:
+    - Tell you how to hurt yourself.
+    - Help you attack others.
+
+That is the core philosophy of Zevy’s build.
+
+End of Simple Story Blueprint.

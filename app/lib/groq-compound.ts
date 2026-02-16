@@ -463,19 +463,32 @@ export class GroqCompound {
 
       if (webResults.length > 0) {
         if (isVyraTarget) {
-          const webLimit = Math.min(webResults.length, maxWebSources);
+          const vyraBaseLimit = wantsManySources || requestedDepth >= 50 ? 40 : 24;
+          const vyraLimit = Math.min(webResults.length, maxWebSources, vyraBaseLimit);
+          const vyraLinks = webResults.slice(0, vyraLimit).filter(result => result.link !== '#');
 
-          for (const result of webResults.slice(0, webLimit)) {
-            if (result.link !== '#') {
-              const pageContent = await this.visitWebsite(result.link);
-              allInformation.push({
-                type: 'web',
-                title: result.title,
-                content: pageContent.content,
-                url: result.link,
-              });
+          const concurrency = 6;
+          let index = 0;
+
+          const workers = Array.from({ length: Math.min(concurrency, vyraLinks.length) }, async () => {
+            while (index < vyraLinks.length) {
+              const currentIndex = index;
+              index += 1;
+              const result = vyraLinks[currentIndex];
+              try {
+                const pageContent = await this.visitWebsite(result.link);
+                allInformation.push({
+                  type: 'web',
+                  title: result.title,
+                  content: pageContent.content,
+                  url: result.link,
+                });
+              } catch {
+              }
             }
-          }
+          });
+
+          await Promise.all(workers);
         } else {
           const baseWebLimit = isLyricsQuery ? 8 : wantsManySources ? 20 : 5;
           const effectiveDepth =

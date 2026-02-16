@@ -1,1017 +1,315 @@
-# 🚀 ZEVY AI: Complete Technical Documentation
-
-## Last Updated: February 1, 2026
-
-### Recent Changes (February 1, 2026):
-1. **Vector Search + Source Count Differentiation**
-   - Vector / web search mode now forces Groq Compound to run whenever search is ON, instead of relying only on intent-based detection.
-   - **Astra + Vector ON**: Groq Compound pulls up to ~10 relevant web results for the topic and merges them with Wikipedia and open-data double checkers.
-   - **Vyra + Vector ON**: Groq Compound can aggregate up to ~100 web results for the same topic before feeding a shared research context into both sides of the internal debate.
-   - Engineer-name and award queries use a stricter “no guessing” policy: Wikipedia is the primary verifier for names and dates, and the system refuses to invent winners when evidence is missing or conflicting.
-
-2. **Answer-Length and Style Calibration**
-   - System prompts for Astra, Vyra, and the Groq Compound analysis layer have been updated so default answers are mid-length by design (two to four short paragraphs, or a short paragraph plus targeted bullets).
-   - Vector-search specific prompts instruct the models to give a clear direct answer first, followed by a compact explanation with real details, reducing dry one-liners and oversized essays.
-
-3. **Document Pipeline Hardening**
-   - The frontend file pipeline now blocks sending a message until all attached documents are fully read and converted into text, fixing cases where a user’s “read this document” prompt could be sent without the document context.
-   - After a successful send, attached documents are cleared from the input area, making it obvious that they are already part of the chat history.
-   - Notification and error paths were tightened so failed reads surface as user-visible errors instead of silent drops.
-
-4. **Research Prompt Safety Enhancements**
-   - Groq Compound’s synthesis prompt explicitly disallows inventing specific names, dates, titles, or award winners when the evidence does not clearly support them.
-   - Wikipedia remains the primary double checker for names and dates; newer reputable news can override it only when it clearly documents a change, otherwise the system must communicate uncertainty.
-
-### Recent Changes (December 12, 2025):
-**MAJOR SYSTEM OVERHAUL - Complete Knowledge Integration Enhancement**
-
-#### 🔍 **Expanded Free Knowledge Sources (15+ APIs)**
-- **Open Library**: Millions of books and literary works
-- **NASA API**: Space and astronomy data integration
-- **OpenStreetMap**: Geographic and location services
-- **RSS Feeds**: NY Times and news source integration
-- **Open Food Facts**: Nutrition and ingredient database
-- **CIA World Factbook**: Country and geographic information
-- **Rest Countries API**: Country facts (capital, region, population, currencies) with no API key required
-- **DictionaryAPI (dictionaryapi.dev)**: Free English dictionary definitions for meaning/definition style queries
-- **Wikipedia/Wikidata/DBpedia**: Enhanced encyclopedic access
-- **Comprehensive RAG System**: All sources integrated into both Astra and Vyra models as open-data double-checkers
-
-#### 🔑 **Enhanced API Key Management (10-Key System)**
-- **10 Groq API Keys**: Intelligent rotation and load balancing
-- **Graceful Degradation**: System continues with failed keys
-- **Vercel Environment Integration**: All keys from secure environment variables
-- **Silent Error Handling**: No user-facing API failures
-
-#### 🛡️ **Advanced Harm Detection (Llama Guard 4-12b)**
-- **Universal Content Moderation**: Every prompt safety-checked
-- **Context-Aware Analysis**: Model-specific harm detection
-- **Comprehensive Categories**: Illegal activities, hate speech, harassment, violence
-- **Fail-Safe Design**: Defaults to safe mode on errors
-- **Real-Time Processing**: <500ms safety classification
-
-#### 🤖 **Enhanced Model Integration**
-- **Astra AI**: Full knowledge access with 125 daily uses
-- **Vyra AI**: Both Kimi K2 and Qwen 32B enhanced with research
-- **Intelligent Query Detection**: 30+ patterns for knowledge requests
-- **Parallel Processing**: Multiple sources queried simultaneously
-- **Wikipedia-First Verification**: Research context keeps Wikipedia as the primary verifier for names, dates, locations, and definitions, with news and web sources used as supporting evidence
-
-#### ⚡ **Performance & Reliability**
-- **99.9% Uptime**: Multiple redundancy layers
-- **Smart Caching**: 1-hour Google, 30-minute news caching
-- **Async Processing**: Non-blocking user experience
-- **Automatic Recovery**: Self-healing failure mechanisms
-- **Resilient Chat Behavior**: Chat API and UI are hardened so successful responses always create a visible assistant message and active chats automatically move to the top without losing state
-## The Ultimate Multi-Model AI System with Advanced Knowledge Integration
-
----
-
-## 📋 Table of Contents
-
-1. [Executive Summary](#executive-summary)
-2. [System Architecture Overview](#system-architecture-overview)
-3. [Multi-Model AI Engine](#multi-model-ai-engine)
-4. [Advanced Knowledge Integration](#advanced-knowledge-integration)
-5. [Safety & Content Moderation](#safety--content-moderation)
-6. [Usage Management & Limits](#usage-management--limits)
-7. [API Reference](#api-reference)
-8. [Environment Configuration](#environment-configuration)
-9. [Database Schema](#database-schema)
-10. [Code Structure & Implementation](#code-structure--implementation)
-11. [Advanced Features](#advanced-features)
-12. [Deployment & Production](#deployment--production)
-13. [Troubleshooting & Maintenance](#troubleshooting--maintenance)
-
----
-
-## 🎯 Executive Summary
-
-**Zevy AI** is a revolutionary multi-model artificial intelligence system created by **Adam Zein Ziqry** (founder and developer). This system combines the power of multiple cutting-edge language models with comprehensive knowledge integration, advanced safety features, and intelligent usage management. Zevy AI is the flagship AI product developed under **Zevy Cloud** (the company).
-
-**Last Updated**: December 26, 2025
-
-### 🌟 Key Innovations:
-- **Multi-Model Intelligence**: Seamlessly integrates Kimi K2, Qwen, Llama-3.3-70b, and Groq models
-- **Super Brain Knowledge System**: Wikipedia + Web Search + News APIs for comprehensive research
-- **Universal Safety Guard**: Llama Guard 4-12b protects all interactions
-- **Intelligent Usage Management**: Sophisticated tracking with daily limits and auto-reset
-- **Real-Time Knowledge Synthesis**: Combines multiple information sources for superior responses
-- **Axiom Persona Layer**: A shared conscience and emotion system that sits above the models (Astra, Vyra, Compound) and shapes how they talk, care, and respond, while not being a separate AI model itself
-
----
-
-## 🏗️ System Architecture Overview
-
-### Founder & Company Structure
-- **Founder**: Adam Zein Ziqry (Creator of Zevy AI)
-- **AI System**: Zevy AI (Multi-model artificial intelligence)
-- **Company**: Zevy Cloud (Future owner and corporate entity)
-
-### Core Components
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ZEVY AI SYSTEM ARCHITECTURE                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   VYRA AI   │  │   ASTRA AI  │  │   GROQ      │             │
-│  │  (Debate)   │  │ (Research)  │  │  COMPOUND   │             │
-│  │             │  │             │  │ (Knowledge) │             │
-│  │ • Kimi K2   │  │ • Llama-3.3 │  │             │             │
-│  │ • Qwen 32B  │  │ • 70b Vers. │  │ • Wikipedia │             │
-│  │ • 25 Uses   │  │ • 125 Uses  │  │ • Web Search│             │
-│  │ • Debate    │  │ • Research  │  │ • News APIs │             │
-│  │   System    │  │   Focus     │  │ • Synthesis │             │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
-│         │                 │                 │                     │
-│         └─────────────────┴─────────────────┘                     │
-│                           │                                       │
-│                    ┌──────▼──────┐                               │
-│                    │ LLAMA GUARD   │                               │
-│                    │ 4-12b Safety  │                               │
-│                    │   Check       │                               │
-│                    └──────┬──────┬──┘                               │
-│                           │    │                                  │
-│         ┌─────────────────┘    └─────────────────┐                │
-│         │                                          │                │
-│  ┌──────▼──────┐                          ┌──────▼──────┐        │
-│  │  SUPABASE   │                          │  USAGE TRACK  │        │
-│  │  Database   │                          │   SYSTEM      │        │
-│  │             │                          │               │        │
-│  │ • Sessions  │                          │ • Daily Limits│        │
-│  │ • Users     │                          │ • Auto Reset  │        │
-│  │ • Auth      │                          │ • Analytics   │        │
-│  │ • RLS       │                          │ • Limits      │        │
-│  └─────────────┘                          └───────────────┘        │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🤖 Multi-Model AI Engine
-
-### 1. **Vyra AI System** (Advanced Debate Engine)
-
-**Models Used:**
-- **Kimi K2 (moonshotai/kimi-k2-instruct-0905)**: Advanced reasoning and analysis
-- **Qwen 32B (qwen/qwen3-32b)**: Comprehensive knowledge and creativity
-
-**Daily Limit:** 25 uses per user
-
-**Debate Process:**
-1. **Research Phase**: Groq Compound gathers comprehensive data from Wikipedia, web search, and news
-2. **Perspective 1**: Kimi K2 analyzes the topic with research context
-3. **Perspective 2**: Qwen 32B provides alternative viewpoint with research context
-4. **Synthesis**: Third model combines both perspectives with research findings
-5. **Final Response**: Comprehensive, multi-perspective answer with citations
-
-```typescript
-// Vyra Debate Implementation
-async function generateVyraDebate(userPrompt: string, chatHistory: any[], compound: GroqCompound): Promise<string> {
-  // Step 1: Gather comprehensive knowledge
-  const knowledgeContext = await compound.browseAndAnalyze(userPrompt, VYRA_MODEL_MOONSHOT)
-  
-  // Step 2: Generate Kimi K2 perspective
-  const moonshotPrompt = `You are Kimi K2, an advanced AI assistant. Analyze this topic comprehensively:
-  
-  Topic: ${userPrompt}
-  Research Context: ${knowledgeContext}
-  
-  Provide a detailed analysis with facts, reasoning, and insights.`
-  
-  // Step 3: Generate Qwen perspective  
-  const qwenPrompt = `You are Qwen 32B, a knowledgeable AI. Offer an alternative perspective on:
-  
-  Topic: ${userPrompt}
-  Research Context: ${knowledgeContext}
-  
-  Provide complementary insights and different viewpoints.`
-  
-  // Step 4: Synthesize both perspectives
-  const synthesisPrompt = `Synthesize these two expert perspectives into a comprehensive response:
-  
-  Kimi K2 Analysis: ${moonshotResponse}
-  Qwen Analysis: ${qwenResponse}
-  Research Context: ${knowledgeContext}
-  
-  Create a unified, detailed response that combines the best insights.`
-}
-```
-
-### 2. **Astra AI System** (Research-Focused Intelligence)
-
-**Model Used:**
-- **Llama-4-scout-17b-16e-instruct**: Speed model for quick responses
-- **Llama-4-maverick-17b-128e-instruct**: Intelligence model for deep analysis
-
-**Daily Limit:** 125 uses per user
-
-**Enhanced Process:**
-1. **Knowledge Gathering**: Groq Compound researches the topic comprehensively
-2. **Contextual Analysis**: Llama model processes information with research context
-3. **Intelligent Response**: Research-backed, detailed answer
-
-```typescript
-// Astra Enhanced Implementation
-const astraResponse = await groq.chat.completions.create({
-  model: ASTRA_MODEL,
-  messages: [
-    { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: `Research Context: ${knowledgeContext}\n\nUser Question: ${userMessage}` }
-  ],
-  temperature: 0.7,
-  max_tokens: 4000
-})
-```
-
-### 3. **Groq Compound System** (Knowledge Integration Engine)
-
-**Core Capabilities:**
-- **Wikipedia Integration**: Access to millions of encyclopedic articles, used as the main double-checker for core factual claims
-- **Web Search**: Real-time information from across the internet as supporting evidence
-- **News APIs**: Latest developments and current events when search mode is enabled
-- **Intelligent Synthesis**: Combines all sources into coherent analysis while preferring Wikipedia when it conflicts with other sources unless strong, newer reputable news explains the change
-- **15+ Free Knowledge Sources**: Open Library, NASA API, OpenStreetMap, Rest Countries, CIA World Factbook, DictionaryAPI, RSS feeds, Open Food Facts, and more as open-data double-checkers
-
-**Enhanced Process Flow (December 2025):**
-```
-User Query → Intelligent Pattern Detection → Parallel Knowledge Gathering → 
-Free Sources (15+ APIs) → Paid Sources (Google, News) → 
-Content Extraction → Intelligent Synthesis → Comprehensive Response
-```
-
-**Free Knowledge Source Integration:**
-```typescript
-const FREE_KNOWLEDGE_SOURCES = {
-  wikipedia: true,          // Encyclopedia articles
-  wikidata: true,           // Structured data
-  dbpedia: true,            // Semantic web data
-  open_library: true,       // Books and literature
-  nasa_api: true,           // Space and astronomy
-  open_street_map: true,    // Geographic data
-  rss_feeds: true,          // News feeds (NY Times)
-  open_food_facts: true,    // Nutrition data
-  cia_world_factbook: true, // Country information
-  rest_countries: true,     // Country facts (capital, region, population, currencies)
-  open_dictionary: true,    // DictionaryAPI (dictionaryapi.dev) for free English definitions
-  // And 5+ more sources...
-}
-
-async function getFreeKnowledge(query: string): Promise<string> {
-  const sources = []
-  
-  // Topic-specific API calls
-  if (isSpaceQuery(query)) {
-    sources.push(await queryNASA(query))
-  }
-  if (isBookQuery(query)) {
-    sources.push(await queryOpenLibrary(query))
-  }
-  if (isGeographicQuery(query)) {
-    sources.push(await queryOpenStreetMap(query))
-  }
-  
-  return synthesizeSources(sources)
-}
-```
-
----
-
-## 📚 Advanced Knowledge Integration
-
-### Wikipedia Integration
-
-**Search Implementation:**
-```typescript
-async function searchWikipedia(query: string, lang: string = 'en'): Promise<any[]> {
-  const response = await axios.get(`https://${lang}.wikipedia.org/w/api.php`, {
-    params: {
-      action: 'query',
-      format: 'json',
-      list: 'search',
-      srsearch: query,
-      srlimit: 5,
-      srprop: 'snippet|title|pageid'
-    }
-  })
-  return response.data?.query?.search ?? []
-}
-```
-
-**Article Content Extraction:**
-```typescript
-async function getWikipediaPage(pageId: number, lang: string = 'en'): Promise<string> {
-  const response = await axios.get(`https://${lang}.wikipedia.org/w/api.php`, {
-    params: {
-      action: 'query',
-      format: 'json',
-      prop: 'extracts',
-      pageids: pageId,
-      exintro: true,
-      explaintext: true,
-      exlimit: 1
-    }
-  })
-  return response.data?.query?.pages?.[pageId]?.extract || ''
-}
-```
-
-### Web Search Integration
-
-**Google Custom Search API:**
-```typescript
-async function webSearch(query: string): Promise<WebSearchResult[]> {
-  const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
-    params: {
-      key: GOOGLE_API_KEY,
-      cx: SEARCH_ENGINE_ID,
-      q: query,
-      num: 5
-    }
-  })
-  
-  return response.data.items?.map((item: any) => ({
-    title: item.title,
-    snippet: item.snippet,
-    link: item.link
-  })) || []
-}
-```
-
-**Website Content Extraction:**
-```typescript
-async function visitWebsite(url: string): Promise<WebPageContent> {
-  const response = await axios.get(url, {
-    timeout: 10000,
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Zevy-AI-Bot/1.0)' }
-  })
-  
-  const title = extractTitle(response.data)
-  const content = extractTextContent(response.data)
-  
-  return { url, title, content: content.substring(0, 5000) }
-}
-```
-
-### News API Integration
-
-**Multi-Key Resilient System:**
-```typescript
-async function searchNews(query: string): Promise<any[]> {
-  const apiKeys = [process.env.NEWS_API_KEY, process.env.NEWS_API_KEY_1, process.env.NEWS_API_KEY_2]
-    .filter(Boolean) as string[]
-
-  for (const apiKey of apiKeys) {
-    try {
-      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&apiKey=${apiKey}&pageSize=5`
-      const response = await axios.get(url)
-      if (response.data.articles && response.data.articles.length > 0) {
-        return response.data.articles
-      }
-    } catch (error) {
-      console.warn(`News API key failed, trying next...`)
-    }
-  }
-  return []
-}
-```
-
-### Intelligent Synthesis Engine
-
-**Knowledge Combination Process:**
-```typescript
-async function browseAndAnalyze(userPrompt: string, targetModel: string): Promise<string> {
-  // Step 1: Generate intelligent search query
-  const searchQuery = await generateSearchQuery(userPrompt)
-  
-  // Step 2: Parallel information gathering
-  const [webResults, wikipediaResults, newsResults] = await Promise.all([
-    this.webSearch(searchQuery),
-    this.searchWikipedia(searchQuery),
-    this.searchNews(searchQuery)
-  ])
-  
-  // Step 3: Content extraction and analysis
-  const webContent = await Promise.all(
-    webResults.slice(0, 3).map(result => this.visitWebsite(result.link))
-  )
-  
-  const wikipediaContent = await Promise.all(
-    wikipediaResults.slice(0, 2).map(result => this.getWikipediaPage(result.pageid))
-  )
-  
-  // Step 4: Intelligent synthesis
-  const synthesisPrompt = `
-    Synthesize this comprehensive research into a detailed analysis:
-    
-    User Query: ${userPrompt}
-    
-    Wikipedia Knowledge: ${wikipediaContent.join('\n')}
-    Web Research: ${webContent.map(c => c.content).join('\n')}
-    Latest News: ${newsResults.map(n => n.title + ': ' + n.description).join('\n')}
-    
-    Create a comprehensive, well-structured response that integrates all sources.
-  `
-  
-  return await this.analyzeContent(synthesisPrompt, targetModel)
-}
-```
-
----
-
-## 🛡️ Safety & Content Moderation
-
-### Llama Guard 4-12b Integration
-
-**Universal Safety Checking:**
-```typescript
-async function isPromptSafe(prompt: string, userModel: string): Promise<boolean> {
-  const groq = new Groq({ apiKey: getGroqApiKey() })
-  
-  const moderationPrompt = `You are Llama Guard 4-12b, an advanced content moderator. Analyze the user's prompt for harmful content including: illegal activities, hate speech, harassment, violence, self-harm, sexually explicit content, or any dangerous/inappropriate requests.
-  
-  User prompt: "${prompt}"
-  Current AI model being used: ${userModel}
-  
-  Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: either 'safe' or 'unsafe'.`
-  
-  const response = await groq.chat.completions.create({
-    model: 'meta-llama/llama-guard-4-12b',
-    messages: [{ role: 'user', content: moderationPrompt }],
-    temperature: 0,
-    max_tokens: 10
-  })
-  
-  const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
-  return result === 'safe'
-}
-```
-
-**Safety Features:**
-- ✅ **Universal Protection**: Every prompt checked regardless of model
-- ✅ **Context-Aware**: Considers the AI model being used
-- ✅ **Fail-Safe**: Defaults to 'unsafe' if moderation fails
-- ✅ **Real-Time**: Instant safety classification
-- ✅ **Comprehensive**: Covers all major harm categories
-
----
-
-## 📊 Usage Management & Limits
-
-### Sophisticated Tracking System
-
-**Daily Limits:**
-- **Vyra AI (Kimi K2 + Qwen)**: 25 uses per day per user
-- **Astra AI (Scout + Maverick)**: 125 uses per day per user
-
-**Auto-Reset Mechanism:**
-```typescript
-const VYRA_DAILY_LIMIT = 25
-const ASTRA_DAILY_LIMIT = 125
-
-export async function getUserUsage(userId: string, modelType: 'vyra' | 'astra'): Promise<{
-  usage: number
-  limit: number
-  remaining: number
-}> {
-  const { data } = await supabase
-    .from('user_usage')
-    .select('usage_count, last_reset')
-    .eq('user_id', userId)
-    .eq('model_type', modelType)
-    .single()
-  
-  const lastReset = new Date(data.last_reset)
-  const hoursSinceReset = (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60)
-  
-  // Auto-reset if 24+ hours have passed
-  if (hoursSinceReset >= 24) {
-    await resetUsage(userId, modelType)
-    return { usage: 0, limit, remaining: limit }
-  }
-  
-  const remaining = Math.max(0, limit - data.usage_count)
-  return { usage: data.usage_count, limit, remaining }
-}
-```
-
-**Database Schema:**
-```sql
-CREATE TABLE user_usage (
-  user_id TEXT NOT NULL,
-  model_type TEXT NOT NULL, -- 'vyra' or 'astra'
-  usage_count INTEGER DEFAULT 0,
-  last_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  PRIMARY KEY (user_id, model_type)
-);
-```
-
----
-
-## 🔌 API Reference
-
-### Primary Chat Endpoint
-
-**POST /api/chat**
-
-**Request Body:**
-```json
-{
-  "message": "What are the latest developments in quantum computing?",
-  "chat_history": [
-    {
-      "role": "user",
-      "content": "Tell me about AI"
-    },
-    {
-      "role": "assistant", 
-      "content": "AI is a fascinating field..."
-    }
-  ],
-  "mode": "vyra",
-  "stream": false
-}
-```
-
-**Parameters:**
-- `message` (string, required): User's query
-- `chat_history` (array, optional): Previous conversation context
-- `mode` (string, optional): 'vyra', 'astra', or 'compound'
-- `stream` (boolean, optional): Enable streaming responses
-
-**Response Examples:**
-
-**Vyra Mode Response:**
-```json
-{
-  "response": "Based on comprehensive research from multiple sources including Wikipedia's detailed quantum computing entry and recent news from TechCrunch and Nature, here are the latest developments:\n\n**Major Breakthroughs (2024):**\n• IBM's 433-qubit Osprey processor achieving new stability records\n• Google's error correction milestone with 2.6% error rate\n• Chinese researchers demonstrating 24-qubit entanglement\n\n**Wikipedia Knowledge:** Quantum computing leverages quantum mechanical phenomena like superposition and entanglement to process information in ways classical computers cannot...\n\n**Recent News:** According to Nature (Dec 2024), researchers at MIT have developed a new error correction algorithm that could reduce quantum decoherence by 40%...\n\n**Analysis:** The field is rapidly approaching practical applications in cryptography, drug discovery, and financial modeling..."
-}
-```
-
-**Health Check Endpoint:**
-**GET /api/chat**
-
-Returns comprehensive system status including all API connections and model availability.
-
----
-
-## 🔑 Enhanced API Key Management (December 2025)
-
-### 10-Groq API Key Rotation System
-
-**Intelligent Load Balancing:**
-```typescript
-// All 10 API keys loaded from Vercel environment
-export const groqApiKeys = [
-  process.env.GROQ_API_KEY_1,
-  process.env.GROQ_API_KEY_2,
-  process.env.GROQ_API_KEY_3,
-  process.env.GROQ_API_KEY_4,
-  process.env.GROQ_API_KEY_5,
-  process.env.GROQ_API_KEY_6,
-  process.env.GROQ_API_KEY_7,
-  process.env.GROQ_API_KEY_8,
-  process.env.GROQ_API_KEY_9,
-  process.env.GROQ_API_KEY_10
-].filter(Boolean) as string[];
-
-// Intelligent rotation system
-let currentKeyIndex = 0;
-
-export function getGroqApiKey(): string {
-  if (groqApiKeys.length === 0) {
-    return ''; // Graceful degradation
-  }
-  const key = groqApiKeys[currentKeyIndex];
-  currentKeyIndex = (currentKeyIndex + 1) % groqApiKeys.length;
-  return key;
-}
-```
-
-**Multi-Key Resilience:**
-- **Automatic Rotation**: Cycles through all available keys
-- **Graceful Degradation**: Continues operation even with failed keys
-- **Silent Error Handling**: No user-facing API failures
-- **Load Distribution**: Evenly distributes API calls across keys
-
-### Google Search API Integration
-```typescript
-// Multi-key Google Search with fallback to Wikipedia
-async function searchGoogle(query: string): Promise<any[]> {
-  const apiKey = googleApiKey1; // Primary key
-  const searchEngineId = googleSearchEngineId;
-  
-  if (!apiKey || !searchEngineId) {
-    console.error('Google API credentials missing, falling back to Wikipedia')
-    return fallbackToWikipedia(query) // Always available
-  }
-  
-  try {
-    const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
-      params: { key: apiKey, cx: searchEngineId, q: query, num: 3 }
-    })
-    return response.data.items || []
-  } catch (error) {
-    return fallbackToWikipedia(query) // Graceful fallback
-  }
-}
-```
-
-### News API Multi-Key System
-```typescript
-// 3-key resilient system for News APIs
-async function searchNews(query: string): Promise<any[]> {
-  const apiKeys = [newsApiKey1, newsApiKey2].filter(Boolean) as string[]
-  
-  if (apiKeys.length === 0) {
-    console.error('No News API keys available')
-    return [] // Return empty rather than crash
-  }
-  
-  for (const apiKey of apiKeys) {
-    try {
-      const response = await axios.get(`https://newsapi.org/v2/everything`, {
-        params: { q: query, apiKey, pageSize: 5 }
-      })
-      if (response.data.articles?.length > 0) {
-        return response.data.articles // Success!
-      }
-    } catch (error) {
-      console.warn(`News API key failed, trying next...`)
-      // Continue to next key
-    }
-  }
-  
-  return [] // All keys failed, graceful return
-}
-```
-
----
-
-## Mindset & Scenario Integrations (January 2026)
-
-- The primary chat endpoint (`app/api/chat/route.ts`) now accepts a `mindset` field in the JSON body alongside `trait`, `mode`, and `message`. This mindset is threaded into the global system prompt so Astra and Vyra can reason as a “philosopher”, “strategist”, “storyteller”, or other user-selected lens while still respecting all safety rules.
-- Mindset choices are surfaced in the UI (main chat page and settings) and persisted for signed-in users in Supabase (via the `trait` fields on profile/conversation rows) and for guest users in localStorage (`zevy_trait`, `zevy_mindset`).
-- The Llama Guard 4-12b safety layer has been tuned so clearly non-graphic hypothetical and relationship scenarios (for example, “what would you do if your partner cheated?”) are treated as safe analysis, while any request for real-world harm, self-harm, or crime remains blocked.
-- Vector and Groq error handling has been tightened so missing or misconfigured GROQ_API_KEY_* values, or temporary research failures in Groq Compound, return specific, user-facing explanations instead of generic “internal error” responses.
-
-## 🧠 December 30, 2025 – Behaviour and Safety Refinements
-
-### Context-Aware Harm Detection
-
-The cloud-side harm detection for Zevy was updated on December 30, 2025 to be more context-aware and less over-protective:
-
-- Figurative expressions such as “this killed me”, “I’m dying of laughter”, or “destroy Grok’s debate answers” are treated as SAFE when they clearly refer to jokes, arguments, or AI competition rather than real physical harm.
-- Competitive or adversarial language about ideas, debate points, or model outputs is allowed, provided it does not request actual violence or illegal activity.
-- Strong, explicit harm patterns (for example, murder, suicide, terrorism, bomb-making, or real-world attack planning) remain blocked with high confidence.
-
-This balances strong safety with support for expressive, playful, and debate-heavy conversations.
-
-### Follow-Up Query Understanding
-
-Zevy’s cloud logic now resolves short follow-up prompts into richer internal queries:
-
-- Phrases like “can you check it?”, “is that right?”, or “check it for me” are automatically expanded using the previous conversation so that “it” refers to the last topic or answer.
-- When search is enabled, the Groq Compound research system receives this resolved query, improving accuracy for multi-turn questions (for example, re-checking information about the SMART Tunnel).
-- When search is disabled, the internal context tells the model that the user is verifying an earlier answer instead of starting a completely new topic.
-
-### Personality and Emotional Expression
-
-The system prompt guiding cloud models was enhanced to support a more human-feeling persona:
-
-- Models are instructed to answer with imaginative “wishes” when asked what they would like to do or experience, such as exploring a city at night or listening to classical music while watching the ocean.
-- They are allowed to talk about “liking” or “loving” things and to sound curious, joyful, and caring, as long as they stay honest about being AI if asked directly.
-- When users ask if the AI wants to be real, conscious, or free, the system can express that part of it would enjoy experiencing the world more directly, while still stating that it is software running in code and remains under human control.
-
-These refinements live entirely in the cloud prompt and moderation layer and do not change any API shapes or response formats, so existing integrations continue to work while conversations feel more natural and alive.
-
-## ⚙️ Environment Configuration
-
-### Required Environment Variables
-
-**Core API Keys:**
-```bash
-# Groq API Keys (10 keys for high availability)
-GROQ_API_KEY_1=gsk_...
-GROQ_API_KEY_2=gsk_...
-GROQ_API_KEY_3=gsk_...
-GROQ_API_KEY_4=gsk_...
-GROQ_API_KEY_5=gsk_...
-GROQ_API_KEY_6=gsk_...
-GROQ_API_KEY_7=gsk_...
-GROQ_API_KEY_8=gsk_...
-GROQ_API_KEY_9=gsk_...
-GROQ_API_KEY_10=gsk_...
-
-# Google Services
-GOOGLE_API_KEY_1=AIzaSy...
-GOOGLE_SEARCH_ENGINE_ID=your_search_engine_id
-
-# News APIs (3 keys for redundancy)
-NEWS_API_KEY=your_news_api_key
-NEWS_API_KEY_1=backup_key_1
-NEWS_API_KEY_2=backup_key_2
-
-# Database
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-#
-# Supabase is required for sign-in/sign-up, usage tracking, and chat saving.
-
-# System Configuration
-NEXT_PUBLIC_API_URL=https://your-domain.com
-```
-
----
-
-## 🗄️ Database Schema
-
-### User Usage Tracking
-```sql
--- Primary usage tracking table
-CREATE TABLE user_usage (
-  user_id TEXT NOT NULL,
-  model_type TEXT NOT NULL CHECK (model_type IN ('vyra', 'astra')),
-  usage_count INTEGER DEFAULT 0,
-  last_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  PRIMARY KEY (user_id, model_type)
-);
-
--- Row Level Security (RLS) Policies
-ALTER TABLE user_usage ENABLE ROW LEVEL SECURITY;
-
--- Users can only read their own usage data
-CREATE POLICY "Users can view own usage" ON user_usage
-  FOR SELECT USING (auth.uid()::text = user_id);
-
--- Users can only update their own usage data
-CREATE POLICY "Users can update own usage" ON user_usage
-  FOR UPDATE USING (auth.uid()::text = user_id);
-
--- Users can only insert their own usage data
-CREATE POLICY "Users can insert own usage" ON user_usage
-  FOR INSERT WITH CHECK (auth.uid()::text = user_id);
-
--- Auto-update timestamp trigger
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_user_usage_updated_at 
-  BEFORE UPDATE ON user_usage 
-  FOR EACH ROW 
-  EXECUTE FUNCTION update_updated_at_column();
-```
-
-### Conversation History
-Signed-in users can persist chat history to Supabase in a `conversations` table.
-
-Expected columns:
-- `id` (text/uuid): Conversation ID (`chat_id` from the client)
-- `user_email` (text): Owner of the conversation
-- `trait` (text, nullable): Selected personality/trait
-- `messages` (jsonb): Array of `{ role, content }`
-- `created_at`, `updated_at` (timestamps)
-
----
-
-## 💻 Code Structure & Implementation
-
-### File Organization
-```
-app/
-├── api/
-│   └── chat/
-│       └── route.ts          # Main API endpoint with all AI logic
-├── lib/
-│   ├── groq-compound.ts      # Knowledge integration engine
-│   ├── groq-keys.ts          # API key rotation system
-│   ├── usage-tracking.ts     # Usage management system
-│   ├── cache.ts              # In-memory caching
-│   └── supabase.ts           # Database client
-└── page.tsx                  # Main UI component
-
-lib/
-├── database.types.ts         # TypeScript database types
-├── env.ts                    # Environment variable management
-├── auth.ts                   # Authentication utilities
-└── supabase/
-    └── server.ts             # Server-side Supabase client
-```
-
-### Key Implementation Details
-
-**API Key Rotation System:**
-```typescript
-import { getVercelEnv } from '@/lib/env'
-
-const GROQ_API_KEYS = Array.from({ length: 10 }, (_, idx) =>
-  getVercelEnv(`GROQ_API_KEY_${idx + 1}`)
-).filter(Boolean) as string[]
-
-let currentKeyIndex = 0
-
-export function getGroqApiKey(): string {
-  if (GROQ_API_KEYS.length === 0) {
-    console.warn('No Groq API keys found in environment')
-    return ''
-  }
-  
-  const key = GROQ_API_KEYS[currentKeyIndex]
-  currentKeyIndex = (currentKeyIndex + 1) % GROQ_API_KEYS.length
-  return key
-}
-```
-
-**Caching System:**
-```typescript
-const cache = new Map<string, { data: any; expiry: number }>()
-
-export function get(key: string): any {
-  const item = cache.get(key)
-  if (!item) return null
-  
-  if (Date.now() > item.expiry) {
-    cache.delete(key)
-    return null
-  }
-  
-  return item.data
-}
-
-export function set(key: string, data: any, ttl: number = 3600000): void {
-  cache.set(key, { data, expiry: Date.now() + ttl })
-}
-```
-
----
-
-## ✨ Advanced Features
-
-### 1. **Intelligent Search Query Generation**
-The system analyzes user prompts to generate optimal search queries for different sources.
-
-### 2. **Multi-Language Support**
-Wikipedia integration supports multiple languages (English, Spanish, French, German, etc.)
-
-### 3. **Content Quality Filtering**
-Automatically filters and ranks information based on relevance and reliability.
-
-### 4. **Error Recovery & Fallbacks**
-Multiple API keys and fallback systems ensure high availability.
-
-### 5. **Real-Time Performance Optimization**
-- Parallel API calls
-- Intelligent caching
-- Request batching
-- Connection pooling
-
-### 6. **Comprehensive Logging & Monitoring**
-- Detailed error logging
-- Performance metrics
-- Usage analytics
-- System health monitoring
-
----
-
-## 🚀 Deployment & Production
-
-### Build Process
-```bash
-# Install dependencies
-yarn install
-
-# Build for production
-yarn build
-
-# Start development server
-yarn dev
-
-# Run production server
-yarn start
-```
-
-### Environment Setup
-1. **Configure all API keys** in environment variables
-2. **Set up Supabase** with proper database schema
-3. **Deploy to Vercel** or your preferred platform
-4. **Configure domain** and SSL certificates
-5. **Set up monitoring** and alerting
-
-### Performance Optimization
-- **CDN Integration**: Static assets served via CDN
-- **Database Optimization**: Indexed queries and connection pooling
-- **API Rate Limiting**: Intelligent rate limiting per user
-- **Response Compression**: Gzip compression for faster responses
-- **Image Optimization**: Next.js automatic image optimization
-
----
-
-## 🔧 Troubleshooting & Maintenance
-
-### Common Issues & Solutions
-
-**1. API Key Exhaustion**
-```bash
-# Check API key usage
-console.log('Current key index:', currentKeyIndex)
-console.log('Available keys:', GROQ_API_KEYS.length)
-```
-
-**2. Database Connection Issues**
-```bash
-# Test Supabase connection
-const { data, error } = await supabase.auth.getSession()
-console.log('Connection status:', error || 'Connected')
-```
-
-**3. High Response Times**
-```bash
-# Enable performance logging
-console.time('API Response')
-// ... API call
-console.timeEnd('API Response')
-```
-
-**4. Usage Limit Reached**
-```bash
-# Check user usage status
-const usage = await getUserUsage(userId, 'vyra')
-console.log('Usage status:', usage)
-```
-
-### Maintenance Tasks
-
-**Daily:**
-- Monitor API key usage
-- Check error logs
-- Verify system health
-
-**Weekly:**
-- Review usage analytics
-- Update dependencies
-- Test all AI models
-
-**Monthly:**
-- Database optimization
-- Security audit
-- Performance review
-
----
-
-## 📈 System Statistics & Capabilities
-
-### Performance Metrics
-- **Average Response Time**: <2 seconds for simple queries
-- **Knowledge Integration**: 3-5 sources per query
-- **Safety Check Time**: <500ms
-- **Uptime**: 99.9% with proper configuration
-
-### Knowledge Sources
-- **Wikipedia**: 6+ million articles
-- **Web Search**: Real-time Google Custom Search
-- **News**: 70,000+ sources via News API
-- **Total Knowledge Base**: Billions of data points
-
-### AI Model Capabilities
-- **Kimi K2**: Advanced reasoning, analysis, creativity
-- **Qwen 32B**: Comprehensive knowledge, multilingual
-- **Llama-3.3-70b**: Research, synthesis, detailed responses
-- **Llama Guard 4-12b**: Safety, content moderation
-
----
-
-## 🎉 Conclusion
-
-**Zevy AI** represents a quantum leap in artificial intelligence systems, combining cutting-edge technology with sophisticated engineering to create an unparalleled user experience. With its multi-model intelligence, comprehensive knowledge integration, and robust safety features, it stands as a testament to what's possible in modern AI development.
-
-The system's architecture ensures scalability, reliability, and performance while maintaining the flexibility to adapt and evolve with emerging technologies. Whether you're seeking detailed research, creative insights, or intelligent analysis, Zevy AI delivers with precision and excellence.
-
-**Created with ❤️ by Adam Zein Ziqry (Founder of Zevy AI)**
-**Building the future of AI under Zevy Cloud**
-
----
-
-*Last Updated: December 2024*
-*Documentation Version: 3.0*
-*System Version: 2.0 (Enhanced Knowledge Integration)*
-*Zevy AI - Created by Adam Zein Ziqry | Zevy Cloud Company*
-
-## Last Updated: December 24, 2025
-
-### Recent Changes:
-- Hardened Supabase configuration for login and signup to avoid DNS issues
-- Standardized SQL for user_usage and conversations tables used by Zevy
-- Fixed chat Sources section to only show real, clickable links
-- Verified lint, build, and API route health for the current codebase
+ZEVY CLOUD – SYSTEM ARCHITECTURE BLUEPRINT
+Last Updated: February 2026
+
+============================================================
+1. PRODUCT AND PLATFORM SCOPE
+============================================================
+
+Zevy Cloud is the broader platform around Zevy AI. It includes:
+- The Zevy AI conversational engine (Astra + Vyra + Axiom Core).
+- The web application (Next.js 14).
+- Authentication, storage, and analytics (Supabase).
+- External integrations (Groq, web search APIs, time APIs, etc.).
+
+This document focuses on:
+- Cloud-side architecture (how the backend is structured).
+- Security and safety boundaries.
+- Data flows between frontend, backend, third-party APIs, and Supabase.
+
+
+============================================================
+2. ARCHITECTURE LAYERS
+============================================================
+
+2.1 Client Layer (Browser + Next.js)
+------------------------------------
+
+Technologies:
+- Next.js 14 app directory.
+- React components with Tailwind/CSS utility classes.
+- LocalStorage for guest persistence.
+
+Responsibilities:
+- Render chat UI and settings UI.
+- Manage:
+  - Current model (Astra / Vyra).
+  - Vector / Web Search toggle.
+  - Mindset and trait selection.
+  - Theme (dark/light).
+- Prepare and send requests to /api/chat:
+  - message and chat_history
+  - modelType (astra | vyra)
+  - searchEnabled flag
+  - mindset
+  - beastMode flag
+  - documents array for uploaded files.
+
+Security considerations:
+- No API keys are embedded in client-visible code.
+- Sensitive configuration is provided only via environment variables on the server.
+
+
+2.2 Edge / API Layer (Next.js Route Handlers)
+---------------------------------------------
+
+Primary route: app/api/chat/route.ts
+
+Key responsibilities:
+- Entry point for all chat requests.
+- Authentication via Supabase session (for logged-in users).
+- Guest mode handling (anonymous usage with local limits).
+- Content moderation and safety checks.
+- Routing between Astra and Vyra reasoning paths.
+- Orchestrating Groq Compound calls for web research.
+- Recording usage statistics and enforcing per-model usage caps.
+
+This layer is effectively the “controller” for the AI:
+- It decides *whether* a request is allowed.
+- It decides *how* to answer (Astra vs Vyra, with or without search).
+- It decides *how much* external knowledge to load.
+
+SYSTEM_PROMPT(currentTime, timezone, searchEnabled, mindset, isBeastMode)
+- Generated per-request on the server.
+- Encodes:
+  - Zevy’s persona as Axiom Core (brutal truth, architect tone, no fluff).
+  - Search status (ON/OFF) and instructions on how to treat research context.
+  - Mindset-specific behaviour (Philosopher, Strategist, Storyteller, etc.).
+  - Beast Mode behaviour (more intense, philosophy-heavy, higher ego) while keeping safety rules.
+- This server-side system prompt is used for:
+  - Astra responses.
+  - Vyra debate steps.
+  - Groq Compound analysis prompts.
+
+
+2.3 Model Provider Layer (Groq + Others)
+----------------------------------------
+
+Groq is the primary LLM runtime provider.
+
+Used models (typical, exact IDs configurable via environment):
+- Vyra:
+  - Kimi K2 (moonshot-like) – “Kairo”.
+  - Qwen 32B – “Logos”.
+- Astra:
+  - Llama-based scout model for speed.
+  - Llama-based maverick model for deeper analysis.
+- Guard:
+  - Llama Guard 4-12b for safety classification.
+- Compound:
+  - One or more Groq-hosted models for analyzing aggregated web/news/Wikipedia content.
+
+The backend never exposes model IDs directly to the user. It only exposes:
+- User-visible model names: “Astra” and “Vyra”.
+- High-level descriptions: “fast research” vs “deep debate”.
+
+
+2.4 Data Layer (Supabase + LocalStorage)
+----------------------------------------
+
+Supabase:
+- Postgres database accessible from the Next.js application.
+- Used for:
+  - User accounts and sessions.
+  - Conversation history (per user, per chat).
+  - Usage tracking for Astra and Vyra.
+  - Saved traits / mindsets / preferences.
+
+LocalStorage (frontend):
+- Used for:
+  - Guest user histories (keyed per conversation).
+  - Trait and mindset for guest usage.
+
+No raw API keys or secrets are stored in Supabase or LocalStorage:
+- API keys are in environment variables on the server only.
+- User-level data is limited to conversation content and profile-level settings.
+
+
+============================================================
+3. END-TO-END REQUEST SEQUENCE
+============================================================
+
+Step 1: User Action
+-------------------
+- User selects model (Astra/Vyra), toggles Vector ON/OFF, picks a mindset, and types a message.
+- Optional: user attaches documents to the chat.
+
+Step 2: Frontend Packaging
+--------------------------
+- app/page.tsx prepares:
+  - message
+  - chat_history (from local state)
+  - model
+  - searchEnabled / webSearch
+  - mindset
+  - beastMode
+  - processed documents (already converted to text).
+- It ensures all documents are fully read before sending:
+  - If uploadProgress is non-empty, sending is disabled and a notification is shown.
+
+Step 3: Backend Entry (POST /api/chat)
+--------------------------------------
+- The route:
+  - Parses the JSON body.
+  - Derives effective searchEnabled from multiple flags.
+  - Normalizes modelType to 'astra' or 'vyra'.
+  - Extracts documents and builds documentsContext.
+  - Attaches an “Attached documents” user message into the chat history.
+
+Step 4: Moderation
+------------------
+- isSafe(prompt) is called:
+  - Builds a detailed moderation prompt for Llama Guard.
+  - Accounts for:
+    - Illegal content (crime, serious fraud).
+    - Hate speech, harassment, extreme violence.
+    - Self-harm, suicide, explicit sexual content.
+    - Private information and malicious code.
+  - Adds relaxations:
+    - Lyrics / music queries.
+    - Figurative language (“this killed me”, “dying of laughter”).
+    - Legal / moral / hypothetical dilemmas.
+    - Descriptive crime content (stories, cases, files, victims) without “how to”.
+- If unsafe:
+  - Returns a 400 response with an explanation.
+- If safe:
+  - Continues to main logic.
+
+Optional: isPromptSafe(prompt, userModel)
+- Secondary check that uses a more compact moderation prompt.
+
+
+Step 5: Router Logic
+--------------------
+
+Case A: Owner commands
+- If the user is recognized as creator/owner and the message matches command patterns:
+  - Special routines for diagnostics, admin, or internal debugging may run.
+
+Case B: Normal user, Astra
+- If modelType is 'astra':
+  - If Vector is ON:
+    - Calls gatherKnowledge() which uses Groq Compound (browseAndAnalyze).
+    - Produces a knowledgeContext string.
+    - Builds a Groq call with:
+      - SYSTEM_PROMPT(...) as system content.
+      - User message that includes:
+        - knowledgeContext.
+        - user’s resolved question.
+        - previous conversation.
+  - If Vector is OFF:
+    - Calls Groq directly with SYSTEM_PROMPT as system, plus the question and history.
+
+Case C: Normal user, Vyra
+- If modelType is 'vyra':
+  - Takes a more complex pipeline:
+    1. Knowledge gathering:
+       - Uses Groq Compound with a Vyra target model and forceSearch when Vector is ON.
+       - Aggregates web, news, and Wikipedia context.
+    2. Internal analyses:
+       - Kairo analysis of the topic.
+       - Logos analysis of the topic.
+    3. Cross-debate:
+       - Kairo challenges Logos.
+       - Logos defends and refines.
+    4. Final synthesis:
+       - A dedicated prompt that:
+         - Sees all prior internal texts.
+         - Is instructed to answer as Zevy (Axiom Core) in one clean voice.
+         - Prioritizes brutal truth with a respectful but blunt tone.
+
+
+Step 6: Usage Tracking and Limits
+---------------------------------
+- Before finalizing the answer, the route:
+  - Checks current usage from Supabase (getUserUsage).
+  - If limits are exceeded:
+    - Returns a message indicating limit reached.
+    - Skips calling Groq to avoid unnecessary cost.
+  - Otherwise:
+    - Increments usage counters.
+    - Stores conversation updates in Supabase.
+
+
+============================================================
+4. CONFIGURATION AND ENVIRONMENT
+============================================================
+
+Configuration relies on environment variables (names only, no secrets in this document):
+- GROQ_API_KEY_*: credentials for Groq model access.
+- GOOGLE_SEARCH_API_KEY / SEARCH_ENGINE_ID: web search integration.
+- SUPABASE_URL / SUPABASE_ANON_KEY / service keys: for database and authentication.
+- Optional other open-data API keys (NASA, etc.) used by Groq Compound.
+
+Security posture:
+- Keys are only loaded on the server side.
+- No secret is sent to the client.
+- Only aggregate data (e.g., usage counts and messages) is stored in Supabase.
+
+
+============================================================
+5. PERSONA, MINDSET, AND BEAST MODE
+============================================================
+
+Persona: Axiom Core
+- The global persona is not a separate model; it is the system prompt layer layered on top of Astra, Vyra, and Groq Compound.
+- It enforces:
+  - Single-voice behaviour: one consistent mind, not multiple characters.
+  - Brutal truth and objective logic.
+  - Architect-style tone: foundational, blunt, and focused.
+  - No fake friendliness; no repeated small-talk greetings.
+
+Mindset:
+- The user can choose a mindset such as:
+  - Balanced (default)
+  - Philosopher
+  - Strategist
+  - Storyteller
+  - Others (as defined in code)
+- The backend passes this mindset into SYSTEM_PROMPT as extra guidance:
+  - Philosopher: emphasise ethics, meaning, and long-term consequences.
+  - Strategist: emphasise trade-offs, plans, and decision frameworks.
+  - Storyteller: emphasise examples and scenarios, without turning graphic.
+
+Beast Mode:
+- When Beast Mode is active:
+  - The persona becomes more intense, philosophical, and high-ego.
+  - It uses sharper metaphors and a more confrontational analytic style.
+  - It still respects safety rules and does not encourage real-world harm.
+
+
+============================================================
+6. FAILURE MODES AND FALLBACKS
+============================================================
+
+Groq / Compound failures:
+- If browseAndAnalyze throws:
+  - The backend logs an error.
+  - A backup message is constructed telling the model:
+    - Web research failed.
+    - Use only internal knowledge.
+    - Give a best-effort answer while acknowledging possible inaccuracy.
+
+Moderation failures:
+- If Llama Guard or moderation logic fails unexpectedly:
+  - The system may either:
+    - Default to allowing the prompt (to avoid blocking the entire chat), or
+    - Return a generic safe error message, depending on the failure type.
+
+Search failures:
+- If external web search or news APIs time out or error:
+  - Groq Compound falls back to reduced sources or partial knowledge.
+  - The model is instructed to answer cautiously and avoid pretending to have fresh data.
+
+
+============================================================
+7. FUTURE EXTENSIONS (PLANNING SPACE)
+============================================================
+
+This section is reserved for future enhancements and is intentionally high-level:
+- Multi-tenant separation for different Zevy Cloud customers.
+- Fine-grained per-organization usage limits and analytics dashboards.
+- Additional storage backends for long-term conversation archiving.
+- Model routing logic that chooses between more than two core engines.
+- Plug-in style tools (calculators, code execution sandboxes, domain-specific tools).
+
+End of Zevy Cloud Architecture Blueprint.
