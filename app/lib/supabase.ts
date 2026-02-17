@@ -5,7 +5,8 @@ import type { Database } from '@/lib/database.types'
 import { getVercelEnv } from '@/lib/env'
 
 export const createSupabaseClient = async () => {
-  const supabaseUrl = getVercelEnv('SUPABASE_URL')
+  const supabaseUrl =
+    getVercelEnv('SUPABASE_URL') || getVercelEnv('NEXT_PUBLIC_SUPABASE_URL')
 
   const supabaseKey =
     getVercelEnv('SUPABASE_SERVICE_KEY') ||

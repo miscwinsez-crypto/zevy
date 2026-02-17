@@ -74,6 +74,7 @@ interface Message {
   humanized?: boolean
   humanScore?: number
   sources?: { title: string; url: string }[]
+  attachments?: { name: string; type: string }[]
 }
 
 interface ConversationData {
@@ -1325,10 +1326,16 @@ useEffect(() => {
       ? `\n\n[Attached documents: ${attachedFiles.map(f => f.name).join(', ')}]`
       : ''
 
+    const attachments =
+      filesForRequest.length > 0
+        ? filesForRequest.map(file => ({ name: file.name, type: file.type }))
+        : undefined
+
     const userMessage: Message = {
       role: 'user',
-      content: `${textToSend}${fileLabel}`,
-      timestamp: new Date().toISOString()
+      content: textToSend,
+      timestamp: new Date().toISOString(),
+      ...(attachments ? { attachments } : {})
     }
 
     const baseMessages = customBaseMessages
@@ -3255,6 +3262,20 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                         >
                           {message.content}
                         </p>
+                        {message.attachments && message.attachments.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {message.attachments.map((file, i) => (
+                              <div
+                                key={i}
+                                className="flex items-center gap-2 text-xs"
+                                style={{ color: palette.subdued }}
+                              >
+                                <FileText size={14} style={{ color: palette.accent }} />
+                                <span className="truncate">{file.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={() => startEditMessage(idx)}

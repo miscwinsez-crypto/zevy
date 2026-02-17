@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
 import { getVercelEnv } from './env'
 
-const supabaseUrl = getVercelEnv('SUPABASE_URL')
+const supabaseUrl =
+  getVercelEnv('SUPABASE_URL') || getVercelEnv('NEXT_PUBLIC_SUPABASE_URL')
 const supabaseAnonKey =
   getVercelEnv('SUPABASE_ANON_KEY') || getVercelEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
