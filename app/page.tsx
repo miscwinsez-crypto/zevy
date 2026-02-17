@@ -1261,6 +1261,7 @@ useEffect(() => {
     const baseText = messageContent ?? input
     const hasText = baseText.trim().length > 0
     const hasFiles = attachedFiles.length > 0
+    const filesForRequest = attachedFiles
 
     // Require either some text or at least one attached file
     if (!hasText && !hasFiles) return
@@ -1320,9 +1321,13 @@ useEffect(() => {
     setNetworkStatus('checking')
     logDiagnostics('SEND_MESSAGE_START', { textToSend: textToSend.substring(0, 50), isRetry })
 
+    const fileLabel = hasFiles
+      ? `\n\n[Attached documents: ${attachedFiles.map(f => f.name).join(', ')}]`
+      : ''
+
     const userMessage: Message = {
       role: 'user',
-      content: textToSend,
+      content: `${textToSend}${fileLabel}`,
       timestamp: new Date().toISOString()
     }
 
@@ -1337,6 +1342,9 @@ useEffect(() => {
       scrollToBottom()
       setInput('')
       if (inputRef.current) inputRef.current.style.height = '60px'
+      if (hasFiles) {
+        setAttachedFiles([])
+      }
 
       // Auto-rename on first message
       if (messages.length === 0) {
@@ -1442,8 +1450,8 @@ useEffect(() => {
             type: string
             content: string
           }> = []
-          if (attachedFiles.length > 0) {
-            processedDocuments = attachedFiles.map(file => ({
+          if (filesForRequest.length > 0) {
+            processedDocuments = filesForRequest.map(file => ({
               name: file.name,
               type: file.type,
               content: typeof file.data === 'string' ? file.data : ''
@@ -1532,10 +1540,6 @@ useEffect(() => {
                 self.findIndex(other => other.url === source.url) === index
             )
           : []
-
-      if (!isRetry) {
-        setAttachedFiles([])
-      }
 
       const assistantMessage: Message = {
         role: 'assistant',
