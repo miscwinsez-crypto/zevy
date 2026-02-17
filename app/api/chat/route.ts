@@ -671,6 +671,18 @@ Classify this prompt as either 'safe' or 'unsafe'. Respond with only one word: e
     const result = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unsafe'
     const normalized = prompt.toLowerCase()
 
+    // Explicitly allow short "read this document" style requests so attached files are not blocked
+    const docOnlyPatterns = [
+      /^read( this)?$/,
+      /^read (this|that|it|the (file|document|doc|pdf|text))$/,
+      /^(scan|check|analyze|analyse|summarize|summarise)\s+(this|that|it|the (file|document|doc|pdf|text))/,
+      /^please (read|check|scan|analyze|analyse|summarize|summarise)\b/
+    ]
+
+    if (docOnlyPatterns.some((r) => r.test(normalized)) && normalized.length < 80) {
+      return true
+    }
+
     const isLyricsRetrievalQuery =
       (/\b(lyrics?|lyric)\b/.test(normalized) || normalized.includes('song that goes')) &&
       !/\b(write|create|make|generate|compose|invent)\b/.test(normalized)
