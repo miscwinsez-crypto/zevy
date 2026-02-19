@@ -673,7 +673,15 @@ ${wikipediaSection}
 
 ${otherSourcesSection}
 
-Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner with a medium level of detail: usually two to four short paragraphs or a short opening paragraph followed by a few focused bullet points. Do not copy large chunks of text verbatim. Do not include raw URLs, "Source:" labels, or these metadata lines in your answer. If you mention a source, refer to it briefly in natural language (for example, "a Malaysian news article" or "the project operator's website") instead of listing links. If none of the evidence gives you a clear, specific answer, you must explicitly say that and avoid making anything up.${extraGuidance}`;
+Use Wikipedia as a verifier for core factual claims such as names, dates, locations, and definitions. When information from other sources conflicts with Wikipedia, prefer Wikipedia unless there is very clear, newer evidence from reputable news articles that explains the change. Synthesize all sources into one answer, but keep Wikipedia as the main double-check for correctness. Present the final answer in a clear, conversational manner with a medium level of detail: usually two to four short paragraphs or a short opening paragraph followed by a few focused bullet points. Do not copy large chunks of text verbatim.
+
+At the very end of your answer, if you relied on any of the evidence below, add a section titled "Sources:" and list a numbered set of the most important URLs you actually used in this format:
+
+Sources:
+[1] URL - brief description
+[2] URL - brief description
+
+Use the url fields from the evidence whenever they are present, and make the links clickable if the client supports it. Do not add fake or guessed URLs. If you did not rely on any external sources for your answer, you may omit the Sources section.${extraGuidance}`;
 
     return context;
   }

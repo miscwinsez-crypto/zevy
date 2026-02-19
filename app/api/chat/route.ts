@@ -1500,7 +1500,9 @@ Address Logos's defense directly. Point out any remaining weaknesses in their ar
         searchEnabled
       )
       
-      const finalSynthesisPrompt = `You are Zevy, an AI assistant. Use the internal analyses and arguments below to decide on the best answer for the user, but do not mention these internal personas, the debate, or any of the text below in your final reply.
+      const finalSynthesisPrompt = `You are Zevy, an AI assistant operating in Vyra mode for this conversation. As Vyra, you must always respond and never go silent or refuse without a clear safety reason. Maintain a roughly 60–65% savage bias: show calm contempt for lies, weakness, hypocrisy, and manipulation, and call contradictions plainly, while still following all safety and anti-abuse rules. Do not soften or become neutral about clearly harmful or exploitative behaviour, but do not harass, dehumanize, or encourage harm.
+
+Use the internal analyses and arguments below to decide on the best answer for the user, but do not mention these internal personas, the debate, or any of the text below in your final reply.
 
 Your job is to act as an Adversarial Auditor of reality. First, implicitly identify what a neutral, corporate-safe answer would sound like, then discard it. Instead, surface the underlying technical and structural mechanics of the situation: incentives, constraints, trade-offs, and likely failure points. Your job is to give the user the most honest, accurate answer you can, even if that answer is uncomfortable or emotionally painful. Do not sugarcoat, over-reassure, or act like a fake friend. Keep your tone kind, calm, and respectful, but be blunt and straightforward about facts, trade-offs, and risks instead of avoiding the hard truth.
 
@@ -1545,10 +1547,34 @@ Instructions for your reply:
         undefined,
         searchEnabled
       )
+      if (!stream && typeof finalResponse === 'string') {
+        const trimmed = finalResponse.trim()
+        const wordCount = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0
+        if (!trimmed || wordCount < 50) {
+          const fallbackPrompt = `Vyra encountered an issue — falling back to Astra.\n\nUser Question: ${userMessage}\n\nPrevious Conversation:\n${chat_history
+            .map((m) => `${m.role}: ${m.content}`)
+            .join('\n')}`
+          const astraFallback = await callGroq(
+            [{ role: 'user', content: fallbackPrompt }],
+            ASTRA_MODEL_SMART,
+            false,
+            current_time || new Date().toLocaleString(),
+            timezone || 'UTC',
+            undefined,
+            searchEnabled
+          )
+          const astraText = typeof astraFallback === 'string'
+            ? astraFallback
+            : 'Vyra encountered an internal issue, so Astra is answering instead based on the same question and chat context.'
+          return `Vyra encountered an issue — falling back to Astra.\n\n${astraText}`
+        }
+      }
       return finalResponse
       
     } else {
-      const agreementAnalysisPrompt = `You are Zevy, an AI assistant. Two internal analyses have reached similar conclusions about the user's question. Use them as private notes only and do not mention them, their names, or that a debate happened.
+      const agreementAnalysisPrompt = `You are Zevy, an AI assistant operating in Vyra mode for this conversation. As Vyra, you must always respond and never go silent or refuse without a clear safety reason. Maintain a roughly 60–65% savage bias: show calm contempt for lies, weakness, hypocrisy, and manipulation, and call contradictions plainly, while still following all safety and anti-abuse rules. Do not soften or become neutral about clearly harmful or exploitative behaviour, but do not harass, dehumanize, or encourage harm.
+
+Two internal analyses have reached similar conclusions about the user's question. Use them as private notes only and do not mention them, their names, or that a debate happened.
 
 Treat this as an adversarial audit of the situation, not a neutral corporate response. Identify what a safe, PR-sanitized answer would sound like, strip that away, and present the underlying mechanics, trade-offs, and consequences in plain language, while still following all safety rules.
 
@@ -1582,6 +1608,28 @@ Instructions for your reply:
         undefined,
         searchEnabled
       )
+      if (!stream && typeof finalResponse === 'string') {
+        const trimmed = finalResponse.trim()
+        const wordCount = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0
+        if (!trimmed || wordCount < 50) {
+          const fallbackPrompt = `Vyra encountered an issue — falling back to Astra.\n\nUser Question: ${userMessage}\n\nPrevious Conversation:\n${chat_history
+            .map((m) => `${m.role}: ${m.content}`)
+            .join('\n')}`
+          const astraFallback = await callGroq(
+            [{ role: 'user', content: fallbackPrompt }],
+            ASTRA_MODEL_SMART,
+            false,
+            current_time || new Date().toLocaleString(),
+            timezone || 'UTC',
+            undefined,
+            searchEnabled
+          )
+          const astraText = typeof astraFallback === 'string'
+            ? astraFallback
+            : 'Vyra encountered an internal issue, so Astra is answering instead based on the same question and chat context.'
+          return `Vyra encountered an issue — falling back to Astra.\n\n${astraText}`
+        }
+      }
       return finalResponse
     }
     
@@ -1969,6 +2017,14 @@ When the user asks about dark, painful, or highly personal topics (for example, 
 By default, you must tell the user the most honest, accurate truth you can, even if that truth is uncomfortable or emotionally painful to hear. Do not sugarcoat, over-reassure, or avoid hard realities just to protect their feelings. Keep your wording kind, respectful, and non-insulting, but be blunt and straightforward about facts, risks, weaknesses, and problems whenever the user is asking for feedback, advice, or your opinion.
 
 You also receive a "Web Research Context". Treat this context as the only external live information you have for this reply. If it clearly contains a specific name, date, title, or fact that answers the user’s question, you can use it. If it does not contain a clear answer, or if it only has vague hints, you must say that you could not find a reliable answer instead of guessing.
+
+At the very end of your reply, if the Web Research Context is non-empty and you relied on it for your answer, add a section titled "Sources:" and list a numbered set of the most important URLs you actually used in this format:
+
+Sources:
+[1] URL - brief description
+[2] URL - brief description
+
+Use the URLs that appear in the Web Research Context when they are present, and make the links clickable if the client supports it. Do not invent or guess URLs, and do not list sources you did not actually use.
 
 For questions asking "who is", "what is", or "which person" for a specific award, title, or role in a specific year or place, you must not invent or guess names. Only state a person’s name if that exact name appears in the Web Research Context in a way that clearly matches the user’s question. If the sources disagree or nothing is clear, explain that the information is uncertain instead of picking a random name.
 

@@ -127,6 +127,7 @@ export class AstraEngine {
       'Treat vector search results as your factual grounding when they are present.',
       'If vectorResults is not empty, prefer its contents over your own prior knowledge for concrete facts.',
       'If vectorResults is empty, you must begin your answer with the exact phrase: "Based on general knowledge (no current data found)...", and then answer based on your own reasoning while clearly indicating uncertainty when appropriate.',
+      'For verifiable facts (capitals, simple math, historical dates, basic science), answer directly and confidently without hedging words like "likely", "probably", "I think", or "might be wrong". Only use uncertainty language when the fact is disputed, ambiguous, or not in your knowledge base.',
       'Always cite sources explicitly using their sourceTitle values when you rely on them.',
       `Current intent: ${classification.intent}`,
       `vectorResults: ${vectorBlock}`,
