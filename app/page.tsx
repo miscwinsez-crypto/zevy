@@ -2129,25 +2129,7 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
 
         reader.onload = async (ev: any) => {
           const rawData = ev.target.result as string
-          let preview: string | undefined
-
-          if (file.name.endsWith('.pdf')) {
-            preview = await extractPdfText(file)
-          } else if (file.name.endsWith('.txt')) {
-            preview = await file.text()
-          } else if (file.name.endsWith('.docx')) {
-            preview = await extractDocxText(file)
-          } else if (file.name.endsWith('.csv')) {
-            preview = await extractCsvText(file)
-          } else if (file.name.endsWith('.rtf')) {
-            preview = await extractRtfText(file)
-          } else if (file.name.endsWith('.md')) {
-            preview = await extractMarkdownText(file)
-          }
-
-          const contentData = typeof preview === 'string' && preview.length > 0 ? preview : rawData
-
-          // Determine file type
+          // Determine file type FIRST
           let fileType: 'pdf' | 'text' | 'docx' | 'csv' | 'rtf' | 'markdown' | 'image' = 'pdf'
           if (file.name.endsWith('.txt')) {
             fileType = 'text'
@@ -2161,6 +2143,32 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
             fileType = 'rtf'
           } else if (file.name.endsWith('.md')) {
             fileType = 'markdown'
+          } else if (file.type.startsWith('image/')) {
+            fileType = 'image'
+          }
+
+          // Extract content
+          let preview: string | undefined
+          if (fileType === 'pdf') {
+            preview = await extractPdfText(file)
+          } else if (fileType === 'text') {
+            preview = await file.text()
+          } else if (fileType === 'docx') {
+            preview = await extractDocxText(file)
+          } else if (fileType === 'csv') {
+            preview = await extractCsvText(file)
+          } else if (fileType === 'rtf') {
+            preview = await extractRtfText(file)
+          } else if (fileType === 'markdown') {
+            preview = await extractMarkdownText(file)
+          }
+
+          // Important: For text-based files, ensure we use the extracted text (preview) as data
+          // Raw data from readAsDataURL is base64 encoded, which is not what we want for text files
+          // For binary files like images, rawData (base64) is correct
+          let contentData = rawData
+          if (fileType !== 'image' && typeof preview === 'string' && preview.length > 0) {
+            contentData = preview
           }
 
           setAttachedFiles(prev => [...prev, {
