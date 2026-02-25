@@ -606,7 +606,16 @@ export class GroqCompound {
       }
     }
 
-    return userPrompt.length > 100 ? userPrompt.substring(0, 100) : userPrompt;
+    // Remove conversational filler and bot names for better search relevance
+    let cleanPrompt = userPrompt
+      .replace(/\b(zevy|axiom|vyra|astra)\b/gi, '')
+      .replace(/^(hey|hi|hello|ok|okay|please|can you|could you|tell me)\s+/i, '')
+      .replace(/\s+$/g, '');
+
+    // If we stripped too much, revert to original
+    if (cleanPrompt.length < 5) cleanPrompt = userPrompt;
+
+    return cleanPrompt.length > 400 ? cleanPrompt.substring(0, 400) : cleanPrompt;
   }
 
   private async analyzeContent(

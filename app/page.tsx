@@ -235,7 +235,14 @@ Guidelines:
 export default function ZevyCloudAI() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const palette = theme === 'dark' ? darkPalette : lightPalette;
-  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return localStorage.getItem('zevy_search_mode') === '1'
+    } catch {
+      return false
+    }
+  })
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showBetaNotice, setShowBetaNotice] = useState(false);
@@ -959,6 +966,15 @@ useEffect(() => {
     }
   }, [mode])
 
+useEffect(() => {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('zevy_search_mode', isSearchMode ? '1' : '0')
+    }
+  } catch {
+  }
+}, [isSearchMode])
+
   // Fix: Update messages from conversation
   useEffect(() => {
   if (allConversations.length > 0) {
@@ -1051,8 +1067,8 @@ useEffect(() => {
   }
 
   const autoRenameChat = (firstMessage: string) => {
-    const words = firstMessage.split(' ').slice(0, 3).join(' ')
-    const summary = words.length > 20 ? words.substring(0, 20) + '...' : words
+    const words = firstMessage.split(' ').slice(0, 8).join(' ')
+    const summary = words.length > 50 ? words.substring(0, 50) + '...' : words
     return summary.charAt(0).toUpperCase() + summary.slice(1) || 'New Chat'
   }
 
@@ -1281,7 +1297,9 @@ useEffect(() => {
       file.name.endsWith('.pdf')
     )
 
-    const actualMode = hasComplexFiles ? 'astra' : mode
+    const trimmedLower = baseText.trimStart().toLowerCase()
+    const isFlashcardOrQuiz = trimmedLower.startsWith('flashcards:') || trimmedLower.startsWith('quiz:')
+    const actualMode = (hasComplexFiles || isFlashcardOrQuiz) ? 'astra' : mode
 
     if (!auth.isOwner && usageStats) {
       const engine = (actualMode === 'vyra' ? 'vyra' : 'astra') as 'astra' | 'vyra'
@@ -1300,8 +1318,6 @@ useEffect(() => {
     let effectiveBaseText = baseText
 
     if (hasText) {
-      const trimmedLower = baseText.trimStart().toLowerCase()
-
       if (trimmedLower.startsWith('flashcards:')) {
         const topic = baseText.split(':').slice(1).join(':').trim() || 'this topic'
         effectiveBaseText = `You are an interactive tutor. Create a flashcard session to help me learn about "${topic}". Follow these rules:\n\n1. Start by confirming the topic in one short sentence.\n2. Then run a flashcard drill with around 8–12 cards.\n3. Ask ONE question at a time and wait for my answer before revealing the correct answer.\n4. When I answer, say whether I am correct, show the right answer, and give a short 1–2 sentence explanation.\n5. Keep track of how many I get right and, at the end, summarize my score and what I should review.\n6. For each question, label it clearly as "Card 1", "Card 2", etc.\n7. Do not show future questions or answers until I have answered the current card.`
@@ -1784,6 +1800,14 @@ Try:
 2. If it keeps failing, try a more focused version of the question`
         shouldRetry = true
         logDiagnostics('ERROR_GATEWAY_TIMEOUT', { status: 504 })
+      }
+      else if (error.response?.status === 400) {
+        // Content moderation refusal or bad request
+        const refusalMessage = error.response.data?.response || error.response.data?.message || 'Request refused by safety filters.'
+        errorContent = refusalMessage
+        setApiError('Request refused')
+        shouldRetry = false
+        logDiagnostics('ERROR_MODERATION_400', { message: refusalMessage })
       }
       else {
         errorContent = `[ERROR] Unexpected Error
@@ -3145,8 +3169,8 @@ Error: ${error.response?.data?.detail || error.message || 'Something went wrong'
                             {message.mode && (
                               <div className="text-xs mb-2 flex items-center gap-2" style={{ color: palette.subdued }}>
                                 <span>
-                                  {message.mode === 'astra' && '✦ Fast'}
-                                  {message.mode === 'vyra' && '✧ Deep'}
+                                  {message.mode === 'astra' && '✦ Astra Fast'}
+                                  {message.mode === 'vyra' && '✧ Vyra Deep'}
                                 </span>
                                 <span>•</span>
                                 <span>{formatTimestamp(message.timestamp)}</span>
