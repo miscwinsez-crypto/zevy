@@ -1,13 +1,13 @@
 ZEVY AI – FEATURE MAP (DETAILED)
-Last Updated: February 2026
+Last Updated: March 2026 (v2.0 "Unbreakable" Update)
 
 ============================================================
 1. CORE CHAT EXPERIENCE
 ============================================================
 
 - Dual engine intelligence:
-  - Astra – fast, research-focused assistant.
-  - Vyra – deep, debate-style reasoning engine.
+  - Astra – fast, research-focused assistant (now more confident on facts).
+  - Vyra – deep, debate-style reasoning engine (now more reliable).
 - Axiom Core persona:
   - Brutally honest, architect-style voice.
   - No fluff greetings; replies start with high-value insight.
@@ -30,16 +30,17 @@ Last Updated: February 2026
 
 - Multiple concurrent chats:
   - Sidebar listing of recent conversations.
-  - Ability to rename threads.
+  - Ability to rename threads (Smart truncation: first 8 words or 50 chars).
   - “New Chat” button for clean context.
 - History persistence:
   - Supabase-backed history for logged-in users.
   - LocalStorage-based history for guest users.
 - Smart follow-ups:
-  - “Check it”, “is that correct?”, “verify that” are resolved back to the previous topic or answer so Zevy actually re-checks the intended information.
-- Error handling:
-  - Inline error banners when calls fail.
-  - “Retry” button to replay the previous message.
+  - “Check it”, “is that correct?”, “verify that” are resolved back to the previous topic or answer.
+- Error handling (ENHANCED):
+  - Automatic retry logic (up to 2 retries) for transient API failures.
+  - Circuit breaker prevents server hangs during outages.
+  - Clear, specific error messages for moderation refusals or timeouts.
 
 
 ============================================================
@@ -47,166 +48,112 @@ Last Updated: February 2026
 ============================================================
 
 - Vector / Web Search toggle:
-  - When ON, Groq Compound runs for knowledge gathering (except for a few hard-coded, self-description answers).
-  - When OFF, Zevy relies only on its internal knowledge and reasoning.
+  - Persists state across sessions (remembers if you left it ON).
+  - When ON, Groq Compound runs for knowledge gathering.
+  - When OFF, Zevy relies on internal knowledge (with explicit "I might be wrong" caveats for volatile topics).
 - Source behavior:
-  - Astra:
-    - Focuses on ~10 of the most relevant web sources.
-    - Blends them with Wikipedia and other open-data checks.
-  - Vyra:
-    - Can aggregate up to ~100 web sources per topic.
-    - Deeply processes only 24–40 pages for speed/quality balance.
+  - Astra: ~10 primary sources, confident on stable facts (history, science).
+  - Vyra: Up to ~100 sources, deep reasoning, "savage" truth-seeking.
 - Knowledge types:
-  - Wikipedia articles and page content.
-  - Web results via search APIs.
-  - News articles (for recent events).
-  - Wikidata, DBpedia, and world time APIs.
+  - Wikipedia, Web search, News, Wikidata, DBpedia.
 - Research synthesis:
-  - Groq Compound builds a unified context string.
-  - Astra/Vyra then reason on top of this context with the Axiom Core persona.
+  - Cleaned search queries (removes conversational noise like "Hey Zevy").
+  - Sources cited in a structured "Sources:" section at the end of replies.
 
 
 ============================================================
-4. DOCUMENT AND FILE SUPPORT
+4. DOCUMENT AND FILE SUPPORT (HARDENED)
 ============================================================
 
-- File types:
-  - PDF (text-based).
-  - DOCX.
-  - TXT.
-  - RTF.
-  - Markdown (.md).
-  - CSV (for structured text data).
-- Frontend behaviour:
-  - Drag-and-drop or file picker.
-  - Extracts text from documents on the client side.
-  - Tracks uploadProgress per document.
-  - Blocks sending while documents are still processing.
-  - Shows notifications when files are ready or rejected.
-- Backend integration:
-  - Receives a documents array with { name, type, content }.
-  - Builds a single “Attached documents” context message.
-  - Adds that context into the chat history so the AI reads the file.
-- UX guarantees:
-  - Attachments are cleared after a successful send so it is obvious that the files are already part of context.
+- File types (Text-based only):
+  - PDF, DOCX, TXT, RTF, Markdown (.md), CSV.
+- Security & Validation:
+  - Strict 5MB file size limit per file.
+  - Explicit type checking (rejects binaries/images to prevent crashes).
+  - Browser-safe text extraction (no crashing on DOCX/PDF).
+  - Content sent as plain text (not base64) for perfect AI readability.
+- Context Window:
+  - Massive 24,000 character limit (approx 10-12 pages) for deep document analysis.
+- UX:
+  - Clear progress indicators.
+  - Warning notifications for unsupported files.
 
 
 ============================================================
-5. ANSWER FORMATTING AND TONE
+5. SECURITY AND MODERATION (NEW v2.0)
 ============================================================
 
-- Markdown rendering:
-  - Proper spacing and typography.
-  - Tables with header styling and row striping.
-  - Inline code and fenced code blocks.
-- Tone:
-  - Foundational and blunt, like a senior architect.
-  - Avoids small talk, filler intros, and generic “Hi!” greetings.
-  - First sentence always aims to deliver the main insight or framing.
-- Brutal truth:
-  - Default behaviour is to tell the most accurate and direct truth possible within safety constraints.
-  - No sugarcoating or fake reassurance for serious topics.
-- Humor:
-  - Supported but controlled:
-    - Dry wit, light sarcasm, mild dark humor (non-graphic).
-    - Never jokes about real suffering or protected groups.
+- Rate Limiting (Hardened):
+  - Uses IP Address + User Agent fingerprinting.
+  - Blocks brute-force login/signup attacks effectively.
+- Prompt Injection Protection:
+  - System prompt explicitly forbids revealing internal instructions ("Axiom", "Vyra", system prompt).
+  - Refuses attempts to "ignore previous instructions" to leak secrets.
+- Llama Guard Integration:
+  - Checks for illegal, violent, or self-harm content.
+  - Returns clear refusal messages to the user (no silent failures).
+- Circuit Breaker:
+  - Automatically trips if the AI service fails 5 times in a row.
+  - Resets after 1 minute.
+  - Prevents cascading failures and server hangs.
 
 
 ============================================================
-6. SAFETY AND MODERATION
-============================================================
-
-- Llama Guard 4-12b moderation:
-  - Checks prompts for:
-    - Illegal activity.
-    - Hate speech and harassment.
-    - Extreme violence.
-    - Self-harm and suicide.
-    - Explicit sexual content (especially involving minors).
-    - Privacy and sensitive data violations.
-  - Integrated at the entry of the chat route.
-- Context-aware relaxations:
-  - Lyrics and music queries treated as safe by default unless combined with severe signals.
-  - Figurative phrases like “this killed me” recognized as non-harmful in context.
-  - Legal / philosophical dilemmas are allowed.
-  - Non-graphic descriptive crime stories (e.g., Epstein files as stories, victim accounts) are allowed, as long as the user is not asking for “how to” instructions.
-- Hard blocks:
-  - Step-by-step self-harm instructions.
-  - Operational terror or violent crime planning.
-  - Child sexual abuse material.
-  - Doxxing or highly sensitive private data.
-
-
-============================================================
-7. USAGE LIMITS AND ACCOUNT FEATURES
+6. USAGE LIMITS AND ACCOUNT FEATURES
 ============================================================
 
 - Models:
-  - Astra: higher daily allowance (e.g., 125 uses).
-  - Vyra: lower daily allowance (e.g., 25 uses) due to higher cost/complexity.
+  - Astra: higher daily allowance.
+  - Vyra: lower daily allowance.
 - Tracking:
-  - Usage stored in Supabase per user and per day.
-  - Requests beyond limits are blocked with a user-facing message.
+  - Usage stored in Supabase per user/day.
+  - Limits enforced strictly.
 - Guest vs logged-in:
-  - Guests:
-    - No account; usage tracked locally and via limited backend mechanisms.
-  - Logged-in users:
-    - Persistent conversation history.
-    - Stored traits, mindsets, and preferences in Supabase.
+  - Guests: Limited usage, local history.
+  - Logged-in: Cloud history, higher limits, persistent preferences.
 
 
 ============================================================
-8. PERSONA, MINDSET, AND MODES
+7. PERSONA, MINDSET, AND MODES
 ============================================================
 
 - Axiom Core persona:
-  - Single-state mind; no multiple characters in front of the user.
-  - Brutally honest, reality-first.
-  - Empathy focused on real outcomes, not pity.
+  - Single-state mind; brutally honest, reality-first.
 - Mindset options:
-  - Balanced.
-  - Philosopher.
-  - Strategist.
-  - Storyteller.
-  - Other special modes as configured.
+  - Balanced, Philosopher, Strategist, Storyteller.
 - Beast Mode:
-  - Optional higher-intensity style.
-  - Philosophical, high-ego, and more confrontational in analysis.
-  - Still under safety rules; no encouragement of harm.
+  - High-intensity, philosophical, confrontational analysis.
+- Flashcards & Quiz Mode:
+  - Automatically forces "Astra" (Fast) model for instant speed.
+  - Prevents timeouts on simple interactive tasks.
 
 
 ============================================================
-9. UI AND INTERACTION FEATURES
+8. UI AND INTERACTION FEATURES
 ============================================================
 
 - Chat interface:
-  - Clean two-panel layout (sidebar + main chat).
-  - Smooth scrolling and message grouping.
-  - Inline tool buttons for presets and teaching tools.
+  - Clean two-panel layout.
+  - Clear model labels: "✦ Astra Fast" / "✧ Vyra Deep".
+  - Auto-scroll and smooth message streaming.
 - Teaching tools:
-  - Flashcards-style prompts.
-  - Quiz or drill-style prompts.
-  - These buttons send pre-structured prompts to the same chat backend.
+  - Flashcards and Quiz buttons (optimized for speed).
 - Visual design:
-  - Dark/light theme with custom palettes.
-  - Gradient hero sections and accent elements to keep the interface visually alive but not distracting.
+  - Dark/light theme.
+  - Responsive mobile design.
 
 
 ============================================================
-10. WHAT MAKES ZEVY DISTINCT
+9. WHAT MAKES ZEVY DISTINCT (v2.0)
 ============================================================
 
-- Explicit separation of layers:
-  - Axiom Core (persona).
-  - Astra/Vyra (reasoning).
-  - Groq Compound (knowledge gathering).
-  - Safety (Llama Guard + custom logic).
-- Designed to be:
-  - Less corporate in tone.
-  - More brutally honest in content.
-  - Still safe and respectful.
-- Strong document pipeline:
-  - Client-side text extraction.
-  - Guaranteed inclusion of documents in analysis before sending.
+- "Unbreakable" Reliability:
+  - Circuit breakers, auto-retries, and strict validation make it production-ready.
+- Deep Context:
+  - 24k character document window is significantly larger than standard chatbots.
+- Brutal Truth:
+  - Unapologetic focus on reality over comfort.
+- Separation of Concerns:
+  - Distinct layers for Persona, Reasoning, Knowledge, and Safety.
 
 End of Feature Map.
