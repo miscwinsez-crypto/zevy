@@ -1099,6 +1099,45 @@ Image generation is currently unavailable but may be added in future updates.`
 // Health check endpoint
 export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams
+    const history = searchParams.get('history')
+    const email = searchParams.get('email')
+
+    // If fetching history
+    if (history === '1' && email) {
+      const supabase = createRouteHandlerClient<Database>({ cookies })
+      
+      // Fetch conversations for this email
+      const { data: conversations, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('user_email', email)
+        .order('updated_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching history:', error)
+        return NextResponse.json({ conversations: [] }, { status: 500 })
+      }
+
+      // If no conversations found, return empty array
+      if (!conversations) {
+        return NextResponse.json({ conversations: [] })
+      }
+
+      // Format for frontend
+      const formattedConversations = conversations.map(conv => ({
+        id: conv.id,
+        messages: conv.messages,
+        name: (conv.messages as any[]).length > 0 
+          ? (conv.messages as any[])[0].content.substring(0, 50) 
+          : 'New Chat',
+        updatedAt: conv.updated_at
+      }))
+
+      return NextResponse.json({ conversations: formattedConversations })
+    }
+
+    // Health check logic (existing)
     if (process.env.NODE_ENV !== 'development') {
       assertVercelOnly()
       const envCheck = validateVercelEnv()
@@ -1841,13 +1880,87 @@ function resolveUserMessageForSearch(
   return `${userMessage}\n\n${prefix}${topicSource}`;
 }
 
+/**
+ * Validates request body structure
+ */
+function validateChatRequest(body: any): string | null {
+  if (!body || typeof body !== 'object') {
+    return "Invalid request body format (must be JSON object)"
+  }
+  if (!body.message || typeof body.message !== 'string') {
+    return "Field 'message' is required and must be a string"
+  }
+  if (body.message.trim().length === 0) {
+    return "Message cannot be empty"
+  }
+  if (body.chat_history && !Array.isArray(body.chat_history)) {
+    return "Field 'chat_history' must be an array"
+  }
+  if (body.documents && !Array.isArray(body.documents)) {
+    return "Field 'documents' must be an array"
+  }
+  return null
+}
+
+/**
+ * Circuit breaker state
+ */
+const GROQ_CIRCUIT = {
+  failures: 0,
+  lastFailure: 0,
+  isOpen: false
+}
+
+const CB_THRESHOLD = 5
+const CB_TIMEOUT = 60000 // 1 minute
+
+function checkCircuit() {
+  if (GROQ_CIRCUIT.isOpen) {
+    const now = Date.now()
+    if (now - GROQ_CIRCUIT.lastFailure > CB_TIMEOUT) {
+      GROQ_CIRCUIT.isOpen = false
+      GROQ_CIRCUIT.failures = 0
+      console.log('Groq circuit breaker RESET')
+    } else {
+      throw new Error('Service temporarily unavailable (Circuit Open)')
+    }
+  }
+}
+
+function recordFailure() {
+  GROQ_CIRCUIT.failures++
+  GROQ_CIRCUIT.lastFailure = Date.now()
+  if (GROQ_CIRCUIT.failures >= CB_THRESHOLD) {
+    GROQ_CIRCUIT.isOpen = true
+    console.error('Groq circuit breaker TRIPPED')
+  }
+}
+
+function recordSuccess() {
+  if (GROQ_CIRCUIT.failures > 0) {
+    GROQ_CIRCUIT.failures = Math.max(0, GROQ_CIRCUIT.failures - 1)
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies })
   const {
     data: { session }
   } = await supabase.auth.getSession()
-  const body = await req.json()
+  
+  let body
+  try {
+    body = await req.json()
+  } catch (e) {
+    return NextResponse.json({ response: "Invalid JSON in request body" }, { status: 400 })
+  }
+
+  const validationError = validateChatRequest(body)
+  if (validationError) {
+    return NextResponse.json({ response: validationError }, { status: 400 })
+  }
+
   let { chat_id } = body
 
   const {
@@ -1863,6 +1976,16 @@ export async function POST(req: NextRequest) {
     beastMode = false,
     documents = []
   } = body
+
+  // Check circuit breaker before doing heavy work
+  try {
+    checkCircuit()
+  } catch (cbError: any) {
+    return NextResponse.json(
+      { response: "The AI service is experiencing high load or temporary issues. Please try again in a minute." },
+      { status: 503 }
+    )
+  }
 
   const searchEnabled =
     typeof rawSearchEnabled === 'boolean'
@@ -1920,8 +2043,9 @@ export async function POST(req: NextRequest) {
       return `Document ${index + 1} (${name}):\n${content}`
     })
     documentsContext = parts.join('\n\n---\n\n')
-    if (documentsContext.length > 8000) {
-      documentsContext = documentsContext.slice(0, 8000)
+    // Increased context limit to 24k chars for modern models
+    if (documentsContext.length > 24000) {
+      documentsContext = documentsContext.slice(0, 24000) + "\n[Content truncated due to length limit]"
     }
   }
 
@@ -1960,6 +2084,7 @@ export async function POST(req: NextRequest) {
         mindset,
         false
       )
+      recordSuccess()
       const finalResponse = typeof harmfulResponse === 'string' ? harmfulResponse : "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       
       // For streaming, we need to format it as a Server-Sent Event
@@ -1976,6 +2101,7 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ response: finalResponse })
     } catch (error) {
+      recordFailure()
       console.error('Error generating harmful response:', error)
       const fallbackResponse = "I'm sorry, but I cannot assist with that topic. Please ask about something else."
       return NextResponse.json({ response: fallbackResponse })
@@ -1985,15 +2111,21 @@ export async function POST(req: NextRequest) {
   let aiResponse: string | ReadableStream = ''
 
   if (selectedModel === 'vyra-debate') {
-    const debateResponse = await generateVyraSmartDebate(
-      userMessage,
-      historyWithDocs,
-      stream,
-      current_time,
-      timezone,
-      searchEnabled
-    )
-    aiResponse = debateResponse
+    try {
+      const debateResponse = await generateVyraSmartDebate(
+        userMessage,
+        historyWithDocs,
+        stream,
+        current_time,
+        timezone,
+        searchEnabled
+      )
+      recordSuccess()
+      aiResponse = debateResponse
+    } catch (error) {
+      recordFailure()
+      throw error // Re-throw to be caught by main error handler
+    }
   } else if (searchEnabled) {
     const resolvedUserMessage = resolveUserMessageForSearch(userMessage, historyWithDocs);
 
@@ -2007,6 +2139,7 @@ export async function POST(req: NextRequest) {
         true
       )
     } catch (error) {
+      // Don't record failure here as web search is auxiliary, not core LLM
       console.error('GroqCompound browseAndAnalyze error:', error)
       browsingContext =
         'The web research engine had an internal error and could not load external web, news, or Wikipedia sources for this reply. Answer using your own knowledge and reasoning instead of live data.'
@@ -2050,8 +2183,10 @@ You do not have long-term memory. Never say that you will remember new facts for
         mindset,
         effectiveBeastMode
       )
+      recordSuccess()
       console.log(`Groq/Compound search completed for ${selectedModel} query: ${userMessage}`)
     } catch (error) {
+      recordFailure()
       console.error('Groq/Compound search error:', error)
       try {
         const fallbackPrompt = `The web research system had an internal error, so you cannot use external sources or live web data for this reply. Answer the user's question using only your existing knowledge and reasoning. If the question clearly needs fresh or very specific real-world information, give your best short guess, clearly say that you might be wrong, and gently suggest that they ask again later with search ON if they need a more certain, sourced answer.\n\nUser Question: ${resolvedUserMessage}\n\nPrevious Conversation:\n${historyWithDocs
@@ -2069,7 +2204,9 @@ You do not have long-term memory. Never say that you will remember new facts for
           mindset,
           effectiveBeastMode
         )
+        recordSuccess()
       } catch (fallbackError) {
+        recordFailure()
         console.error('Groq/Compound fallback error:', fallbackError)
         const message =
           (fallbackError as any)?.message && typeof (fallbackError as any).message === 'string'
@@ -2108,7 +2245,9 @@ You do not have long-term memory. Never say that you will remember new facts for
             mindset,
             effectiveBeastMode
           )
+          recordSuccess()
         } catch (error) {
+          recordFailure()
           console.error('Groq offline-guess error:', error)
           aiResponse =
             "I tried to answer from my own knowledge without using web search, but I hit an internal error. Please try again later, or turn search ON if you need a more certain, sourced answer."
@@ -2168,38 +2307,55 @@ You do not have long-term memory. Never say that you will remember new facts for
             ? `${contextualUserMessage}\n\n${contextBuilder.join('\n')}`
             : contextualUserMessage;
 
-        try {
-          aiResponse = await callGroq(
-            [
-              {
-                role: 'system',
-                content: SYSTEM_PROMPT(
-                  current_time,
-                  timezone,
-                  searchEnabled,
-                  normalizeMindset(mindset),
-                  effectiveBeastMode
-                )
-              },
-              ...formattedHistory,
-              {
-                role: 'user',
-                content: fullContext
-              }
-            ],
-            selectedModel,
-            stream,
-            current_time,
-            timezone,
-            contextualUserMessage,
-            searchEnabled,
-            mindset,
-            effectiveBeastMode
-          );
-        } catch (error) {
-          console.error('Groq chat error:', error)
-          aiResponse =
-            'The chat system hit an internal error while generating this answer. Please try again in a moment or start a new chat if it continues.'
+        // Retry logic for main chat
+        let retries = 2
+        let lastError: any
+        
+        while (retries >= 0) {
+          try {
+            aiResponse = await callGroq(
+              [
+                {
+                  role: 'system',
+                  content: SYSTEM_PROMPT(
+                    current_time,
+                    timezone,
+                    searchEnabled,
+                    normalizeMindset(mindset),
+                    effectiveBeastMode
+                  )
+                },
+                ...formattedHistory,
+                {
+                  role: 'user',
+                  content: fullContext
+                }
+              ],
+              selectedModel,
+              stream,
+              current_time,
+              timezone,
+              contextualUserMessage,
+              searchEnabled,
+              mindset,
+              effectiveBeastMode
+            );
+            recordSuccess()
+            break // Success
+          } catch (error) {
+            lastError = error
+            console.warn(`Groq chat attempt failed (${retries} retries left):`, error)
+            retries--
+            if (retries < 0) {
+              recordFailure()
+              console.error('All Groq chat retries failed:', lastError)
+              aiResponse =
+                'The chat system hit an internal error while generating this answer. Please try again in a moment or start a new chat if it continues.'
+            } else {
+              // Wait 1s before retry
+              await new Promise(resolve => setTimeout(resolve, 1000))
+            }
+          }
         }
       }
     }
