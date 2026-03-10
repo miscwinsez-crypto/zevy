@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseClient } from '@/app/lib/supabase'
 
-// Simple signup rate limiting
+// Rate limiting with IP + UA fingerprint
 const signupAttempts = new Map<string, { count: number; resetTime: number }>()
 
-const checkSignupRateLimit = (ip: string): boolean => {
+const checkSignupRateLimit = (ip: string, userAgent: string): boolean => {
+  const key = `${ip}:${userAgent || 'unknown'}`
   const now = Date.now()
-  const attempt = signupAttempts.get(ip)
+  const attempt = signupAttempts.get(key)
   
   if (!attempt || now > attempt.resetTime) {
-    signupAttempts.set(ip, { count: 1, resetTime: now + 60 * 60 * 1000 }) // 1 hour window
+    signupAttempts.set(key, { count: 1, resetTime: now + 60 * 60 * 1000 }) // 1 hour window
     return true
   }
   
   if (attempt.count >= 3) {
-    return false // Too many signups from same IP
+    return false // Too many signups
   }
   
   attempt.count++
@@ -22,8 +23,8 @@ const checkSignupRateLimit = (ip: string): boolean => {
 }
 
 const validatePassword = (password: string): { valid: boolean; error?: string } => {
-  if (password.length < 6) {
-    return { valid: false, error: 'Password must be at least 6 characters' }
+  if (password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters' }
   }
   return { valid: true }
 }
@@ -31,8 +32,9 @@ const validatePassword = (password: string): { valid: boolean; error?: string } 
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ua = request.headers.get('user-agent') || 'unknown'
     
-    if (!checkSignupRateLimit(ip)) {
+    if (!checkSignupRateLimit(ip, ua)) {
       return NextResponse.json(
         { detail: 'Too many signup attempts. Please try again later.' },
         { status: 429 }

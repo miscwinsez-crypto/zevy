@@ -8,15 +8,16 @@ const OWNER_EMAILS = [
   'azrulhadi@gmail.com'
 ].concat(nextPublicOwnerEmail ? [nextPublicOwnerEmail] : [])
 
-// Simple rate limiting (in production, use Redis)
+// Rate limiting with IP + UA fingerprint
 const loginAttempts = new Map<string, { count: number; resetTime: number }>()
 
-const checkRateLimit = (ip: string): boolean => {
+const checkRateLimit = (ip: string, userAgent: string): boolean => {
+  const key = `${ip}:${userAgent || 'unknown'}`
   const now = Date.now()
-  const attempt = loginAttempts.get(ip)
+  const attempt = loginAttempts.get(key)
   
   if (!attempt || now > attempt.resetTime) {
-    loginAttempts.set(ip, { count: 1, resetTime: now + 15 * 60 * 1000 }) // 15 min window
+    loginAttempts.set(key, { count: 1, resetTime: now + 15 * 60 * 1000 }) // 15 min window
     return true
   }
   
@@ -30,11 +31,10 @@ const checkRateLimit = (ip: string): boolean => {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get client IP for rate limiting
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ua = request.headers.get('user-agent') || 'unknown'
     
-    // Check rate limit
-    if (!checkRateLimit(ip)) {
+    if (!checkRateLimit(ip, ua)) {
       return NextResponse.json(
         { detail: 'Too many login attempts. Please try again later.' },
         { status: 429 }
